@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Bell, BookOpen, CalendarDays, ChevronDown, CircleDot, Compass, Heart, MapPin, Menu, MoreVertical, Scroll, Search, SlidersHorizontal, Sunrise, User, X } from 'lucide-react';
+import { AlertTriangle, Bell, BookOpen, CalendarDays, ChevronDown, CircleDot, Compass, Heart, MapPin, MapPinned, Menu, MoreVertical, Scroll, Search, SlidersHorizontal, Sunrise, User, X } from 'lucide-react';
 import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
 
@@ -464,14 +464,27 @@ export const HomeView: React.FC<HomeViewProps> = ({
   decoding="async"
   fetchPriority="high"
 />
-        
-        {/* Top actions */}
-        <div className="relative z-20 flex items-center justify-between px-4 pt-3">
+        { /* Top actions */ }
+<div className="relative z-20 flex items-center justify-between px-4 pt-3">
 
-          <button type="button" className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm" aria-label="Notifications" title="Notifications — coming soon">
-            <Bell size={21} />
-            <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-amber-300" />
-          </button>
+  <div className="flex items-center gap-2">
+    {/* Mosque map — full-screen live finder (Overpass + routing) */}
+    <button
+      type="button"
+      onClick={() => onNavigate('mosque-map')}
+      className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-transform active:scale-95"
+      aria-label="Mosque map"
+      title="Find mosques on the map"
+    >
+      <MapPinned size={20} />
+    </button>
+
+    <button type="button" className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm" aria-label="Notifications" title="Notifications — coming soon">
+      <Bell size={21} />
+      <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-amber-300" />
+    </button>
+  </div>
+        
 
           <div className="relative flex items-center gap-2">
             <button type="button" onClick={() => setHeaderMenuOpen(value => !value)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm" aria-label="Account options">
@@ -586,7 +599,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {/* مسجد کارڈ */}
           <div className="mx-4 bg-white rounded-lg shadow-[0_2px_10px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.03)] p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-emerald-700 font-bold cursor-pointer hover:underline" onClick={() => onNavigate('mosques')}>View all →</span>
+              <div className="flex items-center gap-3">
+  <span className="text-xs text-emerald-700 font-bold cursor-pointer hover:underline" onClick={() => onNavigate('mosques')}>View all →</span>
+  <span className="text-xs text-blue-700 font-bold cursor-pointer hover:underline" onClick={() => onNavigate('mosque-map')}> On Map</span>
+</div>
               <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-tight">
                 <Compass size={15} className="text-emerald-600" />
                 Nearby Mosques and Jumu’ah Times
