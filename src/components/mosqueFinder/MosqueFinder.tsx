@@ -358,14 +358,14 @@ export default function MosqueFinder({
     function currentMapBearing(): number {
       if (!rotateSupported) return 0;
       try {
-        // map.getBearing() براہ راست leaflet-rotate سے bearing لیتا ہے
-        // یہ CSS matrix کے sign مسئلے سے بالکل پاک ہے
+        // map.getBearing() leaflet-rotate کی اپنی value ہے
+        // clockwise = positive, CSS matrix sign مسئلہ نہیں
         const b = map.getBearing();
         if (typeof b === 'number' && isFinite(b)) {
-          mapBearing = b;
+          mapBearing = ((b % 360) + 360) % 360;
         }
       } catch {
-        // پرانی value رکھو اگر کچھ غلط ہو
+        // پرانی value رکھو
       }
       return mapBearing;
     }
@@ -381,7 +381,7 @@ export default function MosqueFinder({
     }
 
     // real-world heading → screen-space angle (compensates for map rotation).
-    // This is a one-way read of MAP BEARING; it never updates the heading state.
+    // map.getBearing() clockwise=positive, تو minus صحیح ہے
     function toScreenAngle(realHeading: number): number {
       return (((realHeading - currentMapBearing()) % 360) + 360) % 360;
     }
