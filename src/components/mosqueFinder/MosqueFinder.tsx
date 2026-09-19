@@ -539,7 +539,7 @@ export default function MosqueFinder({
       }
 
       if (h == null || isNaN(h)) return;
-      applyHeading((h + 360) % 360, 'device');
+      applyHeading((360 - h) % 360, 'device');
     }
     window.addEventListener('deviceorientationabsolute', onDeviceOrientation, true);
     window.addEventListener('deviceorientation', onDeviceOrientation, true);
@@ -1067,8 +1067,8 @@ export default function MosqueFinder({
       <div className="mf-user-cone" ref={coneRef}>
         <div className="mf-user-cone-rot" ref={coneRotRef}>
           <svg viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
-            <path d="M36 36 L20 63 A32 32 0 0 0 52 63 Z" fill="rgba(26,115,232,0.25)" />
-            <path d="M36 36 L27 57 A21 21 0 0 0 45 57 Z" fill="rgba(26,115,232,0.35)" />
+            <path d="M36 36 L20 9 A32 32 0 0 1 52 9 Z" fill="rgba(26,115,232,0.25)" />
+            <path d="M36 36 L27 15 A21 21 0 0 1 45 15 Z" fill="rgba(26,115,232,0.35)" />
           </svg>
         </div>
       </div>
