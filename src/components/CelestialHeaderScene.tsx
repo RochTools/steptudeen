@@ -508,7 +508,8 @@ const MOON_CENTER = 24;
 const MOON_RADIUS = 17;
 
 const getMoonLitPath = (illuminated: number) => {
-  const k = clamp(illuminated, 0, 1);
+  // minimum 0.08 تاکہ پہلے دن بھی پتلا crescent دکھے
+  const k = clamp(Math.max(illuminated, 0.08), 0, 1);
   const terminator = MOON_RADIUS * Math.abs(1 - 2 * k); // half-width of the terminator ellipse
   const gibbousSweep = k > 0.5 ? 1 : 0; // crescent: terminator bulges into the lit side
   const top = MOON_CENTER - MOON_RADIUS;
