@@ -343,7 +343,7 @@ export default function MosqueFinder({
     }
     function updateNavArrow(): void {
       if (!navMode || !navArrowEl) return;
-      const screenTarget = (((navArrowHeading() - currentMapBearing()) % 360) + 360) % 360;
+      const screenTarget = ((navArrowHeading() % 360) + 360) % 360;
       const cur = ((navHeadingDisp % 360) + 360) % 360;
       const delta = ((screenTarget - cur) + 540) % 360 - 180; // shortest way round the dial
       navHeadingDisp += delta;
@@ -379,7 +379,7 @@ export default function MosqueFinder({
     // appears reversed.
     function renderConeRotation(): void {
       if (!coneRotRef.current) return;
-      const screenTarget = ((lastTrueHeading - currentMapBearing()) % 360 + 360) % 360;
+      const screenTarget = (lastTrueHeading % 360 + 360) % 360;
       const cur = ((headingDisp % 360) + 360) % 360;
       const delta = ((screenTarget - cur) + 540) % 360 - 180;
       headingDisp += delta;
