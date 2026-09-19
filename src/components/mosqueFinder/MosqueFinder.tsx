@@ -455,7 +455,12 @@ export default function MosqueFinder({
       const screenTarget = toScreenAngle(navArrowHeading());
       const cur = ((headingDisp % 360) + 360) % 360;
       const delta = ((screenTarget - cur) + 540) % 360 - 180;
-      headingDisp += delta;
+      // U-turn یا بڑا turn → فوری snap، چھوٹا turn → smooth
+      if (Math.abs(delta) > 90) {
+        headingDisp = screenTarget;
+      } else {
+        headingDisp += delta * 0.35;
+      }
       writeOverlayRotation(coneRotRef.current, headingDisp);
     }
 
@@ -475,14 +480,20 @@ export default function MosqueFinder({
     }
 
     function onMapRotate(): void {
-      // The plugin writes the pane transform before firing `rotate` in its
-      // usual implementation. Snap now, then once more in the next frame for
-      // builds that publish the event before the computed style is refreshed.
-      snapMapOverlays();
+      // Step 1: refresh mapBearing from the actual CSS transform NOW
+      currentMapBearing();
+      // Step 2: immediately snap cone position + rotation + nav arrow
+      positionCone();
+      snapConeRotation();
+      snapNavArrow();
+      // Step 3: repeat in next frame — some browsers update computed style late
       cancelAnimationFrame(rotateSnapRaf);
       rotateSnapRaf = requestAnimationFrame(() => {
         rotateSnapRaf = 0;
-        snapMapOverlays();
+        currentMapBearing(); // fresh read again after frame paint
+        positionCone();
+        snapConeRotation();
+        snapNavArrow();
       });
     }
     map.on('move zoom', positionCone);
