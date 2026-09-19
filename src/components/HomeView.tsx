@@ -599,14 +599,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {/* مسجد کارڈ */}
           <div className="mx-4 bg-white rounded-lg shadow-[0_2px_10px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.03)] p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-  <span className="text-xs text-emerald-700 font-bold cursor-pointer hover:underline" onClick={() => onNavigate('mosques')}>View all →</span>
-  <span className="text-xs text-blue-700 font-bold cursor-pointer hover:underline" onClick={() => onNavigate('mosque-map')}> On Map</span>
-</div>
-              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-tight">
-                <Compass size={15} className="text-emerald-600" />
-                Nearby Mosques and Jumu’ah Times
+              <h3 className="text-[10px] font-bold text-slate-800 flex items-center gap-1 uppercase tracking-tight">
+                <Compass size={13} className="text-emerald-600 shrink-0" />
+                Nearby Mosques &amp; Jumu’ah
               </h3>
+              <div className="flex items-center gap-2">
+  <span className="text-[10px] text-emerald-700 font-bold cursor-pointer hover:underline" onClick={() => onNavigate('mosques')}>View all →</span>
+  <span className="text-[10px] text-blue-700 font-bold cursor-pointer hover:underline flex items-center gap-0.5" onClick={() => onNavigate('mosque-map')}><MapPinned size={11} /> On Map</span>
+</div>
             </div>
             {!userCoords ? (
               <div className="p-4 bg-slate-50 rounded-lg text-center space-y-2.5 shadow-[0_1px_6px_rgba(0,0,0,0.05)]">
