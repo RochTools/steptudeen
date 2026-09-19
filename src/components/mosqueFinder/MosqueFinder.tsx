@@ -432,11 +432,11 @@ export default function MosqueFinder({
         hasAbsolute.current = true;
       } else if (ev.type === 'deviceorientationabsolute' || (ev as any).absolute === true) {
         if (ev.alpha != null) {
-          h = (360 - ev.alpha) % 360; // Android absolute
+          h = ev.alpha % 360; // Android absolute
           hasAbsolute.current = true;
         }
       } else if (!hasAbsolute.current && ev.alpha != null) {
-        h = (360 - ev.alpha) % 360; // fallback
+        h = ev.alpha % 360; // fallback
       }
 
       if (h == null || isNaN(h)) return;
