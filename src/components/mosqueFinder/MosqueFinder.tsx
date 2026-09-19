@@ -376,9 +376,6 @@ export default function MosqueFinder({
           const inlineAngle = cssTransformAngle(pane.style.transform);
           const angle = computedAngle ?? inlineAngle;
           if (angle !== null) {
-            // leaflet-rotate rotates the pane in the OPPOSITE direction to the
-            // map bearing the user sees. Negate so toScreenAngle() subtracts
-            // the correct amount and the cone stays glued to the real world.
             mapBearing = -angle;
           }
         }
@@ -401,7 +398,7 @@ export default function MosqueFinder({
     // real-world heading → screen-space angle (compensates for map rotation).
     // This is a one-way read of MAP BEARING; it never updates the heading state.
     function toScreenAngle(realHeading: number): number {
-      return (((realHeading - currentMapBearing()) % 360) + 360) % 360;
+      return (((realHeading + currentMapBearing()) % 360) + 360) % 360;
     }
 
     function writeOverlayRotation(el: HTMLElement, degrees: number): void {
