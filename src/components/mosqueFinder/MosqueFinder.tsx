@@ -19,6 +19,11 @@
    destination even while the map is rotated. We read the actual on-screen
    bearing from the map pane's CSS matrix (sign-proof, works on every
    leaflet-rotate build) and snap the arrow on every 'rotate' event.
+
+   INPUT SEPARATION:
+   GPS position, CSS map bearing, device heading, and GPS travel heading are
+   independent. A map rotate event only re-renders screen-space overlays; it
+   never writes device/travel heading and never moves the GPS marker itself.
    ========================================================================== */
 import React, { useEffect, useRef, useState } from 'react';
 import * as L from 'leaflet';
@@ -146,6 +151,7 @@ export default function MosqueFinder({
     let markers: L.Marker[] = [];
     let results: MosqueResult[] = [];
     let currentCenter: { lat: number; lng: number } = { ...fallbackCenter };
+    // State 1: GPS position. This is the only source used to place the user.
     let userPos: { lat: number; lng: number; acc: number } | null = null;
     let activeRoute: ActiveRoute | null = null;
     let watchId: number | null = null;
@@ -156,14 +162,15 @@ export default function MosqueFinder({
     let navMode = false;
     let navArrowEl: HTMLElement | null = null;
     let navHeadingDisp = 0;
-    let gpsHeading: number | null = null;
-    let gpsHeadingAt = 0;
-    let lastFixPos: { lat: number; lng: number } | null = null;
+
+    // State 3: device/travel heading. A map gesture must never write to these.
+    let deviceHeading: number | null = null;
+    let deviceHeadingAt = 0;
+    let travelHeading: number | null = null;
+    let travelHeadingAt = 0;
 
     let headingDisp = 0;
-    let lastOrientTs = 0;
     let orientAsked = false;
-    let lastTrueHeading = 0;
 
     let glideRaf = 0;
     let compassRafPending = false;
@@ -319,7 +326,8 @@ export default function MosqueFinder({
     // CSS transforms are the source of truth here. `getBearing()` is not used
     // for compensation because some leaflet-rotate builds expose the opposite
     // sign from the transform they actually put on the pane.
-    let lastCssMapBearing = 0;
+    // State 2: the map's visual bearing, read only from its CSS transform.
+    let mapBearing = 0;
 
     function cssTransformAngle(transform: string): number | null {
       if (!transform || transform === 'none') return null;
@@ -368,45 +376,29 @@ export default function MosqueFinder({
           const inlineAngle = cssTransformAngle(pane.style.transform);
           const angle = computedAngle ?? inlineAngle;
           if (angle !== null) {
-            lastCssMapBearing = angle;
+            mapBearing = angle;
           }
         }
       } catch {
         // Keep the last CSS-derived value if a browser rejects a transform read.
       }
-      return lastCssMapBearing;
+      return mapBearing;
     }
 
     function navArrowHeading(): number {
-      // During navigation prefer the direction of travel over the phone's
-      // compass heading. This also fixes the "walking backwards / reverse
-      // direction" case where the phone is facing one way but GPS movement is
-      // going the other way.
-      if (activeRoute && gpsHeading !== null && Date.now() - gpsHeadingAt < 15000) return gpsHeading;
-      if (Date.now() - lastOrientTs < 5000) return lastTrueHeading;
-      if (gpsHeading !== null) return gpsHeading;
+      // Device orientation is preferred while it is fresh. Once it expires,
+      // GPS movement bearing is used as the travel direction. Neither value is
+      // ever read from, or overwritten by, map bearing.
+      if (deviceHeading !== null && Date.now() - deviceHeadingAt < 5000) return deviceHeading;
+      if (travelHeading !== null) return travelHeading;
       if (activeRoute) return bearingDeg(activeRoute.from.lat, activeRoute.from.lng, activeRoute.m.lat, activeRoute.m.lon);
-      return lastTrueHeading;
+      return 0;
     }
 
-    // real-world heading → screen-space angle (compensates for map rotation)
+    // real-world heading → screen-space angle (compensates for map rotation).
+    // This is a one-way read of MAP BEARING; it never updates the heading state.
     function toScreenAngle(realHeading: number): number {
       return (((realHeading - currentMapBearing()) % 360) + 360) % 360;
-    }
-
-    // Heading-up navigation: rotate the actual map so the current travel
-    // direction is at the top of the screen. This is deliberately driven by
-    // the same real-world heading used by the arrow, so both stay aligned.
-    function syncMapToNavigationHeading(realHeading?: number): void {
-      if (!rotateSupported || !activeRoute || !followMode) return;
-      const target = (((realHeading ?? navArrowHeading()) % 360) + 360) % 360;
-      const current = currentMapBearing();
-      const delta = ((target - current) + 540) % 360 - 180;
-      if (Math.abs(delta) > 0.75) {
-        // With screenAngle = realWorldHeading - mapBearing, setting the map
-        // bearing to the travel heading puts that heading at screen-up.
-        map.setBearing(target);
-      }
     }
 
     function writeOverlayRotation(el: HTMLElement, degrees: number): void {
@@ -447,7 +439,7 @@ export default function MosqueFinder({
       if (on) {
         cone?.classList.remove('mf-on');
         updateNavArrow();
-      } else if (lastOrientTs) {
+      } else if (deviceHeadingAt || travelHeadingAt) {
         cone?.classList.add('mf-on');
       }
     }
@@ -460,7 +452,7 @@ export default function MosqueFinder({
 
     function renderConeRotation(): void {
       if (!coneRotRef.current) return;
-      const screenTarget = toScreenAngle(lastTrueHeading);
+      const screenTarget = toScreenAngle(navArrowHeading());
       const cur = ((headingDisp % 360) + 360) % 360;
       const delta = ((screenTarget - cur) + 540) % 360 - 180;
       headingDisp += delta;
@@ -469,7 +461,7 @@ export default function MosqueFinder({
 
     function snapConeRotation(): void {
       if (!coneRotRef.current) return;
-      const t = toScreenAngle(lastTrueHeading);
+      const t = toScreenAngle(navArrowHeading());
       headingDisp = t;
       writeOverlayRotation(coneRotRef.current, t);
     }
@@ -496,8 +488,15 @@ export default function MosqueFinder({
     map.on('move zoom', positionCone);
     map.on('rotate', onMapRotate);
 
-    function applyHeading(h: number): void {
-      lastTrueHeading = (((h % 360) + 360) % 360);
+    function applyHeading(h: number, source: 'device' | 'travel'): void {
+      const heading = ((h % 360) + 360) % 360;
+      if (source === 'device') {
+        deviceHeading = heading;
+        deviceHeadingAt = Date.now();
+      } else {
+        travelHeading = heading;
+        travelHeadingAt = Date.now();
+      }
       renderConeRotation();
       if (!navMode) coneRef.current?.classList.add('mf-on');
       positionCone();
@@ -540,8 +539,7 @@ export default function MosqueFinder({
       }
 
       if (h == null || isNaN(h)) return;
-      lastOrientTs = Date.now();
-      applyHeading((h + 360) % 360);
+      applyHeading((h + 360) % 360, 'device');
     }
     window.addEventListener('deviceorientationabsolute', onDeviceOrientation, true);
     window.addEventListener('deviceorientation', onDeviceOrientation, true);
@@ -553,11 +551,6 @@ export default function MosqueFinder({
 
     function setUserPosition(lat: number, lng: number, accuracy: number): void {
       currentCenter = { lat, lng };
-      if (lastFixPos) {
-        const moved = getDistance(lastFixPos.lat, lastFixPos.lng, lat, lng);
-        if (moved > 4) gpsHeading = bearingDeg(lastFixPos.lat, lastFixPos.lng, lat, lng);
-      }
-      lastFixPos = { lat, lng };
       if (userMarker) {
         userMarker.setLatLng([lat, lng]);
       } else {
@@ -722,9 +715,6 @@ export default function MosqueFinder({
 
       activeRoute = { m, from: { lat: from.lat, lng: from.lng }, route, lastReroute: Date.now(), badge, badgeWarn };
       setNavMode(true);
-      // Start heading-up mode immediately. If no live heading exists yet,
-      // navArrowHeading() falls back to the route's initial bearing.
-      syncMapToNavigationHeading();
       showStatus('success', route.s === 'osrm' ? 'Road route is ready' : 'Straight-line distance shown', 2500);
     }
 
@@ -949,13 +939,10 @@ export default function MosqueFinder({
       userPos = { lat: latitude, lng: longitude, acc: accuracy };
 
       if (prev && moved >= 3) {
-        // GPS course is the real travel direction. Keep it even when the
-        // device-orientation sensor is available; the phone can face backwards
-        // while the user is moving forwards (or vice versa).
-        gpsHeading = bearingDeg(prev.lat, prev.lng, latitude, longitude);
-        gpsHeadingAt = Date.now();
-        applyHeading(gpsHeading);
-        syncMapToNavigationHeading(gpsHeading);
+        // GPS course is independent of map bearing. A map rotation must not
+        // look like a southward turn when the user is still moving north.
+        const course = bearingDeg(prev.lat, prev.lng, latitude, longitude);
+        applyHeading(course, 'travel');
       }
 
       if (!userMarker) {
