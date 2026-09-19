@@ -425,11 +425,18 @@ export default function App() {
     nav.goBack();
   }} />
 )}
-          {currentView === 'imam-login' && (
+
+              {currentView === 'mosque-map' && (
+  <div className="fixed inset-0 z-50 bg-white">
+    <MosqueFinder />
+  </div>
+)}
+              
+     {currentView === 'imam-login' && (
                 <ImamDashboard
-                  onAddOrUpdateMosque={mosques.handleAddOrUpdateMosque}
+                onAddOrUpdateMosque={mosques.handleAddOrUpdateMosque}
                   onDeleteMosque={mosques.handleDeleteMosque}
-                  mosques={mosques.mosques}
+                mosques={mosques.mosques}
                   userCoords={prayer.userCoords}
                   requestLocation={prayer.requestLocation}
                   isRealFirebase={realFirebaseActive}
