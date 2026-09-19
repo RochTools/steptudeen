@@ -12,6 +12,13 @@
    • Two-layer cache (memory + localStorage), TTL + quota-safe
    Works fine under <React.StrictMode> (double mount/unmount) and inside an
    RTL host app (the root forces LTR and scopes all its CSS under `.mf-root`).
+
+   NAV-ARROW DIRECTION (Google-Maps style):
+   The arrow is a screen-space CSS overlay. Its CSS rotation must equal
+   (realWorldHeading − mapBearing) so it always points to the real-world
+   destination even while the map is rotated. We read the actual on-screen
+   bearing from the map pane's CSS matrix (sign-proof, works on every
+   leaflet-rotate build) and snap the arrow on every 'rotate' event.
    ========================================================================== */
 import React, { useEffect, useRef, useState } from 'react';
 import * as L from 'leaflet';
@@ -53,15 +60,10 @@ import {
 import type { MosqueLite, MosqueResult, RouteData, StatusTone } from './types';
 
 export interface MosqueFinderProps {
-  /** extra class on the component root (e.g. for sizing inside a view) */
   className?: string;
-  /** where to sit until the first GPS fix / saved center (default: Karachi) */
   fallbackCenter?: { lat: number; lng: number };
-  /** cap of mosques shown per search — nearest N only (default 10, keeps the map fast) */
   maxResults?: number;
-  /** initial search radius in meters (default 5000) */
   defaultRadiusM?: number;
-  /** start geolocation watch immediately on mount (default true) */
   autoStartLocation?: boolean;
 }
 
@@ -95,7 +97,7 @@ interface Api {
 
 export default function MosqueFinder({
   className,
-  fallbackCenter = { lat: 24.8607, lng: 67.0011 }, // Karachi
+  fallbackCenter = { lat: 24.8607, lng: 67.0011 },
   maxResults = 10,
   defaultRadiusM = 5000,
   autoStartLocation = true,
@@ -108,9 +110,8 @@ export default function MosqueFinder({
   const compassArrowRef = useRef<SVGSVGElement>(null);
 
   const apiRef = useRef<Api | null>(null);
-  const radiusRef = useRef<number>(defaultRadiusM); // slider → findMosques (no state round-trip)
+  const radiusRef = useRef<number>(defaultRadiusM);
 
-  // ---- UI state (rendered by React) ----
   const [mosques, setMosques] = useState<MosqueResult[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [finding, setFinding] = useState(false);
@@ -123,8 +124,6 @@ export default function MosqueFinder({
   const [rotateOn, setRotateOn] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
-  // auto theme to match the OS (the standalone app was light-only; this plays
-  // nicer inside a host app while keeping the exact same look)
   useEffect(() => {
     const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
     if (!mq) return;
@@ -134,13 +133,11 @@ export default function MosqueFinder({
     return () => mq.removeEventListener?.('change', apply);
   }, []);
 
-  // ==================== the whole map app lives in one mount effect ====================
   useEffect(() => {
     let mounted = true;
 
     startupClean();
 
-    // ---------- mutable "globals" (were top-level lets in the HTML app) ----------
     let map: L.Map;
     let mosqueLayer: L.LayerGroup;
     let userMarker: MarkerGlide | null = null;
@@ -156,21 +153,17 @@ export default function MosqueFinder({
     let statusTimer: ReturnType<typeof setTimeout> | null = null;
     let hintTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // navigation (arrow) mode
     let navMode = false;
     let navArrowEl: HTMLElement | null = null;
     let navHeadingDisp = 0;
     let gpsHeading: number | null = null;
     let lastFixPos: { lat: number; lng: number } | null = null;
 
-    // heading / cone
     let headingDisp = 0;
     let lastOrientTs = 0;
     let orientAsked = false;
     let lastTrueHeading = 0;
-    let lastAbsTs = 0;
 
-    // rAF handles to cancel on unmount
     let glideRaf = 0;
     let compassRafPending = false;
     let bearingAnim = 0;
@@ -186,21 +179,20 @@ export default function MosqueFinder({
     })();
     if (savedCenter) currentCenter = { lat: savedCenter.lat, lng: savedCenter.lng };
 
-    // ---------- MAP (rotation enabled, with safe fallback) ----------
     const rotateSupported = typeof L.Map.prototype.setBearing === 'function';
     setRotateOn(rotateSupported);
 
     const mapOptions: L.MapOptions = {
       center: [currentCenter.lat, currentCenter.lng],
       zoom: 13,
-      zoomControl: false, // clean UI — zoom via pinch / scroll only
+      zoomControl: false,
     };
     if (rotateSupported) {
       Object.assign(mapOptions, {
         rotate: true,
-        touchRotate: true, // two-finger rotate
-        shiftKeyRotate: true, // shift + drag rotate
-        rotateControl: false, // we draw our own (draggable) compass
+        touchRotate: true,
+        shiftKeyRotate: true,
+        rotateControl: false,
         bearing: 0,
       });
     }
@@ -211,11 +203,6 @@ export default function MosqueFinder({
     }
 
     // ---------- LEAFLET-ROTATE ZOOM FIX ----------
-    // Plugin bug: during a two-finger pinch+twist, 'rotate' fires every frame and
-    // runs the vector renderer's full update — route lines slide off the road mid
-    // gesture and snap back at the end. Fix: defer the rotate-triggered update
-    // until moveend/zoomend whenever the map's zoom no longer matches the
-    // renderer's content state.
     if (rotateSupported) {
       (function guardPlugin() {
         function guardRenderer(renderer: unknown) {
@@ -231,7 +218,7 @@ export default function MosqueFinder({
             entry.fn = function (e?: unknown) {
               const rotMap = map as unknown as { _rotate?: boolean; _zoom?: number };
               if (rotMap._rotate && r._zoom !== undefined && rotMap._zoom !== r._zoom) {
-                return; // mid zoom-gesture: keep the rigid scale transform intact
+                return;
               }
               return orig.call(this, e);
             };
@@ -248,16 +235,12 @@ export default function MosqueFinder({
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      keepBuffer: 3, // pre-load tiles around viewport → smoother panning
+      keepBuffer: 3,
       attribution: '© OpenStreetMap',
     }).addTo(map);
 
     mosqueLayer = L.layerGroup().addTo(map);
 
-    // ---------- SIZE / CENTERING FIX ----------
-    // In an app shell the container's real size may not be final when L.map()
-    // runs (fonts, app bars, address-bar chrome). Force re-measures until things
-    // settle, plus a live ResizeObserver — Leaflet then never renders shifted.
     function fixMapSize(): void {
       if (mounted) map.invalidateSize({ pan: false });
     }
@@ -276,8 +259,6 @@ export default function MosqueFinder({
     ro.observe(mapDivRef.current as HTMLElement);
 
     // ---------- ICONS ----------
-    // Rasterized <img> pin (decode once, reuse bitmap while panning) — the
-    // divIcon + CSS-filter version was the original lag source on mobile.
     const mosqueIcon = L.icon({
       iconUrl: MOSQUE_PIN_URL,
       iconSize: [36, 46],
@@ -295,7 +276,6 @@ export default function MosqueFinder({
       iconAnchor: [36, 36],
       popupAnchor: [0, -14],
     });
-    // same anchor/size as the plain dot → the marker never "jumps" when swapping
     const userIconNav = L.divIcon({
       className: '',
       html: `<div class="mf-user-nav-wrap">
@@ -308,7 +288,6 @@ export default function MosqueFinder({
       popupAnchor: [0, -14],
     });
 
-    // ---------- STATUS TOAST ----------
     function showStatus(tone: StatusTone, msg: string, hideAfter = 0): void {
       if (!mounted) return;
       setStatus({ tone, msg });
@@ -316,8 +295,6 @@ export default function MosqueFinder({
       if (hideAfter) statusTimer = setTimeout(() => mounted && setStatus(null), hideAfter);
     }
 
-    // ---------- SIDEBAR / DRAWER (mobile-only: hidden until ☰, visibility
-    //            kills the zoom-out off-screen reveal — do not remove) ----------
     function openSidebar(): void {
       if (mounted) setSidebarOpen(true);
     }
@@ -325,30 +302,72 @@ export default function MosqueFinder({
       if (mounted) setSidebarOpen(false);
     }
 
-    // ---------- NAVIGATION ARROW (dot ⇄ arrow swap, driven by route state) ----------
+    // ==========================================================================
+    //  NAV-ARROW + CONE  →  Google-Maps behaviour
+    // --------------------------------------------------------------------------
+    //  screenRotation = realWorldHeading − mapBearing
+    //
+    //  • the arrow is a screen-space CSS overlay; when the map rotates, the
+    //    arrow must rotate by the SAME amount to stay glued to the road.
+    //  • `mapBearing` is read from the map pane's actual CSS matrix — this is
+    //    sign-proof (getBearing() returns the opposite sign on some builds,
+    //    which was flipping the arrow when the map was rotated).
+    //  • on every 'rotate' event we SNAP (no smoothing) so the arrow keeps up
+    //    with the gesture — smoothing would leave it lagging behind the road.
+    // ==========================================================================
     function currentMapBearing(): number {
       if (!rotateSupported) return 0;
       try {
+        const el = map.getContainer();
+        const pane =
+          el.querySelector<HTMLElement>('.leaflet-rotate-pane') ||
+          el.querySelector<HTMLElement>('.leaflet-map-pane');
+        if (pane) {
+          const t = getComputedStyle(pane).transform;
+          if (t && t !== 'none') {
+            const m = t.match(/matrix\(([^)]+)\)/);
+            if (m) {
+              const parts = m[1].split(',').map(parseFloat);
+              // matrix(a, b, c, d, e, f) → rotation = atan2(b, a)
+              return (Math.atan2(parts[1], parts[0]) * 180) / Math.PI;
+            }
+          }
+        }
         return map.getBearing() || 0;
       } catch {
         return 0;
       }
     }
-    // arrow faces: GPS movement direction only (compass removed — GPS is reliable on all phones)
+
     function navArrowHeading(): number {
+      if (Date.now() - lastOrientTs < 5000) return lastTrueHeading;
       if (gpsHeading !== null) return gpsHeading;
       if (activeRoute) return bearingDeg(activeRoute.from.lat, activeRoute.from.lng, activeRoute.m.lat, activeRoute.m.lon);
       return lastTrueHeading;
     }
+
+    // real-world heading → screen-space angle (compensates for map rotation)
+    function toScreenAngle(realHeading: number): number {
+      return (((realHeading - currentMapBearing()) % 360) + 360) % 360;
+    }
+
     function updateNavArrow(): void {
       if (!navMode || !navArrowEl) return;
-      // GPS heading minus map bearing = arrow stays fixed in real-world direction
-      const screenTarget = (((navArrowHeading() - currentMapBearing()) % 360) + 360) % 360;
+      const screenTarget = toScreenAngle(navArrowHeading());
       const cur = ((navHeadingDisp % 360) + 360) % 360;
       const delta = ((screenTarget - cur) + 540) % 360 - 180;
       navHeadingDisp += delta;
       navArrowEl.style.transform = `rotate(${navHeadingDisp}deg)`;
     }
+
+    // ← ARROW SNAP (used during an active rotate gesture)
+    function snapNavArrow(): void {
+      if (!navMode || !navArrowEl) return;
+      const t = toScreenAngle(navArrowHeading());
+      navHeadingDisp = t;
+      navArrowEl.style.transform = `rotate(${t}deg)`;
+    }
+
     function setNavMode(on: boolean): void {
       navMode = on;
       if (userMarker) {
@@ -360,36 +379,39 @@ export default function MosqueFinder({
       }
       const cone = coneRef.current;
       if (on) {
-        // the arrow itself shows direction → hide the translucent fan while navigating
         cone?.classList.remove('mf-on');
         updateNavArrow();
       } else if (lastOrientTs) {
-        cone?.classList.add('mf-on'); // restore the cone if the compass had been driving it
+        cone?.classList.add('mf-on');
       }
     }
 
-    // ---------- COMPASS CONE + HEADING ----------
     function positionCone(): void {
       if (!userMarker || !coneRef.current) return;
       const p = map.latLngToContainerPoint(userMarker.getLatLng());
       coneRef.current.style.transform = `translate(${p.x}px, ${p.y}px)`;
     }
-    // the cone is an independent overlay on screen, so when the map rotates its
-    // angle must be recomputed against the map bearing — otherwise the direction
-    // appears reversed.
+
     function renderConeRotation(): void {
       if (!coneRotRef.current) return;
-      // GPS heading minus map bearing = cone stays fixed in real-world direction
-      const screenTarget = ((lastTrueHeading - currentMapBearing()) % 360 + 360) % 360;
+      const screenTarget = toScreenAngle(lastTrueHeading);
       const cur = ((headingDisp % 360) + 360) % 360;
       const delta = ((screenTarget - cur) + 540) % 360 - 180;
       headingDisp += delta;
       coneRotRef.current.style.transform = `rotate(${headingDisp}deg)`;
     }
+
+    // ---------- the critical hook: keep the arrow glued to the road ----------
     function onMapRotate(): void {
       positionCone();
       renderConeRotation();
-      updateNavArrow(); // arrow must keep its real-world direction while the map twists
+      // snap arrow + cone — no smoothing, otherwise they lag behind the road
+      snapNavArrow();
+      if (!navMode && coneRotRef.current && lastOrientTs) {
+        const t = toScreenAngle(lastTrueHeading);
+        headingDisp = t;
+        coneRotRef.current.style.transform = `rotate(${t}deg)`;
+      }
     }
     map.on('move zoom', positionCone);
     map.on('rotate', onMapRotate);
@@ -397,13 +419,12 @@ export default function MosqueFinder({
     function applyHeading(h: number): void {
       lastTrueHeading = (((h % 360) + 360) % 360);
       renderConeRotation();
-      if (!navMode) coneRef.current?.classList.add('mf-on'); // during navigation the arrow shows direction instead
+      if (!navMode) coneRef.current?.classList.add('mf-on');
       positionCone();
       updateNavArrow();
     }
 
-    // posture-aware heading: phone lying flat → use the top edge; held upright
-    // (like a compass app) → use the screen direction; smooth blend between both
+    // posture-aware heading: phone flat → use top edge; upright → use screen dir
     function postureHeading(alpha: number, beta?: number | null, gamma?: number | null): number {
       const r = (d: number | null | undefined) => ((d || 0) * Math.PI) / 180;
       const a = r(alpha);
@@ -413,14 +434,13 @@ export default function MosqueFinder({
       const E = -(Math.cos(a) * Math.sin(g) + Math.sin(a) * Math.sin(b) * Math.cos(g));
       const N = Math.cos(a) * Math.sin(b) * Math.cos(g) - Math.sin(a) * Math.sin(g);
       const azZ = Math.atan2(E, N);
-      const w = Math.min(1, Math.max(0, ((beta || 0) - 30) / 30)); // 0 = flat, 1 = upright
+      const w = Math.min(1, Math.max(0, ((beta || 0) - 30) / 30));
       let d = azZ - azY;
       d = (((d % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
       const so = (screen.orientation && screen.orientation.angle) || (window as unknown as { orientation?: number }).orientation || 0;
       return ((((azY + d * w) * 180) / Math.PI + so) % 360 + 360) % 360;
     }
 
-    // ---------- DEVICE COMPASS (QiblaView سے ایک جیسا کوڈ) ----------
     const hasAbsolute = { current: false };
     type CompassOrientEvent = DeviceOrientationEvent & { webkitCompassHeading?: number };
     function onDeviceOrientation(e: Event): void {
@@ -428,16 +448,15 @@ export default function MosqueFinder({
       let h: number | null = null;
 
       if (typeof ev.webkitCompassHeading === 'number' && isFinite(ev.webkitCompassHeading)) {
-        // iOS — پہلے سے clockwise from north
         h = ev.webkitCompassHeading;
         hasAbsolute.current = true;
       } else if (ev.type === 'deviceorientationabsolute' || (ev as any).absolute === true) {
         if (ev.alpha != null) {
-          h = ev.alpha % 360; // Android absolute
+          h = ev.alpha % 360;
           hasAbsolute.current = true;
         }
       } else if (!hasAbsolute.current && ev.alpha != null) {
-        h = ev.alpha % 360; // fallback
+        h = ev.alpha % 360;
       }
 
       if (h == null || isNaN(h)) return;
@@ -447,7 +466,6 @@ export default function MosqueFinder({
     window.addEventListener('deviceorientationabsolute', onDeviceOrientation, true);
     window.addEventListener('deviceorientation', onDeviceOrientation, true);
 
-    // ---------- USER LOCATION ----------
     function setFollow(on: boolean): void {
       followMode = on;
       if (mounted) setFollowOn(on);
@@ -455,15 +473,9 @@ export default function MosqueFinder({
 
     function setUserPosition(lat: number, lng: number, accuracy: number): void {
       currentCenter = { lat, lng };
-      // movement direction between fixes → feeds the nav arrow when there's no compass
       if (lastFixPos) {
         const moved = getDistance(lastFixPos.lat, lastFixPos.lng, lat, lng);
-        if (moved > 4) {
-          gpsHeading = bearingDeg(lastFixPos.lat, lastFixPos.lng, lat, lng);
-          lastTrueHeading = gpsHeading;
-          renderConeRotation();
-          updateNavArrow();
-        }
+        if (moved > 4) gpsHeading = bearingDeg(lastFixPos.lat, lastFixPos.lng, lat, lng);
       }
       lastFixPos = { lat, lng };
       if (userMarker) {
@@ -539,7 +551,6 @@ export default function MosqueFinder({
               : ''),
         );
       }
-      // re-route silently after meaningful movement (throttled + cache-friendly)
       if (movedFromStart > 150 && Date.now() - activeRoute.lastReroute > 20000) {
         void rerouteSilently();
       }
@@ -557,7 +568,7 @@ export default function MosqueFinder({
           route = await fetchOSRMRoute(from, m);
           cacheSet(cacheKey, route);
         } catch {
-          return; // keep showing the old route if offline
+          return;
         }
       }
       if (!mounted || !activeRoute) return;
@@ -573,7 +584,6 @@ export default function MosqueFinder({
       updateRouteProgress();
     }
 
-    // ---------- ROUTE ----------
     async function drawRoute(m: MosqueResult): Promise<void> {
       if (!userMarker) {
         showStatus('error', 'Get your location first using the 📍 button', 3500);
@@ -598,7 +608,6 @@ export default function MosqueFinder({
             badge = 'Road Route (old cache)';
             badgeWarn = true;
           } else {
-            // straight-line fallback so the feature never dead-ends
             const d = getDistance(from.lat, from.lng, m.lat, m.lon);
             route = { d, t: null, c: null, s: 'straight' };
             badge = 'Straight Line (no route from server)';
@@ -612,7 +621,6 @@ export default function MosqueFinder({
         route.c && route.c.length > 1 ? route.c : ([[from.lat, from.lng], [m.lat, m.lon]] as [number, number][]);
 
       clearRouteLayers();
-      // casing + main line = smooth "navigation" look
       routeLines.push(L.polyline(coords, { color: '#0a3d2b', weight: 9, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map));
       routeLines.push(
         L.polyline(coords, {
@@ -633,7 +641,7 @@ export default function MosqueFinder({
       );
 
       activeRoute = { m, from: { lat: from.lat, lng: from.lng }, route, lastReroute: Date.now(), badge, badgeWarn };
-      setNavMode(true); // location dot → navigation arrow while the route runs
+      setNavMode(true);
       showStatus('success', route.s === 'osrm' ? 'Road route is ready' : 'Straight-line distance shown', 2500);
     }
 
@@ -641,11 +649,10 @@ export default function MosqueFinder({
       routeLines.forEach((l) => map.removeLayer(l));
       routeLines = [];
       activeRoute = null;
-      setNavMode(false); // navigation arrow → back to the normal location dot
+      setNavMode(false);
       if (mounted) setRouteBarHtml(null);
     }
 
-    // ---------- FIND MOSQUES (nearest N only) ----------
     async function findMosques(): Promise<void> {
       if (mounted) setFinding(true);
       mosqueLayer.clearLayers();
@@ -682,7 +689,7 @@ export default function MosqueFinder({
       const found: MosqueResult[] = list
         .map((m) => ({ ...m, distance: getDistance(lat, lng, m.lat, m.lon) }))
         .sort((a, b) => a.distance - b.distance)
-        .slice(0, Math.max(1, maxResults)); // nearest N only — map + list + routing share this set
+        .slice(0, Math.max(1, maxResults));
 
       results = found;
       setMosques(found);
@@ -726,7 +733,6 @@ export default function MosqueFinder({
       `;
     }
 
-    // route button inside popups
     map.on('popupopen', (e: L.PopupEvent) => {
       const el = e.popup.getElement ? e.popup.getElement() : null;
       if (!el) return;
@@ -741,7 +747,6 @@ export default function MosqueFinder({
       }
     });
 
-    // ---------- PLACE SEARCH (Nominatim, cached + debounced) ----------
     async function doSearch(q: string): Promise<void> {
       if (!q || q.trim().length < 2) return;
       const query = q.trim();
@@ -771,7 +776,7 @@ export default function MosqueFinder({
     }
     const debouncedSearch = debounce((v: string) => void doSearch(v), 400);
 
-    // ---------- COMPASS (drag to rotate + smooth north reset) ----------
+    // ---------- COMPASS ----------
     let updateCompass = (): void => undefined;
     if (rotateSupported && compassRef.current && compassArrowRef.current) {
       const compassEl = compassRef.current;
@@ -783,30 +788,22 @@ export default function MosqueFinder({
         hintTimer = setTimeout(() => mounted && setHintOn(false), 6000);
       }
 
-      // smooth arrow updates (rAF-throttled, no CSS transition = zero lag)
       updateCompass = (): void => {
         if (compassRafPending) return;
         compassRafPending = true;
         requestAnimationFrame(() => {
           compassRafPending = false;
-          let b = 0;
-          try {
-            b = map.getBearing() || 0;
-          } catch {
-            b = 0;
-          }
-          if (Number.isNaN(b)) b = 0;
+          const b = currentMapBearing();
           compassArrowEl.style.transform = `rotate(${-b}deg)`;
         });
       };
       map.on('rotate viewreset zoom move', updateCompass);
       updateCompass();
 
-      // smooth animated reset to north
       function animateBearingTo(target: number, duration: number): void {
         cancelAnimationFrame(bearingAnim);
         const start = map.getBearing();
-        let delta = (((target - start) % 360) + 540) % 360 - 180; // shortest direction
+        let delta = (((target - start) % 360) + 540) % 360 - 180;
         if (Math.abs(delta) < 0.5) {
           map.setBearing(target);
           updateCompass();
@@ -822,7 +819,6 @@ export default function MosqueFinder({
         bearingAnim = requestAnimationFrame(frame);
       }
 
-      // drag the compass with your finger / mouse to rotate the map
       let drag: { a0: number; b0: number; moved: number; t0: number } | null = null;
       const angleAt = (e: PointerEvent): number => {
         const r = compassEl.getBoundingClientRect();
@@ -840,16 +836,16 @@ export default function MosqueFinder({
       const onPointerMove = (e: PointerEvent): void => {
         if (!drag) return;
         let d = angleAt(e) - drag.a0;
-        d = ((d % 360) + 540) % 360 - 180; // wrap so crossing 180° stays stable
+        d = ((d % 360) + 540) % 360 - 180;
         if (Math.abs(d) > 2) drag.moved = Math.abs(d);
-        map.setBearing(drag.b0 - d); // needle follows the finger (plugin convention)
+        map.setBearing(drag.b0 - d);
       };
       const onPointerUp = (): void => {
         if (!drag) return;
         const wasTap = performance.now() - drag.t0 < 300 && !drag.moved;
         drag = null;
         compassEl.classList.remove('mf-grabbing');
-        if (wasTap) animateBearingTo(0, 450); // light tap → smooth return to north
+        if (wasTap) animateBearingTo(0, 450);
       };
       compassEl.addEventListener('pointerdown', onPointerDown);
       compassEl.addEventListener('pointermove', onPointerMove);
@@ -865,12 +861,10 @@ export default function MosqueFinder({
       let moved = 0;
       if (prev) {
         moved = getDistance(prev.lat, prev.lng, latitude, longitude);
-        // ignore GPS jitter: sub-1.5m "movement" with equal-or-worse accuracy
         if (moved < 1.5 && (accuracy || 1e9) >= (prev.acc || 0)) return;
       }
       userPos = { lat: latitude, lng: longitude, acc: accuracy };
 
-      // no compass on this device (e.g. desktop)? point the cone where we're walking
       if (prev && moved >= 3 && Date.now() - lastOrientTs > 4000) {
         applyHeading(bearingDeg(prev.lat, prev.lng, latitude, longitude));
       }
@@ -881,7 +875,6 @@ export default function MosqueFinder({
         showStatus('success', 'Location found — live tracking active', 2500);
       } else {
         animateUserTo(latitude, longitude, accuracy);
-        // auto-follow while navigating (stops when user pans the map manually)
         if (followMode && moved >= 5) {
           map.panTo([latitude, longitude], { animate: true, duration: 0.6 });
         }
@@ -895,8 +888,6 @@ export default function MosqueFinder({
         2: 'Position unavailable — type an area in the search box above',
         3: 'Location timed out — please try again',
       };
-      // Fatal errors (1/2) stop the watch permanently per Geolocation spec —
-      // clear watchId so the 📍 button can start a fresh attempt on next click.
       if (err.code === 1 || err.code === 2) watchId = null;
       showStatus('error', msgs[err.code] || 'Location not found: ' + (err.message || 'unknown error'), 4000);
     }
@@ -906,7 +897,7 @@ export default function MosqueFinder({
         showStatus('error', 'Browser does not support location', 3000);
         return;
       }
-      if (watchId !== null) return; // already tracking
+      if (watchId !== null) return;
       showStatus('loading', 'Getting your location...');
       watchId = navigator.geolocation.watchPosition(onWatchPosition, onWatchError, {
         enableHighAccuracy: true,
@@ -918,7 +909,6 @@ export default function MosqueFinder({
     function locateNow(): void {
       startLocationWatch();
       setFollow(true);
-      // iOS 13+: compass needs a user gesture to be permitted
       if (!orientAsked && typeof DeviceOrientationEvent !== 'undefined' &&
         typeof (DeviceOrientationEvent as unknown as { requestPermission?: unknown }).requestPermission === 'function') {
         orientAsked = true;
@@ -933,23 +923,19 @@ export default function MosqueFinder({
       }
     }
 
-    // panning the map by hand stops auto-follow (standard map-app behaviour)
     map.on('dragstart', () => setFollow(false));
 
-    // ---------- MAP CENTER TRACKING ----------
     map.on('moveend', () => {
       const c = map.getCenter();
       currentCenter = { lat: c.lat, lng: c.lng };
     });
 
-    // ---------- RADIUS (restore persisted preference; slider writes radiusRef) ----------
     const savedRadius = parseInt(prefGet('radius') || '', 10);
     if (Number.isFinite(savedRadius) && savedRadius >= 500 && savedRadius <= 15000 && savedRadius !== radiusRef.current) {
       radiusRef.current = savedRadius;
       setRadiusM(savedRadius);
     }
 
-    // ---------- EXPOSED API for the React layer ----------
     apiRef.current = {
       findMosques: () => void findMosques(),
       drawRoute: (m) => void drawRoute(m),
@@ -960,7 +946,6 @@ export default function MosqueFinder({
         if (!m) return;
         map.flyTo([m.lat, m.lon], 16, { duration: 0.9, easeLinearity: 0.25 });
         const mk = markers[idx];
-        // guard inside the timer too: a new search/unmount may have removed the marker by then
         if (mk) setTimeout(() => mounted && mk && map.hasLayer(mk) && mk.openPopup(), 650);
         closeSidebar();
       },
@@ -968,11 +953,9 @@ export default function MosqueFinder({
       locateNow,
     };
 
-    // ---------- STARTUP ----------
     setFollow(true);
     if (autoStartLocation) startLocationWatch();
 
-    // ---------- CLEANUP ----------
     return () => {
       mounted = false;
       window.removeEventListener('resize', onWinResize);
@@ -996,7 +979,6 @@ export default function MosqueFinder({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: the map app boots once per mount
   }, []);
 
-  // ==================== render ====================
   const sidebarCount = mosques.length
     ? `Nearest ${mosques.length} mosque${mosques.length > 1 ? 's' : ''} found`
     : 'No results';
@@ -1005,7 +987,6 @@ export default function MosqueFinder({
     <div ref={rootRef} className={cn('mf-root', className)} data-theme={theme}>
       <div ref={mapDivRef} className="mf-map" />
 
-      {/* compass fan overlay (independent of the map panes) */}
       <div className="mf-user-cone" ref={coneRef}>
         <div className="mf-user-cone-rot" ref={coneRotRef}>
           <svg viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
@@ -1015,13 +996,11 @@ export default function MosqueFinder({
         </div>
       </div>
 
-      {/* drawer backdrop */}
       <div
         className={cn('mf-sidebar-backdrop', sidebarOpen && 'mf-show')}
         onClick={() => apiRef.current?.openList(false)}
       />
 
-      {/* top bar: place search + in-pill ☰ list button */}
       <div className="mf-top-bar">
         <div className="mf-search-box">
           <Ico inner={ICON_SEARCH} />
@@ -1051,7 +1030,6 @@ export default function MosqueFinder({
         </div>
       </div>
 
-      {/* my-location FAB */}
       <button
         type="button"
         className={cn('mf-icon-btn', 'mf-loc-fab', followOn && 'mf-following')}
@@ -1061,7 +1039,6 @@ export default function MosqueFinder({
         <Ico inner={ICON_LOCATE} />
       </button>
 
-      {/* route bar (top) */}
       <div className={cn('mf-route-bar', routeBarHtml && 'mf-show')}>
         <div className="mf-info">
           <Ico inner={ICON_ROUTE_BADGE} />
@@ -1072,13 +1049,11 @@ export default function MosqueFinder({
         </button>
       </div>
 
-      {/* status toast (rides under the route bar when one is shown) */}
       <div className={cn('mf-status', status && 'mf-show', routeBarHtml && 'mf-below-route')}>
         {status && <Ico inner={status.tone === 'loading' ? ICON_LOADING : status.tone === 'success' ? ICON_SUCCESS : ICON_ERROR} />}
         {status && <span>{status.msg}</span>}
       </div>
 
-      {/* compass hint (base CSS is opacity:0 — .mf-show fades it in for 6s) */}
       <div className={cn('mf-compass-hint', hintOn && 'mf-show')}>
         Grab the compass with your finger and rotate • Light tap = face north • The map can also be rotated with two fingers
       </div>
@@ -1095,7 +1070,6 @@ export default function MosqueFinder({
         </svg>
       </div>
 
-      {/* radius + find */}
       <div className="mf-radius-panel">
         <div className="mf-radius-card">
           <div className="mf-radius-row">
@@ -1125,7 +1099,6 @@ export default function MosqueFinder({
         </div>
       </div>
 
-      {/* mosque list drawer — hidden until ☰, per mobile-only spec */}
       <aside className={cn('mf-sidebar', sidebarOpen && 'mf-open')}>
         <div className="mf-sidebar-header">
           <div>
