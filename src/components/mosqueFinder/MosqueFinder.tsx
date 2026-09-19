@@ -358,29 +358,14 @@ export default function MosqueFinder({
     function currentMapBearing(): number {
       if (!rotateSupported) return 0;
       try {
-        const container = map.getContainer();
-        const panes = map.getPanes() as unknown as {
-          rotatePane?: HTMLElement;
-          mapPane?: HTMLElement;
-        };
-        const pane =
-          panes.rotatePane ||
-          container.querySelector<HTMLElement>('.leaflet-rotate-pane') ||
-          panes.mapPane ||
-          container.querySelector<HTMLElement>('.leaflet-map-pane');
-
-        if (pane) {
-          // Read computed style first (this includes translate3d + rotate),
-          // then inline style as a fallback for older WebKit implementations.
-          const computedAngle = cssTransformAngle(getComputedStyle(pane).transform);
-          const inlineAngle = cssTransformAngle(pane.style.transform);
-          const angle = computedAngle ?? inlineAngle;
-          if (angle !== null) {
-            mapBearing = -angle;
-          }
+        // map.getBearing() براہ راست leaflet-rotate سے bearing لیتا ہے
+        // یہ CSS matrix کے sign مسئلے سے بالکل پاک ہے
+        const b = map.getBearing();
+        if (typeof b === 'number' && isFinite(b)) {
+          mapBearing = b;
         }
       } catch {
-        // Keep the last CSS-derived value if a browser rejects a transform read.
+        // پرانی value رکھو اگر کچھ غلط ہو
       }
       return mapBearing;
     }
@@ -398,7 +383,7 @@ export default function MosqueFinder({
     // real-world heading → screen-space angle (compensates for map rotation).
     // This is a one-way read of MAP BEARING; it never updates the heading state.
     function toScreenAngle(realHeading: number): number {
-      return (((realHeading + currentMapBearing()) % 360) + 360) % 360;
+      return (((realHeading - currentMapBearing()) % 360) + 360) % 360;
     }
 
     function writeOverlayRotation(el: HTMLElement, degrees: number): void {
