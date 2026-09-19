@@ -419,7 +419,32 @@ export default function MosqueFinder({
       return ((((azY + d * w) * 180) / Math.PI + so) % 360 + 360) % 360;
     }
 
-    // device compass removed — direction is taken from GPS movement only (works on all phones)
+    // ---------- DEVICE COMPASS (QiblaView سے ایک جیسا کوڈ) ----------
+    const hasAbsolute = { current: false };
+    type CompassOrientEvent = DeviceOrientationEvent & { webkitCompassHeading?: number };
+    function onDeviceOrientation(e: Event): void {
+      const ev = e as CompassOrientEvent;
+      let h: number | null = null;
+
+      if (typeof ev.webkitCompassHeading === 'number' && isFinite(ev.webkitCompassHeading)) {
+        // iOS — پہلے سے clockwise from north
+        h = ev.webkitCompassHeading;
+        hasAbsolute.current = true;
+      } else if (ev.type === 'deviceorientationabsolute' || (ev as any).absolute === true) {
+        if (ev.alpha != null) {
+          h = (360 - ev.alpha) % 360; // Android absolute
+          hasAbsolute.current = true;
+        }
+      } else if (!hasAbsolute.current && ev.alpha != null) {
+        h = (360 - ev.alpha) % 360; // fallback
+      }
+
+      if (h == null || isNaN(h)) return;
+      lastOrientTs = Date.now();
+      applyHeading((h + 360) % 360);
+    }
+    window.addEventListener('deviceorientationabsolute', onDeviceOrientation, true);
+    window.addEventListener('deviceorientation', onDeviceOrientation, true);
 
     // ---------- USER LOCATION ----------
     function setFollow(on: boolean): void {
@@ -432,10 +457,7 @@ export default function MosqueFinder({
       // movement direction between fixes → feeds the nav arrow when there's no compass
       if (lastFixPos) {
         const moved = getDistance(lastFixPos.lat, lastFixPos.lng, lat, lng);
-        if (moved > 4) {
-          gpsHeading = bearingDeg(lastFixPos.lat, lastFixPos.lng, lat, lng);
-          applyHeading(gpsHeading);
-        }
+        if (moved > 4) gpsHeading = bearingDeg(lastFixPos.lat, lastFixPos.lng, lat, lng);
       }
       lastFixPos = { lat, lng };
       if (userMarker) {
@@ -950,7 +972,8 @@ export default function MosqueFinder({
       window.removeEventListener('resize', onWinResize);
       window.removeEventListener('orientationchange', onOrientationChange);
       window.visualViewport?.removeEventListener('resize', fixMapSize);
-      // deviceorientation listeners removed (GPS-only mode)
+      window.removeEventListener('deviceorientationabsolute', onDeviceOrientation, true);
+      window.removeEventListener('deviceorientation', onDeviceOrientation, true);
       if (watchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId);
       if (userMarker?.__glide) cancelAnimationFrame(userMarker.__glide);
       cancelAnimationFrame(glideRaf);
