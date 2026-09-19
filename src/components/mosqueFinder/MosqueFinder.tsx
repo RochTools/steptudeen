@@ -315,28 +315,65 @@ export default function MosqueFinder({
     //  • on every 'rotate' event we SNAP (no smoothing) so the arrow keeps up
     //    with the gesture — smoothing would leave it lagging behind the road.
     // ==========================================================================
+    // CSS transforms are the source of truth here. `getBearing()` is not used
+    // for compensation because some leaflet-rotate builds expose the opposite
+    // sign from the transform they actually put on the pane.
+    let lastCssMapBearing = 0;
+
+    function cssTransformAngle(transform: string): number | null {
+      if (!transform || transform === 'none') return null;
+
+      // Chromium normally reports leaflet-rotate's translate3d(...) rotate(...)
+      // as matrix3d(...). The 2-D matrix form is used by other browsers/builds.
+      const matrix3d = transform.match(/^matrix3d\(([^)]+)\)$/);
+      if (matrix3d) {
+        const values = matrix3d[1].split(',').map((value) => Number(value.trim()));
+        if (values.length >= 6 && values.every(Number.isFinite)) {
+          // CSS matrix3d column 1 is [a, b, ...].
+          return (Math.atan2(values[1], values[0]) * 180) / Math.PI;
+        }
+      }
+
+      const matrix2d = transform.match(/^matrix\(([^)]+)\)$/);
+      if (matrix2d) {
+        const values = matrix2d[1].split(',').map((value) => Number(value.trim()));
+        if (values.length >= 2 && values.every(Number.isFinite)) {
+          // matrix(a, b, c, d, e, f) → rotation = atan2(b, a)
+          return (Math.atan2(values[1], values[0]) * 180) / Math.PI;
+        }
+      }
+
+      return null;
+    }
+
     function currentMapBearing(): number {
       if (!rotateSupported) return 0;
       try {
-        const el = map.getContainer();
+        const container = map.getContainer();
+        const panes = map.getPanes() as unknown as {
+          rotatePane?: HTMLElement;
+          mapPane?: HTMLElement;
+        };
         const pane =
-          el.querySelector<HTMLElement>('.leaflet-rotate-pane') ||
-          el.querySelector<HTMLElement>('.leaflet-map-pane');
+          panes.rotatePane ||
+          container.querySelector<HTMLElement>('.leaflet-rotate-pane') ||
+          panes.mapPane ||
+          container.querySelector<HTMLElement>('.leaflet-map-pane');
+
         if (pane) {
-          const t = getComputedStyle(pane).transform;
-          if (t && t !== 'none') {
-            const m = t.match(/matrix\(([^)]+)\)/);
-            if (m) {
-              const parts = m[1].split(',').map(parseFloat);
-              // matrix(a, b, c, d, e, f) → rotation = atan2(b, a)
-              return (Math.atan2(parts[1], parts[0]) * 180) / Math.PI;
-            }
+          // Read computed style first (this includes translate3d + rotate),
+          // then inline style as a fallback for older WebKit implementations.
+          const computedAngle = cssTransformAngle(getComputedStyle(pane).transform);
+          const inlineAngle = cssTransformAngle(pane.style.transform);
+          const angle = computedAngle ?? inlineAngle;
+          if (angle !== null) {
+            lastCssMapBearing = angle;
           }
         }
-        return map.getBearing() || 0;
       } catch {
-        return 0;
+        // Keep the last CSS-derived value if a browser rejects a transform read.
       }
+      return lastCssMapBearing;
     }
 
     function navArrowHeading(): number {
@@ -351,13 +388,21 @@ export default function MosqueFinder({
       return (((realHeading - currentMapBearing()) % 360) + 360) % 360;
     }
 
+    function writeOverlayRotation(el: HTMLElement, degrees: number): void {
+      // Do not let a stylesheet transition make the overlay trail a rotate
+      // gesture. Heading changes can still use the JS shortest-path update;
+      // every map-rotation update is an immediate write.
+      el.style.setProperty('transition', 'none', 'important');
+      el.style.transform = `rotate(${degrees}deg)`;
+    }
+
     function updateNavArrow(): void {
       if (!navMode || !navArrowEl) return;
       const screenTarget = toScreenAngle(navArrowHeading());
       const cur = ((navHeadingDisp % 360) + 360) % 360;
       const delta = ((screenTarget - cur) + 540) % 360 - 180;
       navHeadingDisp += delta;
-      navArrowEl.style.transform = `rotate(${navHeadingDisp}deg)`;
+      writeOverlayRotation(navArrowEl, navHeadingDisp);
     }
 
     // ← ARROW SNAP (used during an active rotate gesture)
@@ -365,7 +410,7 @@ export default function MosqueFinder({
       if (!navMode || !navArrowEl) return;
       const t = toScreenAngle(navArrowHeading());
       navHeadingDisp = t;
-      navArrowEl.style.transform = `rotate(${t}deg)`;
+      writeOverlayRotation(navArrowEl, t);
     }
 
     function setNavMode(on: boolean): void {
@@ -398,20 +443,34 @@ export default function MosqueFinder({
       const cur = ((headingDisp % 360) + 360) % 360;
       const delta = ((screenTarget - cur) + 540) % 360 - 180;
       headingDisp += delta;
-      coneRotRef.current.style.transform = `rotate(${headingDisp}deg)`;
+      writeOverlayRotation(coneRotRef.current, headingDisp);
     }
 
-    // ---------- the critical hook: keep the arrow glued to the road ----------
-    function onMapRotate(): void {
+    function snapConeRotation(): void {
+      if (!coneRotRef.current) return;
+      const t = toScreenAngle(lastTrueHeading);
+      headingDisp = t;
+      writeOverlayRotation(coneRotRef.current, t);
+    }
+
+    // ---------- the critical hook: keep the arrow and cone glued to the road ----------
+    let rotateSnapRaf = 0;
+    function snapMapOverlays(): void {
       positionCone();
-      renderConeRotation();
-      // snap arrow + cone — no smoothing, otherwise they lag behind the road
+      snapConeRotation();
       snapNavArrow();
-      if (!navMode && coneRotRef.current && lastOrientTs) {
-        const t = toScreenAngle(lastTrueHeading);
-        headingDisp = t;
-        coneRotRef.current.style.transform = `rotate(${t}deg)`;
-      }
+    }
+
+    function onMapRotate(): void {
+      // The plugin writes the pane transform before firing `rotate` in its
+      // usual implementation. Snap now, then once more in the next frame for
+      // builds that publish the event before the computed style is refreshed.
+      snapMapOverlays();
+      cancelAnimationFrame(rotateSnapRaf);
+      rotateSnapRaf = requestAnimationFrame(() => {
+        rotateSnapRaf = 0;
+        snapMapOverlays();
+      });
     }
     map.on('move zoom', positionCone);
     map.on('rotate', onMapRotate);
@@ -967,6 +1026,7 @@ export default function MosqueFinder({
       if (userMarker?.__glide) cancelAnimationFrame(userMarker.__glide);
       cancelAnimationFrame(glideRaf);
       cancelAnimationFrame(bearingAnim);
+      cancelAnimationFrame(rotateSnapRaf);
       if (statusTimer) clearTimeout(statusTimer);
       if (hintTimer) clearTimeout(hintTimer);
       clearTimeout(sizeT1);
