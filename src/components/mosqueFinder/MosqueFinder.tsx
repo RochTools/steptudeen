@@ -1,3 +1,18 @@
+/* ============================================================================
+   MosqueFinder — React component
+   Ported 1:1 from the standalone English LTR masjid-finder HTML app:
+   same logic, same design, same mobile-only behavior, same perf choices.
+
+   • Leaflet map (+ leaflet-rotate) driven imperatively inside one effect
+   • Overpass mosque search capped to the nearest N (default 10)
+   • OSRM road routes with cached/stale/straight-line fallbacks, live
+     "remaining" and silent re-route while moving
+   • Google-style user dot that becomes a NAVIGATION ARROW while a route runs
+   • Sidebar drawer that is fully hidden (visibility:hidden) until ☰ is tapped
+   • Two-layer cache (memory + localStorage), TTL + quota-safe
+   Works fine under <React.StrictMode> (double mount/unmount) and inside an
+   RTL host app (the root forces LTR and scopes all its CSS under `.mf-root`).
+   ========================================================================== */
 import React, { useEffect, useRef, useState } from 'react';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -362,10 +377,9 @@ export default function MosqueFinder({
     // the cone is an independent overlay on screen, so when the map rotates its
     // angle must be recomputed against the map bearing — otherwise the direction
     // appears reversed.
- function renderConeRotation(): void {
-  if (!coneRotRef.current) return;
-  const bearing = rotateSupported ? currentMapBearing() : 0;
-  const screenTarget = ((lastTrueHeading - bearing) % 360 + 360) % 360;
+    function renderConeRotation(): void {
+      if (!coneRotRef.current) return;
+      const screenTarget = ((lastTrueHeading - currentMapBearing()) % 360 + 360) % 360;
       const cur = ((headingDisp % 360) + 360) % 360;
       const delta = ((screenTarget - cur) + 540) % 360 - 180;
       headingDisp += delta;
@@ -376,8 +390,8 @@ export default function MosqueFinder({
       renderConeRotation();
       updateNavArrow(); // arrow must keep its real-world direction while the map twists
     }
-    map.on('move zoom rotate', positionCone);
-map.on('rotate', onMapRotate);
+    map.on('move zoom', positionCone);
+    map.on('rotate', onMapRotate);
 
     function applyHeading(h: number): void {
       lastTrueHeading = (((h % 360) + 360) % 360);
@@ -405,24 +419,7 @@ map.on('rotate', onMapRotate);
       return ((((azY + d * w) * 180) / Math.PI + so) % 360 + 360) % 360;
     }
 
-    type CompassOrientEvent = DeviceOrientationEvent & { webkitCompassHeading?: number };
-    function onDeviceOrientation(e: Event): void {
-      const ev = e as CompassOrientEvent;
-      let h: number | null = null;
-      if (typeof ev.webkitCompassHeading === 'number' && isFinite(ev.webkitCompassHeading)) {
-        h = ev.webkitCompassHeading; // iOS: already clockwise-from-north
-      } else if (ev.alpha != null && isFinite(ev.alpha)) {
-        const isAbs = ev.absolute === true || ev.type === 'deviceorientationabsolute';
-        if (isAbs) lastAbsTs = Date.now();
-        else if (Date.now() - lastAbsTs < 2000) return; // absolute events arriving → ignore drifting relative events
-        h = postureHeading(ev.alpha, ev.beta, ev.gamma);
-      }
-      if (h == null || isNaN(h)) return;
-      lastOrientTs = Date.now();
-      applyHeading((h + 360) % 360);
-    }
-    window.addEventListener('deviceorientationabsolute', onDeviceOrientation, true);
-    window.addEventListener('deviceorientation', onDeviceOrientation, true);
+    // device compass removed — direction is taken from GPS movement only (works on all phones)
 
     // ---------- USER LOCATION ----------
     function setFollow(on: boolean): void {
@@ -435,7 +432,10 @@ map.on('rotate', onMapRotate);
       // movement direction between fixes → feeds the nav arrow when there's no compass
       if (lastFixPos) {
         const moved = getDistance(lastFixPos.lat, lastFixPos.lng, lat, lng);
-        if (moved > 4) gpsHeading = bearingDeg(lastFixPos.lat, lastFixPos.lng, lat, lng);
+        if (moved > 4) {
+          gpsHeading = bearingDeg(lastFixPos.lat, lastFixPos.lng, lat, lng);
+          applyHeading(gpsHeading);
+        }
       }
       lastFixPos = { lat, lng };
       if (userMarker) {
@@ -950,8 +950,7 @@ map.on('rotate', onMapRotate);
       window.removeEventListener('resize', onWinResize);
       window.removeEventListener('orientationchange', onOrientationChange);
       window.visualViewport?.removeEventListener('resize', fixMapSize);
-      window.removeEventListener('deviceorientationabsolute', onDeviceOrientation, true);
-      window.removeEventListener('deviceorientation', onDeviceOrientation, true);
+      // deviceorientation listeners removed (GPS-only mode)
       if (watchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId);
       if (userMarker?.__glide) cancelAnimationFrame(userMarker.__glide);
       cancelAnimationFrame(glideRaf);
