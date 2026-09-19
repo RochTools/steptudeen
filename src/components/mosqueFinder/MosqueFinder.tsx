@@ -157,6 +157,7 @@ export default function MosqueFinder({
     let navArrowEl: HTMLElement | null = null;
     let navHeadingDisp = 0;
     let gpsHeading: number | null = null;
+    let gpsHeadingAt = 0;
     let lastFixPos: { lat: number; lng: number } | null = null;
 
     let headingDisp = 0;
@@ -377,6 +378,11 @@ export default function MosqueFinder({
     }
 
     function navArrowHeading(): number {
+      // During navigation prefer the direction of travel over the phone's
+      // compass heading. This also fixes the "walking backwards / reverse
+      // direction" case where the phone is facing one way but GPS movement is
+      // going the other way.
+      if (activeRoute && gpsHeading !== null && Date.now() - gpsHeadingAt < 15000) return gpsHeading;
       if (Date.now() - lastOrientTs < 5000) return lastTrueHeading;
       if (gpsHeading !== null) return gpsHeading;
       if (activeRoute) return bearingDeg(activeRoute.from.lat, activeRoute.from.lng, activeRoute.m.lat, activeRoute.m.lon);
@@ -386,6 +392,21 @@ export default function MosqueFinder({
     // real-world heading → screen-space angle (compensates for map rotation)
     function toScreenAngle(realHeading: number): number {
       return (((realHeading - currentMapBearing()) % 360) + 360) % 360;
+    }
+
+    // Heading-up navigation: rotate the actual map so the current travel
+    // direction is at the top of the screen. This is deliberately driven by
+    // the same real-world heading used by the arrow, so both stay aligned.
+    function syncMapToNavigationHeading(realHeading?: number): void {
+      if (!rotateSupported || !activeRoute || !followMode) return;
+      const target = (((realHeading ?? navArrowHeading()) % 360) + 360) % 360;
+      const current = currentMapBearing();
+      const delta = ((target - current) + 540) % 360 - 180;
+      if (Math.abs(delta) > 0.75) {
+        // With screenAngle = realWorldHeading - mapBearing, setting the map
+        // bearing to the travel heading puts that heading at screen-up.
+        map.setBearing(target);
+      }
     }
 
     function writeOverlayRotation(el: HTMLElement, degrees: number): void {
@@ -701,6 +722,9 @@ export default function MosqueFinder({
 
       activeRoute = { m, from: { lat: from.lat, lng: from.lng }, route, lastReroute: Date.now(), badge, badgeWarn };
       setNavMode(true);
+      // Start heading-up mode immediately. If no live heading exists yet,
+      // navArrowHeading() falls back to the route's initial bearing.
+      syncMapToNavigationHeading();
       showStatus('success', route.s === 'osrm' ? 'Road route is ready' : 'Straight-line distance shown', 2500);
     }
 
@@ -924,8 +948,14 @@ export default function MosqueFinder({
       }
       userPos = { lat: latitude, lng: longitude, acc: accuracy };
 
-      if (prev && moved >= 3 && Date.now() - lastOrientTs > 4000) {
-        applyHeading(bearingDeg(prev.lat, prev.lng, latitude, longitude));
+      if (prev && moved >= 3) {
+        // GPS course is the real travel direction. Keep it even when the
+        // device-orientation sensor is available; the phone can face backwards
+        // while the user is moving forwards (or vice versa).
+        gpsHeading = bearingDeg(prev.lat, prev.lng, latitude, longitude);
+        gpsHeadingAt = Date.now();
+        applyHeading(gpsHeading);
+        syncMapToNavigationHeading(gpsHeading);
       }
 
       if (!userMarker) {
