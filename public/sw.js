@@ -1,100 +1,88 @@
-// StepToDeen Service Worker — Optimized v3
-const CACHE_NAME = "steptudeen-v3";
-const STATIC_CACHE = "steptudeen-static-v4";
-const IMG_CACHE = "steptudeen-images-v4";
+// StepToDeen Service Worker — Offline v4
+const CACHE_NAME = 'steptudeen-v4';
 
-// FIX: Pre-cache these on install so first load is fast
-const PRECACHE_URLS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/offline.html',
-  '/mosque-bg.jpg',   // Hero image — cache immediately
-];
-
-// Card images — cache on first use, not install (saves install time)
-const IMAGE_EXTENSIONS = /\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i;
-
-importScripts('https://storage.googleapis.com/workbox-cdn/releases/5.1.2/workbox-sw.js');
-
-self.addEventListener("message", (event) => {
-  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
-});
-
-// ── Install: cache only essential files ──────────────────────────────────────
+// ── Install: cache essential files ──────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then(cache => cache.addAll(PRECACHE_URLS))
+    caches.open(CACHE_NAME).then(cache => cache.addAll([
+      '/',
+      '/index.html',
+      '/manifest.json',
+      '/icon-192.png',
+      '/offline.html',
+      '/mosque-bg.jpg',
+      '/mosque-header.webp',
+    ])).then(() => self.skipWaiting())
   );
-  self.skipWaiting(); // Activate immediately
 });
 
-// ── Activate: remove old cache ──────────────────────────────────────────────
+// ── Activate: remove old caches ─────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(k => ![CACHE_NAME, STATIC_CACHE, IMG_CACHE].includes(k))
-          .map(k => caches.delete(k))
-      )
-    )
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-if (workbox.navigationPreload.isSupported()) {
-  workbox.navigationPreload.enable();
-}
-
-// ── Fetch strategy ─────────────────────────────────────────────────────────
+// ── Fetch: cache-first for assets, network-first for navigation ──────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Navigation requests — network first, fallback to cache/offline
+  // صرف same-origin requests handle کریں
+  if (url.origin !== location.origin) return;
+
+  // Navigation (HTML pages) — network first, cache fallback
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(async () => {
-        const cache = await caches.open(STATIC_CACHE);
-        return (await cache.match('/index.html')) ||
-               (await cache.match('/offline.html'));
-      })
+      fetch(request)
+        .then(res => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(request, copy));
+          return res;
+        })
+        .catch(async () => {
+          const cached = await caches.match('/index.html');
+          return cached || caches.match('/offline.html');
+        })
     );
     return;
   }
 
-  // Images — cache-first (speeds up repeat visits dramatically)
-  if (IMAGE_EXTENSIONS.test(url.pathname)) {
+  // JS, CSS, images, fonts — cache first, network fallback
+  if (/\.(js|css|png|jpg|jpeg|webp|svg|woff2?|ico)(\?.*)?$/i.test(url.pathname)) {
     event.respondWith(
-      caches.open(IMG_CACHE).then(async cache => {
-        const cached = await cache.match(request);
+      caches.match(request).then(cached => {
         if (cached) return cached;
-        const fresh = await fetch(request);
-        if (fresh.ok) cache.put(request, fresh.clone());
-        return fresh;
-      })
-    );
-    return;
-  }
-
-  // Static assets (JS/CSS) — stale-while-revalidate
-  if (url.pathname.match(/\.(js|css|woff2?)(\?.*)?$/i)) {
-    event.respondWith(
-      caches.open(STATIC_CACHE).then(async cache => {
-        const cached = await cache.match(request);
-        const fetchPromise = fetch(request).then(res => {
-          if (res.ok) cache.put(request, res.clone());
+        return fetch(request).then(res => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, copy));
+          }
           return res;
         });
-        return cached || fetchPromise;
       })
     );
     return;
   }
 
-  // Everything else — network only (API calls etc.)
+  // Vite hashed assets (/assets/...) — cache first
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(request).then(cached => {
+        if (cached) return cached;
+        return fetch(request).then(res => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, copy));
+          }
+          return res;
+        });
+      })
+    );
+    return;
+  }
 });
 
 // ── Push Notifications ────────────────────────────────────────────────────────
@@ -115,14 +103,6 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(clients.openWindow(event.notification.data || '/'));
 });
 
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'prayer-times-sync') {
-    event.waitUntil(fetch('/manifest.json').catch(() => {}));
-  }
-});
-
-self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'daily-prayer-update') {
-    event.waitUntil(fetch('/manifest.json').catch(() => {}));
-  }
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
