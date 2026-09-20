@@ -1,5 +1,6 @@
-// StepToDeen Service Worker — Offline v4
-const CACHE_NAME = 'steptudeen-v4';
+// StepToDeen Service Worker — Offline v5
+const CACHE_NAME = 'steptudeen-v5';
+const CDN_CACHE = 'steptudeen-cdn-v5';
 
 // ── Install: cache essential files ──────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -20,17 +21,41 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+      Promise.all(
+        keys
+          .filter(k => k !== CACHE_NAME && k !== CDN_CACHE)
+          .map(k => caches.delete(k))
+      )
     ).then(() => self.clients.claim())
   );
 });
 
-// ── Fetch: cache-first for assets, network-first for navigation ──────────────
+// ── Fetch ────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // صرف same-origin requests handle کریں
+  // ✅ CDN (Quran/Hadith data) — cache first, network fallback
+  if (url.hostname === 'cdn.jsdelivr.net') {
+    event.respondWith(
+      caches.open(CDN_CACHE).then(cache =>
+        cache.match(request).then(cached => {
+          if (cached) return cached;
+          return fetch(request).then(res => {
+            if (res.ok) cache.put(request, res.clone());
+            return res;
+          }).catch(() => {
+            // Offline میں cached version واپس کریں
+            return cache.match(request);
+          });
+        })
+      )
+    );
+    return;
+  }
+
+  // باہر کی requests (Firebase, Maps, APIs) — network only
+  // offline ہو تو gracefully fail ہو
   if (url.origin !== location.origin) return;
 
   // Navigation (HTML pages) — network first, cache fallback
@@ -50,7 +75,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // JS, CSS, images, fonts — cache first, network fallback
+  // JS, CSS, images, fonts — cache first
   if (/\.(js|css|png|jpg|jpeg|webp|svg|woff2?|ico)(\?.*)?$/i.test(url.pathname)) {
     event.respondWith(
       caches.match(request).then(cached => {
