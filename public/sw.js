@@ -1,8 +1,11 @@
-// StepToDeen Service Worker — Offline v5
-const CACHE_NAME = 'steptudeen-v5';
-const CDN_CACHE = 'steptudeen-cdn-v5';
+// StepToDeen Service Worker — Offline v6
+const CACHE_NAME    = 'steptudeen-v6';
+const CDN_CACHE     = 'steptudeen-cdn-v6';
+const FONTS_CACHE   = 'steptudeen-fonts-v6';
 
-// ── Install: cache essential files ──────────────────────────────────────────
+const ALL_CACHES = [CACHE_NAME, CDN_CACHE, FONTS_CACHE];
+
+// ── Install: ضروری files cache کریں ─────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll([
@@ -10,20 +13,26 @@ self.addEventListener('install', (event) => {
       '/index.html',
       '/manifest.json',
       '/icon-192.png',
+      '/icon-512.png',
       '/offline.html',
       '/mosque-bg.jpg',
       '/mosque-header.webp',
+      '/namaz.png',
+      '/tasbeeh.jpg',
+      '/dua.jpg',
+      '/Hadith.jpg',
+      '/Quran.jpeg',
     ])).then(() => self.skipWaiting())
   );
 });
 
-// ── Activate: remove old caches ─────────────────────────────────────────────
+// ── Activate: پرانے caches صاف کریں ─────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(k => k !== CACHE_NAME && k !== CDN_CACHE)
+          .filter(k => !ALL_CACHES.includes(k))
           .map(k => caches.delete(k))
       )
     ).then(() => self.clients.claim())
@@ -35,7 +44,7 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // ✅ CDN (Quran/Hadith data) — cache first, network fallback
+  // ✅ 1. Quran/Hadith CDN — cache first
   if (url.hostname === 'cdn.jsdelivr.net') {
     event.respondWith(
       caches.open(CDN_CACHE).then(cache =>
@@ -44,21 +53,38 @@ self.addEventListener('fetch', (event) => {
           return fetch(request).then(res => {
             if (res.ok) cache.put(request, res.clone());
             return res;
-          }).catch(() => {
-            // Offline میں cached version واپس کریں
-            return cache.match(request);
-          });
+          }).catch(() => cache.match(request));
         })
       )
     );
     return;
   }
 
-  // باہر کی requests (Firebase, Maps, APIs) — network only
-  // offline ہو تو gracefully fail ہو
+  // ✅ 2. Google Fonts + FontAwesome — cache first
+  if (
+    url.hostname === 'fonts.googleapis.com' ||
+    url.hostname === 'fonts.gstatic.com' ||
+    url.hostname === 'cdnjs.cloudflare.com'
+  ) {
+    event.respondWith(
+      caches.open(FONTS_CACHE).then(cache =>
+        cache.match(request).then(cached => {
+          if (cached) return cached;
+          return fetch(request).then(res => {
+            if (res.ok) cache.put(request, res.clone());
+            return res;
+          }).catch(() => cached); // offline ہو تو cached font واپس کریں
+        })
+      )
+    );
+    return;
+  }
+
+  // باہر کی دوسری requests (Firebase, Maps, Prayer API)
+  // offline ہو تو gracefully fail — app crash نہ ہو
   if (url.origin !== location.origin) return;
 
-  // Navigation (HTML pages) — network first, cache fallback
+  // ✅ 3. Navigation (HTML pages) — network first, cache fallback
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -75,8 +101,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // JS, CSS, images, fonts — cache first
-  if (/\.(js|css|png|jpg|jpeg|webp|svg|woff2?|ico)(\?.*)?$/i.test(url.pathname)) {
+  // ✅ 4. Vite assets (/assets/...) — cache first
+  if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(request).then(cached => {
         if (cached) return cached;
@@ -92,8 +118,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Vite hashed assets (/assets/...) — cache first
-  if (url.pathname.startsWith('/assets/')) {
+  // ✅ 5. Images, CSS, JS, fonts (local) — cache first
+  if (/\.(js|css|png|jpg|jpeg|webp|svg|woff2?|ico)(\?.*)?$/i.test(url.pathname)) {
     event.respondWith(
       caches.match(request).then(cached => {
         if (cached) return cached;
@@ -113,14 +139,17 @@ self.addEventListener('fetch', (event) => {
 // ── Push Notifications ────────────────────────────────────────────────────────
 self.addEventListener('push', (event) => {
   const data = event.data?.json() || {};
-  event.waitUntil(self.registration.showNotification(data.title || 'StepTuDeen', {
-    body: data.body || 'namaz ka waqt ho gaya hai',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    dir: 'ltr', lang: 'en',
-    vibrate: [200, 100, 200],
-    data: data.url || '/'
-  }));
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'StepTuDeen', {
+      body: data.body || 'نماز کا وقت ہو گیا ہے',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      dir: 'rtl',
+      lang: 'ur',
+      vibrate: [200, 100, 200],
+      data: data.url || '/'
+    })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -128,6 +157,7 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(clients.openWindow(event.notification.data || '/'));
 });
 
+// ── Message (SKIP_WAITING) ────────────────────────────────────────────────────
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
