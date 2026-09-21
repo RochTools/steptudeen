@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   getLocalMosques,
   saveLocalMosque,
@@ -11,22 +11,62 @@ import {
 import { Mosque } from '../types';
 import { validateMosqueId, parseSavedMosques } from '../utils/mosqueHelpers';
 
+const MOSQUES_CACHE_KEY = 'steptudeen_mosques_cache';
+
+// ── Cache helpers ────────────────────────────────────────────────────────────
+const saveMosquesToCache = (list: Mosque[]) => {
+  try { localStorage.setItem(MOSQUES_CACHE_KEY, JSON.stringify(list)); } catch {}
+};
+
+const getMosquesFromCache = (): Mosque[] => {
+  try {
+    const raw = localStorage.getItem(MOSQUES_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+};
+
 export const useMosques = (
   realtimeDb: any,
   realFirebaseActive: boolean
 ) => {
-  const [mosques, setMosques] = useState<Mosque[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // ← نئی state
+  // ✅ offline ہو تو cache سے شروع کریں — loading فوری بند
+  const cachedMosques = getMosquesFromCache();
+
+  const [mosques, setMosquesState] = useState<Mosque[]>(cachedMosques);
+  const [isLoading, setIsLoading] = useState(cachedMosques.length === 0); // cache ہو تو loading نہیں
   const [selectedMosque, setSelectedMosque] = useState<Mosque | null>(null);
   const [savedPopupMosques, setSavedPopupMosques] = useState<string[]>(
     () => parseSavedMosques(localStorage.getItem('user_saved_mosques'))
   );
 
-  // ── setMosques wrapper جو loading بند کرے ──
+  // ── setMosques wrapper جو cache بھی save کرے ──
   const setMosquesAndStopLoading = useCallback((list: Mosque[]) => {
-    setMosques(list);
+    setMosquesState(list);
     setIsLoading(false);
+    saveMosquesToCache(list); // ✅ ہر بار cache update ہو
   }, []);
+
+  // ✅ Offline safety: اگر 8 سیکنڈ میں Firebase نہ آئے تو loading بند
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // ✅ Network واپس آئے تو refresh کریں
+  useEffect(() => {
+    const handleOnline = () => {
+      if (realFirebaseActive && realtimeDb) {
+        // App.tsx کا onSnapshot خود refresh کرے گا
+        console.log('Network back online ✅');
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [realFirebaseActive, realtimeDb]);
 
   // ============ ADD / UPDATE ============
   const handleAddOrUpdateMosque = useCallback(async (
@@ -43,12 +83,12 @@ export const useMosques = (
         }
       } catch (error) {
         console.error('Firestore save failed:', error);
-        setMosques(saveLocalMosque(freshMosque));
+        setMosquesAndStopLoading(saveLocalMosque(freshMosque));
       }
     } else {
-      setMosques(saveLocalMosque(freshMosque));
+      setMosquesAndStopLoading(saveLocalMosque(freshMosque));
     }
-  }, [realFirebaseActive, realtimeDb]);
+  }, [realFirebaseActive, realtimeDb, setMosquesAndStopLoading]);
 
   // ============ DELETE ============
   const handleDeleteMosque = useCallback(async (id: string) => {
@@ -57,12 +97,12 @@ export const useMosques = (
         await deleteDoc(doc(realtimeDb, 'mosques', id));
       } catch (error) {
         console.error('Firestore delete failed:', error);
-        setMosques(deleteLocalMosque(id));
+        setMosquesAndStopLoading(deleteLocalMosque(id));
       }
     } else {
-      setMosques(deleteLocalMosque(id));
+      setMosquesAndStopLoading(deleteLocalMosque(id));
     }
-  }, [realFirebaseActive, realtimeDb]);
+  }, [realFirebaseActive, realtimeDb, setMosquesAndStopLoading]);
 
   // ============ SAVE / UNSAVE ============
   const handleToggleSaveMosque = useCallback((mosque: Mosque) => {
@@ -112,7 +152,7 @@ export const useMosques = (
 
   return {
     mosques,
-    setMosques: setMosquesAndStopLoading, // ← wrapper return کریں
+    setMosques: setMosquesAndStopLoading,
     isLoading,
     setIsLoading,
     selectedMosque, setSelectedMosque,
