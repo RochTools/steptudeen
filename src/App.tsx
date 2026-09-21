@@ -40,6 +40,64 @@ const MosqueFinder = lazy(() => import('./components/mosqueFinder/MosqueFinder')
 import { Mosque } from './types';
 import { BookOpen, Scroll, Heart, Compass, Bell, X, MapPin } from 'lucide-react';
 import { formatTo12Hour } from './utils/timeHelpers';
+import { useJamaatTimes } from './hooks/useJamaatTimes';
+
+// ============ MOSQUE PRAYER GRID ============
+// جماعت کا وقت = آج کا API وقت + امام کا offset۔ روز خود اپڈیٹ ہوتا ہے۔
+// (الگ کمپوننٹ اس لیے کہ hook شرطی رینڈر کے اندر نہیں چل سکتا)
+const MosquePrayerGrid: React.FC<{ mosque: Mosque }> = ({ mosque }) => {
+  const { get, loading } = useJamaatTimes(mosque);
+
+  const row1: [string, string][] = [
+    ['Fajr', get('fajr')],
+    ['Dhuhr', get('zuhr')],
+    ['Asr', get('asr')],
+  ];
+  const row2: [string, string][] = [
+    ['Maghrib', get('maghrib')],
+    ['Isha', get('isha')],
+    ['Jumu’ah', mosque.jumah],
+  ];
+
+  return (
+    <div className="border-t border-slate-100 pt-3 space-y-2">
+      <div className="text-left text-[9px] text-slate-400 uppercase font-bold tracking-tight flex items-center gap-1.5">
+        Prayer Times
+        {loading && (
+          <span
+            className="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"
+            title="Updating today's times"
+          />
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 text-center">
+        {row1.map(([label, time]) => (
+          <div key={label} className="p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="text-[9px] text-slate-500">{label} congregation</div>
+            <div className="text-xs font-mono font-bold text-slate-800 mt-0.5">
+              {formatTo12Hour(time, '--:--')}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 text-center">
+        {row2.map(([label, time]) => (
+          <div
+            key={label}
+            className={`p-1.5 rounded-lg border ${label === 'Jumu’ah' ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-200'}`}
+          >
+            <div className={`text-[9px] ${label === 'Jumu’ah' ? 'text-emerald-800 font-bold' : 'text-slate-500'}`}>
+              {label} congregation
+            </div>
+            <div className={`text-xs font-mono font-bold mt-0.5 ${label === 'Jumu’ah' ? 'text-emerald-700' : 'text-slate-800'}`}>
+              {formatTo12Hour(time, '--:--')}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // ============ ERROR BOUNDARY ============
 class ErrorBoundary extends Component<
@@ -556,41 +614,7 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="border-t border-slate-100 pt-3 space-y-2">
-                    <div className="text-left text-[9px] text-slate-400 uppercase font-bold tracking-tight">
-                      Prayer Times
-                    </div>
-                    <div className="grid grid-cols-3 gap-1.5 text-center">
-                      {[
-                        ['Fajr', mosques.selectedMosque.fajr],
-                        ['Dhuhr', mosques.selectedMosque.zuhr],
-                        ['Asr', mosques.selectedMosque.asr],
-                      ].map(([label, time]) => (
-                        <div key={label} className="p-1.5 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="text-[9px] text-slate-500">{label} congregation</div>
-                          <div className="text-xs font-mono font-bold text-slate-800 mt-0.5">
-                            {formatTo12Hour(time as string, '--:--')}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-3 gap-1.5 text-center">
-                      {[
-                        ['Maghrib', mosques.selectedMosque.maghrib],
-                        ['Isha', mosques.selectedMosque.isha],
-                        ['Jumu’ah', mosques.selectedMosque.jumah],
-                      ].map(([label, time]) => (
-                        <div key={label} className={`p-1.5 rounded-lg border ${label === 'Jumu’ah' ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-200'}`}>
-                          <div className={`text-[9px] ${label === 'Jumu’ah' ? 'text-emerald-800 font-bold' : 'text-slate-500'}`}>
-                            {label} congregation
-                          </div>
-                          <div className={`text-xs font-mono font-bold mt-0.5 ${label === 'Jumu’ah' ? 'text-emerald-700' : 'text-slate-800'}`}>
-                            {formatTo12Hour(time as string, '--:--')}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <MosquePrayerGrid mosque={mosques.selectedMosque} />
 
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <button
