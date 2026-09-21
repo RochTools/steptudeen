@@ -113,12 +113,28 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', async () => {
+          let reg;
           try {
-            const reg = await navigator.serviceWorker.register('/sw.js');
+            // updateViaCache:'none' — sw.js ہمیشہ نیٹ ورک سے چیک ہو
+            reg = await navigator.serviceWorker.register('/sw.js', {
+              scope: '/',
+              updateViaCache: 'none'
+            });
             console.log('SW registered:', reg.scope);
-            if ('sync' in reg) {
-              await reg.sync.register('prayer-times-sync');
-            }
+          } catch (err) {
+            console.log('SW register error:', err);
+            return;
+          }
+
+          // ہر بار ایپ کھلنے پر نئے SW کی تلاش
+          reg.update().catch(() => {});
+
+          // Background sync — الگ try/catch تاکہ ناکامی سے registration متاثر نہ ہو
+          try {
+            if ('sync' in reg) await reg.sync.register('prayer-times-sync');
+          } catch (e) { /* اختیاری فیچر */ }
+
+          try {
             if ('periodicSync' in reg) {
               const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
               if (status.state === 'granted') {
@@ -127,9 +143,7 @@
                 });
               }
             }
-          } catch (err) {
-            console.log('SW error:', err);
-          }
+          } catch (e) { /* اختیاری فیچر */ }
         });
       }
     </script>
