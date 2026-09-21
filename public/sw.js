@@ -1,7 +1,7 @@
-// StepToDeen Service Worker — Offline v8
-const CACHE_NAME  = 'steptudeen-v8';
-const CDN_CACHE   = 'steptudeen-cdn-v8';
-const FONTS_CACHE = 'steptudeen-fonts-v8';
+// StepToDeen Service Worker — Offline v9
+const CACHE_NAME  = 'steptudeen-v9';
+const CDN_CACHE   = 'steptudeen-cdn-v9';
+const FONTS_CACHE = 'steptudeen-fonts-v9';
 
 const ALL_CACHES = [CACHE_NAME, CDN_CACHE, FONTS_CACHE];
 
@@ -13,7 +13,6 @@ self.addEventListener('install', (event) => {
       '/manifest.json',
       '/icon-192.png',
       '/icon-512.png',
-      '/offline.html',
       '/mosque-bg.jpg',
       '/mosque-header.webp',
       '/namaz.png',
@@ -43,9 +42,14 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // ✅ 1. Navigation — SW بالکل handle نہ کرے
-  // Cloudflare redirect خود browser کرے
-  if (request.mode === 'navigate') return;
+  // ✅ 1. Navigation — cache سے index.html دو
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      caches.match('/index.html')
+        .then(cached => cached || fetch(request))
+    );
+    return;
+  }
 
   // ✅ 2. Quran/Hadith CDN — cache first
   if (url.hostname === 'cdn.jsdelivr.net') {
@@ -96,7 +100,7 @@ self.addEventListener('fetch', (event) => {
             caches.open(CACHE_NAME).then(c => c.put(request, res.clone()));
           }
           return res;
-        }).catch(() => caches.match('/offline.html'));
+        });
       })
     );
     return;
