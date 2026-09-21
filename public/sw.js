@@ -1,7 +1,7 @@
-// StepToDeen Service Worker — Offline v9
-const CACHE_NAME  = 'steptudeen-v9';
-const CDN_CACHE   = 'steptudeen-cdn-v9';
-const FONTS_CACHE = 'steptudeen-fonts-v9';
+// StepToDeen Service Worker — Offline v10
+const CACHE_NAME  = 'steptudeen-v10';
+const CDN_CACHE   = 'steptudeen-cdn-v10';
+const FONTS_CACHE = 'steptudeen-fonts-v10';
 
 const ALL_CACHES = [CACHE_NAME, CDN_CACHE, FONTS_CACHE];
 
@@ -42,11 +42,21 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // ✅ 1. Navigation — cache سے index.html دو
+  // ✅ 1. Navigation — network first, offline میں cache سے
   if (request.mode === 'navigate') {
     event.respondWith(
-      caches.match('/index.html')
-        .then(cached => cached || fetch(request))
+      fetch(request)
+        .then(res => {
+          // Online — network سے لو اور cache update کرو
+          if (res.ok) {
+            caches.open(CACHE_NAME).then(c => c.put('/index.html', res.clone()));
+          }
+          return res;
+        })
+        .catch(() => {
+          // Offline — cache سے دو
+          return caches.match('/index.html');
+        })
     );
     return;
   }
