@@ -6,22 +6,13 @@ const FONTS_CACHE = 'steptudeen-fonts-v10';
 const ALL_CACHES = [CACHE_NAME, CDN_CACHE, FONTS_CACHE];
 
 // ── Install ──────────────────────────────────────────────────────────────────
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll([
-      '/index.html',
-      '/manifest.json',
-      '/icon-192.png',
-      '/icon-512.png',
-      '/mosque-bg.jpg',
-      '/mosque-header.webp',
-      '/namaz.png',
-      '/tasbeeh.jpg',
-      '/dua.jpg',
-      '/Hadith.jpg',
-      '/Quran.jpeg',
-    ])).then(() => self.skipWaiting())
-  );
+caches.open(CACHE_NAME).then(cache => cache.addAll([
+  '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/mosque-header.webp',
+])).then(() => self.skipWaiting())
 });
 
 // ── Activate ─────────────────────────────────────────────────────────────────
