@@ -1,15 +1,14 @@
-// StepToDeen Service Worker — Offline v6
-const CACHE_NAME    = 'steptudeen-v6';
-const CDN_CACHE     = 'steptudeen-cdn-v6';
-const FONTS_CACHE   = 'steptudeen-fonts-v6';
+// StepToDeen Service Worker — Offline v7
+const CACHE_NAME    = 'steptudeen-v7';
+const CDN_CACHE     = 'steptudeen-cdn-v7';
+const FONTS_CACHE   = 'steptudeen-fonts-v7';
 
 const ALL_CACHES = [CACHE_NAME, CDN_CACHE, FONTS_CACHE];
 
-// ── Install: ضروری files cache کریں ─────────────────────────────────────────
+// ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll([
-      '/',
       '/index.html',
       '/manifest.json',
       '/icon-192.png',
@@ -26,7 +25,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// ── Activate: پرانے caches صاف کریں ─────────────────────────────────────────
+// ── Activate ─────────────────────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -50,7 +49,7 @@ self.addEventListener('fetch', (event) => {
       caches.open(CDN_CACHE).then(cache =>
         cache.match(request).then(cached => {
           if (cached) return cached;
-          return fetch(request).then(res => {
+          return fetch(request, { redirect: 'follow' }).then(res => {
             if (res.ok) cache.put(request, res.clone());
             return res;
           }).catch(() => cache.match(request));
@@ -70,10 +69,10 @@ self.addEventListener('fetch', (event) => {
       caches.open(FONTS_CACHE).then(cache =>
         cache.match(request).then(cached => {
           if (cached) return cached;
-          return fetch(request).then(res => {
+          return fetch(request, { redirect: 'follow' }).then(res => {
             if (res.ok) cache.put(request, res.clone());
             return res;
-          }).catch(() => cached); // offline ہو تو cached font واپس کریں
+          }).catch(() => cached);
         })
       )
     );
@@ -81,19 +80,22 @@ self.addEventListener('fetch', (event) => {
   }
 
   // باہر کی دوسری requests (Firebase, Maps, Prayer API)
-  // offline ہو تو gracefully fail — app crash نہ ہو
   if (url.origin !== location.origin) return;
 
-  // ✅ 3. Navigation (HTML pages) — network first, cache fallback
+  // ✅ 3. Navigation — redirect follow کریں
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { redirect: 'follow' })
         .then(res => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then(c => c.put(request, copy));
+          // صرف ok response cache کریں redirect نہیں
+          if (res.ok && res.type !== 'opaqueredirect') {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, copy));
+          }
           return res;
         })
         .catch(async () => {
+          // Offline — cache سے دیں
           const cached = await caches.match('/index.html');
           return cached || caches.match('/offline.html');
         })
@@ -106,7 +108,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(request).then(cached => {
         if (cached) return cached;
-        return fetch(request).then(res => {
+        return fetch(request, { redirect: 'follow' }).then(res => {
           if (res.ok) {
             const copy = res.clone();
             caches.open(CACHE_NAME).then(c => c.put(request, copy));
@@ -123,7 +125,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(request).then(cached => {
         if (cached) return cached;
-        return fetch(request).then(res => {
+        return fetch(request, { redirect: 'follow' }).then(res => {
           if (res.ok) {
             const copy = res.clone();
             caches.open(CACHE_NAME).then(c => c.put(request, copy));
@@ -157,7 +159,7 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(clients.openWindow(event.notification.data || '/'));
 });
 
-// ── Message (SKIP_WAITING) ────────────────────────────────────────────────────
+// ── Message ───────────────────────────────────────────────────────────────────
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
