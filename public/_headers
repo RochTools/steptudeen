@@ -1,0 +1,18 @@
+# Cloudflare Workers Static Assets — یہ فائل build کے ساتھ dist/ میں کاپی ہوتی ہے
+# Service Worker کو browser کبھی cache نہ کرے، ورنہ اپڈیٹس نہیں پہنچتیں
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Service-Worker-Allowed: /
+
+/firebase-messaging-sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/index.html
+  Cache-Control: no-cache
+
+/manifest.json
+  Cache-Control: no-cache
+
+# Vite کی hashed فائلیں — نام بدلتا ہے اس لیے سالوں کے لیے cache محفوظ ہے
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
