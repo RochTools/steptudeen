@@ -72,7 +72,15 @@ export const useMosques = (
   const handleAddOrUpdateMosque = useCallback(async (
     data: Omit<Mosque, 'id' | 'updatedAt'> & { id?: string }
   ) => {
-    const freshMosque = { ...data, updatedAt: new Date().toISOString() };
+    // ✅ Firestore rules چیک کرتے ہیں: request.resource.data.ownerId == request.auth.uid
+    // ImamDashboard صرف imamUid بھیجتا ہے (جو دراصل Firebase Auth کا وہی uid ہے)،
+    // اس لیے یہاں ownerId خود بھر دیتے ہیں تاکہ rules سے میل کھائے۔
+    // imamUid کو بھی ساتھ رکھا ہے تاکہ باقی جگہ استعمال ہونے والا کوڈ نہ ٹوٹے۔
+    const freshMosque = {
+      ...data,
+      ownerId: (data as any).imamUid || (data as any).ownerId,
+      updatedAt: new Date().toISOString(),
+    };
     if (realFirebaseActive && realtimeDb) {
       try {
         const { id, ...firestoreData } = freshMosque;
@@ -82,8 +90,11 @@ export const useMosques = (
           await addDoc(collection(realtimeDb, 'mosques'), firestoreData);
         }
       } catch (error) {
+        // ✅ صرف localStorage میں رکھ کر خاموش نہ ہوں — بلانے والے کو بھی بتائیں
+        // (ورنہ ImamDashboard جھوٹی "کامیابی" دکھاتا رہتا ہے جبکہ Firestore نے رد کیا ہو)
         console.error('Firestore save failed:', error);
         setMosquesAndStopLoading(saveLocalMosque(freshMosque));
+        throw error;
       }
     } else {
       setMosquesAndStopLoading(saveLocalMosque(freshMosque));
