@@ -750,7 +750,7 @@ export default function MosqueFinder({
             list = stale;
             srcLabel = ' (offline cache)';
           } else {
-            showStatus('error', 'Error: check your internet connection or the server', 4000);
+            showStatus('error', 'Mosque search servers are busy right now — please try again in a moment', 4000);
             if (mounted) setFinding(false);
             return;
           }
