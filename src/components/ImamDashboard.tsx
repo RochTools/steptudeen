@@ -586,15 +586,17 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     const finalMaghrib = getJamaatTime('maghrib', maghribOffset) || '19:05';
     const finalIsha = getJamaatTime('isha', ishaOffset) || '20:30';
 
-    setTimeout(() => {
+    setTimeout(async () => {
       // ✅ انٹروال کلئیر کریں
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
         countdownIntervalRef.current = null;
       }
-      
+
       try {
-        onAddOrUpdateMosque({
+        // ✅ await لازمی — ورنہ Firestore کے جواب کا انتظار کیے بغیر
+        // "کامیابی" دکھا دی جاتی ہے، چاہے سیو ناکام ہی کیوں نہ ہوا ہو
+        await onAddOrUpdateMosque({
           id: editId,
           name,
           imamName,
@@ -631,7 +633,12 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
         // ✅ اگر سیو کرنے میں ایرر آئے تو جھوٹی کامیابی نہ دکھائیں
         setIsSaving(false);
         setSuccessMessage('');
-        setErrorMessage('مسجد کا ریکارڈ محفوظ کرنے میں مسئلہ پیش آیا: ' + (err?.message || 'نامعلوم خرابی'));
+        const code = err?.code || '';
+        const friendly =
+          code === 'permission-denied'
+            ? 'اجازت نہیں ملی۔ ممکن ہے آپ کا لاگ ان سیشن ختم ہو گیا ہو — دوبارہ Google سے لاگ ان کریں، یا یہ مسجد کسی اور امام کے اکاؤنٹ سے پہلے بنی ہو۔'
+            : (err?.message || 'نامعلوم خرابی');
+        setErrorMessage('مسجد کا ریکارڈ محفوظ کرنے میں مسئلہ پیش آیا: ' + friendly);
       }
     }, 3000);
   };
