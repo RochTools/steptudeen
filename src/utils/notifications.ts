@@ -148,8 +148,8 @@ export function schedulePrayerNotification(prayerName: string, timeStr: string) 
   if (fiveMinBefore > 0) {
     setTimeout(() => {
       showLocalNotification(
-        `🕌 ${prayerName} — 5 minute baqi`,
-        `${prayerName} ki namaz 5 minute mein hai — abhi tayyari karein`
+        `🕌 ${prayerName} — 5 minutes left`,
+        `${prayerName} prayer is in 5 minutes — get ready`
       );
     }, fiveMinBefore);
   }
@@ -157,8 +157,8 @@ export function schedulePrayerNotification(prayerName: string, timeStr: string) 
   // Namaz ke waqt notification
   setTimeout(() => {
     showLocalNotification(
-      `🕌 ${prayerName} ka waqt ho gaya`,
-      `Namaz ka waqt ho gaya — Assalamu alaikum wa rahmatullah`
+      `🕌 ${prayerName} time has begun`,
+      `It's time for ${prayerName} — Assalamu alaikum wa rahmatullah`
     );
   }, diff);
 }
