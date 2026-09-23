@@ -326,6 +326,7 @@ export default function App() {
                   currentPrayer={prayer.currentPrayer}
                   todayDate={prayer.todayDate}
                   nearbyMosques={mosques.mosques}
+                  savedMosqueIds={mosques.savedPopupMosques}
                   onOpenMosque={(m) => mosques.setSelectedMosque(m)}
                   userCoords={prayer.userCoords}
                   requestLocation={prayer.requestLocation}
