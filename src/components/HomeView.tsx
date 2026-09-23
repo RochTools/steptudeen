@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Bell, BookOpen, CalendarDays, ChevronDown, CircleDot, Compass, Heart, MapPin, MapPinned, Menu, MoreVertical, Scroll, Search, SlidersHorizontal, Sunrise, User, X } from 'lucide-react';
 import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
@@ -533,11 +534,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
       )}
     </button>
 
-    {bellOpen && (
+    {bellOpen && createPortal(
       <>
         {/* transparent full-screen backdrop so tapping outside closes it */}
-        <div className="fixed inset-0 z-[90]" onClick={() => setBellOpen(false)} />
-        <div className="absolute left-0 top-12 z-[100] w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-slate-800 shadow-2xl">
+        <div className="fixed inset-0 z-[9998]" onClick={() => setBellOpen(false)} />
+        <div className="fixed left-4 right-4 top-16 z-[9999] mx-auto max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-slate-800 shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <h3 className="text-[15px] font-bold text-slate-900">Inbox</h3>
             <button type="button" onClick={() => setBellOpen(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
@@ -589,7 +590,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
             )}
           </div>
         </div>
-      </>
+      </>,
+      document.body
     )}
   </div>
         
