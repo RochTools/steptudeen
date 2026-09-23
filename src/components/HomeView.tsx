@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Bell, BookOpen, CalendarDays, ChevronDown, CircleDot, Compass, Heart, MapPin, MapPinned, Menu, MoreVertical, Scroll, Search, SlidersHorizontal, Sunrise, User, X } from 'lucide-react';
 import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
+import { InboxItem, readInbox, markInboxRead } from '../utils/notifications';
 
 interface HomeViewProps {
   onNavigate: (view: string) => void;
@@ -9,6 +10,7 @@ interface HomeViewProps {
   currentPrayer: string;
   todayDate: string;
   nearbyMosques: Mosque[];
+  savedMosqueIds?: string[];
   onOpenMosque: (mosque: Mosque) => void;
   userCoords: { latitude: number; longitude: number } | null;
   requestLocation: () => void;
@@ -124,6 +126,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   currentPrayer,
   todayDate,
   nearbyMosques,
+  savedMosqueIds = [],
   onOpenMosque,
   userCoords,
   requestLocation,
@@ -140,6 +143,48 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [isDeviceOffline, setIsDeviceOffline] = useState<boolean>(!navigator.onLine);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [locationName, setLocationName] = useState('Current location');
+
+  // ═══════════════════ Bell / Inbox ═══════════════════
+  // Announcements (محفوظ مساجد سے) + نماز کی یاد دہانیوں کی تاریخ — ایک ہی فہرست میں
+  const [bellOpen, setBellOpen] = useState(false);
+  const [prayerInbox, setPrayerInbox] = useState<InboxItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const savedMosquesWithAnnouncement = nearbyMosques.filter(
+    (m) => savedMosqueIds.includes(m.id) && m.announcement && m.announcement.trim() !== ''
+  );
+
+  // ہر بار ہوم صفحہ کھلنے پر تازہ ترین گنتی لے لیں (نئی نماز notification کے بعد بھی)
+  useEffect(() => {
+    const refresh = () => {
+      setPrayerInbox(readInbox());
+      const unreadPrayers = readInbox().filter((i) => !i.read).length;
+      setUnreadCount(unreadPrayers + savedMosquesWithAnnouncement.length);
+    };
+    refresh();
+    // ہر منٹ ریفریش — تاکہ ابھی ابھی آئی نماز کی نوٹیفکیشن بھی نظر آئے
+    const t = setInterval(refresh, 60000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedMosquesWithAnnouncement.length]);
+
+  const openBell = () => {
+    setBellOpen((v) => !v);
+    if (!bellOpen) {
+      markInboxRead();
+      setUnreadCount(0);
+      setPrayerInbox(readInbox());
+    }
+  };
+
+  const timeAgo = (ts: number): string => {
+    const diffMin = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+    if (diffMin < 1) return 'ابھی ابھی';
+    if (diffMin < 60) return `${diffMin} منٹ پہلے`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `${diffH} گھنٹے پہلے`;
+    return `${Math.floor(diffH / 24)} دن پہلے`;
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ icon: string; title: string; subtitle?: string; type: string; action: () => void }[]>([]);
@@ -467,7 +512,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         { /* Top actions */ }
 <div className="relative z-20 flex items-center justify-between px-4 pt-3">
 
-  <div className="flex items-center gap-2">
+  <div className="relative flex items-center gap-2">
     {/* Mosque map — full-screen live finder (Overpass + routing) */}
     <button
       type="button"
@@ -479,10 +524,73 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <MapPinned size={20} />
     </button>
 
-    <button type="button" className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm" aria-label="Notifications" title="Notifications — coming soon">
+    <button type="button" onClick={openBell} className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm" aria-label="Notifications" title="Inbox">
       <Bell size={21} />
-      <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-amber-300" />
+      {unreadCount > 0 && (
+        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-bold leading-none text-slate-900">
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      )}
     </button>
+
+    {bellOpen && (
+      <>
+        {/* mobile پر پورے صفحے کو ڈھانپنے والا شفاف backdrop، تاکہ باہر tap کرنے سے بند ہو */}
+        <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
+        <div className="absolute left-0 top-12 z-50 w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-slate-800 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <h3 className="text-[15px] font-bold text-slate-900">Inbox</h3>
+            <button type="button" onClick={() => setBellOpen(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="max-h-[60vh] overflow-y-auto">
+            {savedMosquesWithAnnouncement.length === 0 && prayerInbox.length === 0 && (
+              <div className="px-4 py-8 text-center text-sm text-slate-400">
+                ابھی کوئی نئی اطلاع نہیں ہے
+              </div>
+            )}
+
+            {savedMosquesWithAnnouncement.length > 0 && (
+              <div className="border-b border-slate-100 px-4 py-2">
+                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">مسجد کے اعلانات</div>
+                {savedMosquesWithAnnouncement.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => { onOpenMosque(m); setBellOpen(false); }}
+                    className="mb-2 flex w-full items-start gap-2.5 rounded-xl bg-emerald-50 p-3 text-left last:mb-0"
+                  >
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><MapPinned size={14} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-bold text-slate-800">{m.name}</span>
+                      <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{m.announcement}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {prayerInbox.length > 0 && (
+              <div className="px-4 py-2">
+                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">نماز کی یاد دہانیاں</div>
+                {prayerInbox.map((item) => (
+                  <div key={item.id} className="mb-2 flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 last:mb-0">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-600"><Bell size={13} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-bold text-slate-800">{item.title}</span>
+                      <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{item.body}</span>
+                      <span className="mt-1 block text-[10.5px] text-slate-400">{timeAgo(item.timestamp)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    )}
   </div>
         
 
