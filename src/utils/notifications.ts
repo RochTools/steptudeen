@@ -35,6 +35,7 @@ async function showViaServiceWorker(title: string, body: string, tag?: string) {
 
 // ── Fori notification (foreground + background dono) ───────────
 export async function showLocalNotification(title: string, body: string) {
+  logInboxItem(title, body);   // ✅ Bell inbox کے لیے تاریخ محفوظ — چاہے permission نہ بھی ہو
   if (Notification.permission !== 'granted') return;
 
   // Pehle Service Worker se koshish karein
@@ -49,6 +50,61 @@ export async function showLocalNotification(title: string, body: string) {
       lang: 'ur',
     } as any);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Bell Inbox — نماز کی یاد دہانیوں کی مختصر تاریخ (localStorage)
+// ═══════════════════════════════════════════════════════════════
+export interface InboxItem {
+  id: string;
+  kind: 'prayer';
+  title: string;
+  body: string;
+  timestamp: number; // Date.now()
+  read: boolean;
+}
+
+const INBOX_KEY = 'steptudeen_notification_inbox';
+const INBOX_MAX = 30; // پرانی چیزیں خودکار صاف ہوں، storage نہ بھرے
+
+export function logInboxItem(title: string, body: string) {
+  try {
+    const list = readInbox();
+    list.unshift({
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      kind: 'prayer',
+      title,
+      body,
+      timestamp: Date.now(),
+      read: false,
+    });
+    localStorage.setItem(INBOX_KEY, JSON.stringify(list.slice(0, INBOX_MAX)));
+  } catch {
+    /* storage ناکام ہو تو نظر انداز — مرکزی نوٹیفکیشن پر اثر نہیں پڑنا چاہیے */
+  }
+}
+
+export function readInbox(): InboxItem[] {
+  try {
+    const raw = localStorage.getItem(INBOX_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function markInboxRead(): void {
+  try {
+    const list = readInbox().map((item) => ({ ...item, read: true }));
+    localStorage.setItem(INBOX_KEY, JSON.stringify(list));
+  } catch {
+    /* نظر انداز */
+  }
+}
+
+export function countUnreadInbox(): number {
+  return readInbox().filter((item) => !item.read).length;
 }
 
 // ── Namaz ka time parse karna ─────────────────────────────────────────
