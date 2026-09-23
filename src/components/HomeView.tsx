@@ -179,11 +179,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   const timeAgo = (ts: number): string => {
     const diffMin = Math.max(0, Math.floor((Date.now() - ts) / 60000));
-    if (diffMin < 1) return 'ابھی ابھی';
-    if (diffMin < 60) return `${diffMin} منٹ پہلے`;
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin} min ago`;
     const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return `${diffH} گھنٹے پہلے`;
-    return `${Math.floor(diffH / 24)} دن پہلے`;
+    if (diffH < 24) return `${diffH} hr ago`;
+    return `${Math.floor(diffH / 24)} day${Math.floor(diffH / 24) > 1 ? 's' : ''} ago`;
   };
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -535,9 +535,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
     {bellOpen && (
       <>
-        {/* mobile پر پورے صفحے کو ڈھانپنے والا شفاف backdrop، تاکہ باہر tap کرنے سے بند ہو */}
-        <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
-        <div className="absolute left-0 top-12 z-50 w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-slate-800 shadow-2xl">
+        {/* transparent full-screen backdrop so tapping outside closes it */}
+        <div className="fixed inset-0 z-[90]" onClick={() => setBellOpen(false)} />
+        <div className="absolute left-0 top-12 z-[100] w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-slate-800 shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <h3 className="text-[15px] font-bold text-slate-900">Inbox</h3>
             <button type="button" onClick={() => setBellOpen(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
@@ -548,13 +548,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div className="max-h-[60vh] overflow-y-auto">
             {savedMosquesWithAnnouncement.length === 0 && prayerInbox.length === 0 && (
               <div className="px-4 py-8 text-center text-sm text-slate-400">
-                ابھی کوئی نئی اطلاع نہیں ہے
+                No new notifications yet
               </div>
             )}
 
             {savedMosquesWithAnnouncement.length > 0 && (
               <div className="border-b border-slate-100 px-4 py-2">
-                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">مسجد کے اعلانات</div>
+                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">Mosque Announcements</div>
                 {savedMosquesWithAnnouncement.map((m) => (
                   <button
                     key={m.id}
@@ -574,7 +574,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
             {prayerInbox.length > 0 && (
               <div className="px-4 py-2">
-                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">نماز کی یاد دہانیاں</div>
+                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Prayer Reminders</div>
                 {prayerInbox.map((item) => (
                   <div key={item.id} className="mb-2 flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 last:mb-0">
                     <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-600"><Bell size={13} /></span>
