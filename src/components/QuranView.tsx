@@ -4,7 +4,9 @@ import {
   BookOpen,
   Bookmark,
   Check,
+  CheckCircle2,
   ChevronRight,
+  Download,
   Languages,
   MoreVertical,
   Pause,
@@ -78,6 +80,15 @@ type LastSeen = {
   savedAt: number;
 };
 
+type OfflineStatus = 'idle' | 'downloading' | 'done' | 'error';
+
+type OfflineState = {
+  status: OfflineStatus;
+  done: number;
+  total: number;
+  lang: string;
+};
+
 type AudioMode = 'surah' | 'ayah';
 type AudioStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'complete' | 'error';
 
@@ -99,6 +110,8 @@ const LANGUAGE_KEY = 'steptudeen_app_quran_language';
 const TAFSIR_KEY = 'steptudeen_app_quran_tafsir';
 const LAST_SEEN_KEY = 'steptudeen_app_quran_last_seen';
 const SEARCH_TARGET_KEY = 'steptudeen_app_quran_search_target';
+const OFFLINE_DONE_KEY = 'steptudeen_app_quran_offline_done'; // value = language code that is fully downloaded
+const SURAH_TOTAL = 114;
 
 const QURAN_LANGUAGES: QuranLanguage[] = [
   { code: 'ur', native: 'اردو', english: 'Urdu', dir: 'rtl' },
@@ -178,6 +191,37 @@ async function fetchJson<T>(primary: string, fallback: string, signal?: AbortSig
     if (signal?.aborted) throw error;
     return request(fallback);
   }
+}
+
+// Fallback when no service worker is available: the app downloads every surah itself.
+// The browser HTTP cache keeps them, and surahCache serves them in this session.
+async function downloadAllSurahsDirect(
+  lang: string,
+  onProgress: (done: number) => void,
+  signal: AbortSignal
+): Promise<boolean> {
+  let done = 0;
+  let failed = 0;
+  const batch = 6;
+  for (let i = 1; i <= SURAH_TOTAL; i += batch) {
+    const nums = Array.from({ length: Math.min(batch, SURAH_TOTAL - i + 1) }, (_, k) => i + k);
+    await Promise.all(nums.map(async (n) => {
+      const key = `${lang}_${n}`;
+      try {
+        if (!surahCache.has(key)) {
+          const data = await fetchJson<SurahPayload>(`${QURAN_CDN}${lang}/${n}.json`, `${QURAN_FALLBACK}${lang}/${n}.json`, signal);
+          surahCache.set(key, data);
+        }
+      } catch {
+        failed++;
+      } finally {
+        done++;
+        onProgress(done);
+      }
+    }));
+    if (signal.aborted) return false;
+  }
+  return failed === 0;
 }
 
 function pad3(value: number) {
@@ -273,6 +317,11 @@ export const QuranView: React.FC<QuranViewProps> = () => {
     if (typeof window === 'undefined') return false;
     return !localStorage.getItem(LANGUAGE_KEY);
   });
+  // In the welcome popup the user first highlights a language, then presses Continue.
+  const [pendingLanguage, setPendingLanguage] = useState('ur');
+  const [offline, setOffline] = useState<OfflineState>({ status: 'idle', done: 0, total: SURAH_TOTAL, lang: '' });
+  const [offlineOpen, setOfflineOpen] = useState(false); // progress popup visible?
+  const offlineAbortRef = useRef<AbortController | null>(null);
 
   const [surahData, setSurahData] = useState<SurahPayload | null>(null);
   const [surahLoading, setSurahLoading] = useState(false);
@@ -366,6 +415,28 @@ export const QuranView: React.FC<QuranViewProps> = () => {
   }, [selectedSurah]);
 
   useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data.type !== 'string' || !data.type.startsWith('QURAN_PRECACHE_')) return;
+      if (data.type === 'QURAN_PRECACHE_PROGRESS') {
+        setOffline((prev) => ({ ...prev, status: 'downloading', done: data.done, total: data.total || SURAH_TOTAL, lang: data.lang }));
+      } else if (data.type === 'QURAN_PRECACHE_DONE') {
+        localStorage.setItem(OFFLINE_DONE_KEY, data.lang);
+        setOffline({ status: 'done', done: data.total || SURAH_TOTAL, total: data.total || SURAH_TOTAL, lang: data.lang });
+      } else if (data.type === 'QURAN_PRECACHE_ERROR') {
+        setOffline((prev) => ({ ...prev, status: 'error', lang: data.lang }));
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, []);
+
+  useEffect(() => {
+    return () => offlineAbortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(''), 3200);
     return () => window.clearTimeout(timer);
@@ -446,6 +517,56 @@ export const QuranView: React.FC<QuranViewProps> = () => {
       audioRef.current = null;
     };
   }, []);
+
+  const startOfflineDownload = async (code: string) => {
+    setOffline({ status: 'downloading', done: 0, total: SURAH_TOTAL, lang: code });
+    setOfflineOpen(true);
+
+    // Preferred path: ask the service worker (survives the popup being closed).
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 4000)),
+        ]);
+        const worker = reg?.active || navigator.serviceWorker.controller;
+        if (worker) {
+          worker.postMessage({ type: 'PRECACHE_QURAN', lang: code });
+          return;
+        }
+      } catch {
+        /* fall through to direct download */
+      }
+    }
+
+    // Fallback path: no service worker, download directly from the app.
+    offlineAbortRef.current?.abort();
+    const controller = new AbortController();
+    offlineAbortRef.current = controller;
+    const ok = await downloadAllSurahsDirect(
+      code,
+      (done) => setOffline((prev) => ({ ...prev, status: 'downloading', done })),
+      controller.signal
+    );
+    if (controller.signal.aborted) return;
+    if (ok) {
+      localStorage.setItem(OFFLINE_DONE_KEY, code);
+      setOffline({ status: 'done', done: SURAH_TOTAL, total: SURAH_TOTAL, lang: code });
+    } else {
+      setOffline((prev) => ({ ...prev, status: 'error' }));
+    }
+  };
+
+  const continueWelcome = () => {
+    const code = pendingLanguage;
+    chooseQuranLanguage(code);
+    startOfflineDownload(code);
+  };
+
+  const skipWelcome = () => {
+    localStorage.setItem(LANGUAGE_KEY, language);
+    setShowWelcome(false);
+  };
 
   const chooseQuranLanguage = (code: string) => {
     setLanguage(code);
@@ -650,6 +771,14 @@ export const QuranView: React.FC<QuranViewProps> = () => {
         )}
       </div>
 
+      {/* Background download pill (popup closed but download still running) */}
+      {!offlineOpen && offline.status === 'downloading' && (
+        <button onClick={() => setOfflineOpen(true)} className="mb-3 flex w-full items-center justify-between gap-2 rounded-xl border border-[#d8e4da] bg-[#f0f7f1] px-3 py-2 text-left text-[11px] font-bold text-[#14532d]">
+          <span className="flex items-center gap-2"><Download size={14} className="animate-pulse" /> Saving Quran offline... {Math.round((offline.done / offline.total) * 100)}%</span>
+          <ChevronRight size={13} />
+        </button>
+      )}
+
       {/* Surah cards */}
       {filteredSurahs.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -757,18 +886,18 @@ export const QuranView: React.FC<QuranViewProps> = () => {
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
               <div>
                 <h3 className="text-sm font-bold text-[#14532d]">{picker === 'tafsir' ? 'Select Tafsir' : 'Select Quran language'}</h3>
-                {showWelcome && <p className="mt-1 text-[11px] text-slate-500">Choose the translation language you want to read.</p>}
+                {showWelcome && <p className="mt-1 text-[11px] text-slate-500">Which language do you want to read the Quran in?</p>}
               </div>
               {!showWelcome && <button onClick={() => setPicker(null)} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100"><X size={15} /></button>}
             </div>
             <div className="max-h-[68vh] overflow-y-auto p-2">
               {(picker === 'tafsir' ? TAFSIR_EDITIONS : QURAN_LANGUAGES).map((item) => {
                 const isTafsir = 'slug' in item;
-                const active = isTafsir ? item.slug === tafsirSlug : item.code === language;
+                const active = isTafsir ? item.slug === tafsirSlug : (showWelcome ? item.code === pendingLanguage : item.code === language);
                 return (
                   <button
                     key={isTafsir ? item.slug : item.code}
-                    onClick={() => isTafsir ? chooseTafsir(item.slug) : chooseQuranLanguage(item.code)}
+                    onClick={() => isTafsir ? chooseTafsir(item.slug) : (showWelcome ? setPendingLanguage(item.code) : chooseQuranLanguage(item.code))}
                     className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left ${active ? 'bg-[#f0f7f1] text-[#14532d]' : 'hover:bg-slate-50'}`}
                   >
                     <span>
@@ -779,7 +908,55 @@ export const QuranView: React.FC<QuranViewProps> = () => {
                   </button>
                 );
               })}
-              {showWelcome && <button onClick={() => { localStorage.setItem(LANGUAGE_KEY, language); setShowWelcome(false); }} className="mt-2 w-full py-2 text-xs text-slate-500 underline">Skip for now</button>}
+            </div>
+            {showWelcome && (
+              <div className="border-t border-slate-100 p-3">
+                <p className="mb-2 text-center text-[10px] text-slate-500">Continue saves the whole Quran on your device for offline reading.</p>
+                <div className="flex gap-2">
+                  <button onClick={skipWelcome} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600">Skip for now</button>
+                  <button onClick={continueWelcome} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#14532d] py-2.5 text-xs font-bold text-white"><Check size={14} /> Continue</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Offline download progress popup */}
+      {offlineOpen && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/65 p-4">
+          <div dir="ltr" className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl">
+            {offline.status === 'done' ? (
+              <>
+                <CheckCircle2 className="mx-auto mb-3 text-[#14532d]" size={44} />
+                <h3 className="text-base font-bold text-[#14532d]">Quran is ready for offline use!</h3>
+                <p className="mt-2 text-xs text-slate-500">All 114 surahs are saved on your device.</p>
+              </>
+            ) : offline.status === 'error' ? (
+              <>
+                <AlertTriangle className="mx-auto mb-3 text-rose-600" size={40} />
+                <h3 className="text-base font-bold text-slate-800">Download interrupted</h3>
+                <p className="mt-2 text-xs text-slate-500">Check your internet and try again. Surahs already saved will not be downloaded again.</p>
+              </>
+            ) : (
+              <>
+                <Download className="mx-auto mb-3 animate-pulse text-[#14532d]" size={38} />
+                <h3 className="text-base font-bold text-[#14532d]">Preparing your Quran for offline use...</h3>
+                <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-[#f0f7f1]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((offline.done / offline.total) * 100)}>
+                  <div className="h-full rounded-full bg-[#14532d] transition-all duration-300" style={{ width: `${Math.round((offline.done / offline.total) * 100)}%` }} />
+                </div>
+                <p className="mt-2 text-sm font-bold text-[#14532d]">{Math.round((offline.done / offline.total) * 100)}%</p>
+                <p className="mt-1 text-xs text-slate-500">{offline.done} of {offline.total} surahs downloaded</p>
+              </>
+            )}
+            <p className="mt-3 text-[10px] text-slate-400">Saved only on your device. Nothing is sent to any server.</p>
+            <div className="mt-4 flex gap-2">
+              {offline.status === 'error' && (
+                <button onClick={() => startOfflineDownload(offline.lang || language)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#14532d] py-2.5 text-xs font-bold text-white"><RefreshCw size={13} /> Try again</button>
+              )}
+              <button onClick={() => setOfflineOpen(false)} className={`flex-1 rounded-xl py-2.5 text-xs font-bold ${offline.status === 'done' ? 'bg-[#14532d] text-white' : 'border border-slate-200 text-slate-600'}`}>
+                {offline.status === 'done' ? 'Done' : offline.status === 'error' ? 'Close' : 'Continue in background'}
+              </button>
             </div>
           </div>
         </div>
