@@ -1,4 +1,4 @@
-// StepToDeen Service Worker — Offline v11
+// StepToDeen Service Worker — Offline v12
 // ───────────────────────────────────────────────────────────────────────────
 // v10 میں `install` event کی لائن غائب تھی جس سے فائل میں SyntaxError آ رہا تھا
 // اور SW register ہی نہیں ہو رہا تھا۔ اس ورژن میں:
@@ -8,12 +8,85 @@
 //   • raw.githubusercontent.com (Quran fallback) اور firebase config بھی cache ہوتے ہیں
 // ───────────────────────────────────────────────────────────────────────────
 
-const VERSION     = 'v11';
+const VERSION     = 'v12';
 const CACHE_NAME  = `steptudeen-${VERSION}`;
 const CDN_CACHE   = `steptudeen-cdn-${VERSION}`;
 const FONTS_CACHE = `steptudeen-fonts-${VERSION}`;
 
 const ALL_CACHES = [CACHE_NAME, CDN_CACHE, FONTS_CACHE];
+
+// ── Quran precache (v12) ─────────────────────────────────────────────────────
+// یہ URLs QuranView.tsx کے QURAN_CDN / font @font-face سے بالکل میل کھانے چاہییں،
+// ورنہ cache میں الگ entries بنیں گی اور آف لائن میں کام نہیں کریں گی۔
+const QURAN_CDN_BASE = 'https://cdn.jsdelivr.net/gh/RochTools/quran-api@main/Quran/';
+const QURAN_FONT_URL = 'https://cdn.jsdelivr.net/gh/mustafa0x/qpc-fonts@f93bf5f3/various-woff2/UthmanicHafs1%20Ver09.woff2';
+const SURAH_COUNT    = 114;
+const PRECACHE_BATCH = 6;          // ایک وقت میں کتنی سورتیں (موبائل پر نرمی)
+const SAFE_LANG      = /^[a-z]{2,3}$/;
+
+let precacheRunning = null;        // موجودہ زبان جس کا precache چل رہا ہے
+
+async function broadcast(msg) {
+  const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const c of list) c.postMessage(msg);
+}
+
+// ایک زبان کی 114 سورتیں cache میں ڈالتا ہے، ہر قدم پر progress بھیجتا ہے۔
+// جو سورتیں پہلے سے cache میں ہوں انہیں دوبارہ ڈاؤن لوڈ نہیں کرتا (resume).
+async function precacheQuran(lang) {
+  if (!SAFE_LANG.test(lang)) {
+    await broadcast({ type: 'QURAN_PRECACHE_ERROR', lang, reason: 'bad-language' });
+    return;
+  }
+  if (precacheRunning === lang) return;     // وہی کام دوبارہ شروع نہ ہو
+  precacheRunning = lang;
+
+  try {
+    const cache = await caches.open(CDN_CACHE);
+
+    // عربی فونٹ (چھوٹا، مگر آف لائن میں ضروری)
+    try {
+      if (!(await cache.match(QURAN_FONT_URL))) {
+        const fr = await fetch(QURAN_FONT_URL);
+        if (fr && fr.ok) await cache.put(QURAN_FONT_URL, fr.clone());
+      }
+    } catch (_) { /* فونٹ نہ ملا تو Noto Naskh fallback چلے گا */ }
+
+    const urls = [];
+    for (let n = 1; n <= SURAH_COUNT; n++) urls.push(`${QURAN_CDN_BASE}${lang}/${n}.json`);
+
+    let done = 0;
+    let failed = 0;
+    await broadcast({ type: 'QURAN_PRECACHE_PROGRESS', lang, done, total: SURAH_COUNT });
+
+    for (let i = 0; i < urls.length; i += PRECACHE_BATCH) {
+      const batch = urls.slice(i, i + PRECACHE_BATCH);
+      await Promise.all(batch.map(async (url) => {
+        try {
+          if (await cache.match(url)) return;          // پہلے سے موجود
+          const res = await fetch(url);
+          if (!res || !res.ok) throw new Error('HTTP ' + (res && res.status));
+          await cache.put(url, res.clone());
+        } catch (_) {
+          failed++;
+        } finally {
+          done++;
+          await broadcast({ type: 'QURAN_PRECACHE_PROGRESS', lang, done, total: SURAH_COUNT });
+        }
+      }));
+    }
+
+    if (failed > 0) {
+      await broadcast({ type: 'QURAN_PRECACHE_ERROR', lang, reason: 'network', failed });
+    } else {
+      await broadcast({ type: 'QURAN_PRECACHE_DONE', lang, total: SURAH_COUNT });
+    }
+  } catch (err) {
+    await broadcast({ type: 'QURAN_PRECACHE_ERROR', lang, reason: 'unknown' });
+  } finally {
+    precacheRunning = null;
+  }
+}
 
 // یہ فائلیں ہمیشہ precache ہوں گی
 const CORE_ASSETS = [
@@ -264,5 +337,11 @@ self.addEventListener('notificationclick', (event) => {
 
 // ── Message ───────────────────────────────────────────────────────────────────
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  const data = event.data;
+  if (!data) return;
+  if (data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (data.type === 'PRECACHE_QURAN' && typeof data.lang === 'string') {
+    // waitUntil تاکہ براؤزر کام کے دوران SW کو بند نہ کر دے
+    event.waitUntil(precacheQuran(data.lang));
+  }
 });
