@@ -320,6 +320,11 @@ export const QuranView: React.FC<QuranViewProps> = () => {
   // In the welcome popup the user first highlights a language, then presses Continue.
   const [pendingLanguage, setPendingLanguage] = useState('ur');
   const [offline, setOffline] = useState<OfflineState>({ status: 'idle', done: 0, total: SURAH_TOTAL, lang: '' });
+  // Which language is fully saved offline right now (persists across app restarts).
+  const [offlineDoneLang, setOfflineDoneLang] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(OFFLINE_DONE_KEY);
+  });
   const [offlineOpen, setOfflineOpen] = useState(false); // progress popup visible?
   const offlineAbortRef = useRef<AbortController | null>(null);
 
@@ -423,6 +428,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
         setOffline((prev) => ({ ...prev, status: 'downloading', done: data.done, total: data.total || SURAH_TOTAL, lang: data.lang }));
       } else if (data.type === 'QURAN_PRECACHE_DONE') {
         localStorage.setItem(OFFLINE_DONE_KEY, data.lang);
+        setOfflineDoneLang(data.lang);
         setOffline({ status: 'done', done: data.total || SURAH_TOTAL, total: data.total || SURAH_TOTAL, lang: data.lang });
       } else if (data.type === 'QURAN_PRECACHE_ERROR') {
         setOffline((prev) => ({ ...prev, status: 'error', lang: data.lang }));
@@ -551,6 +557,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
     if (controller.signal.aborted) return;
     if (ok) {
       localStorage.setItem(OFFLINE_DONE_KEY, code);
+      setOfflineDoneLang(code);
       setOffline({ status: 'done', done: SURAH_TOTAL, total: SURAH_TOTAL, lang: code });
     } else {
       setOffline((prev) => ({ ...prev, status: 'error' }));
@@ -763,9 +770,30 @@ export const QuranView: React.FC<QuranViewProps> = () => {
               <Languages size={17} className="mt-0.5 text-[#14532d]" />
               <span><strong className="block text-sm">Select Quran language</strong><small className="block text-[11px] text-slate-500">{currentLanguage.native}</small></span>
             </button>
-            <button onClick={() => { setPicker('tafsir'); setMenuOpen(false); }} className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-[#f0f7f1]">
+            <button onClick={() => { setPicker('tafsir'); setMenuOpen(false); }} className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-[#f0f7f1]">
               <BookOpen size={17} className="mt-0.5 text-[#14532d]" />
               <span><strong className="block text-sm">Select Tafsir</strong><small className="block text-[11px] text-slate-500">{currentTafsir.name} - {currentTafsir.language}</small></span>
+            </button>
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                if (offlineDoneLang === language) return;
+                if (offline.status === 'downloading') { setOfflineOpen(true); return; }
+                startOfflineDownload(language);
+              }}
+              className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-[#f0f7f1]"
+            >
+              {offlineDoneLang === language ? <CheckCircle2 size={17} className="mt-0.5 text-[#14532d]" /> : <Download size={17} className="mt-0.5 text-[#14532d]" />}
+              <span>
+                <strong className="block text-sm">Download for offline</strong>
+                <small className="block text-[11px] text-slate-500">
+                  {offlineDoneLang === language
+                    ? `${currentLanguage.native} is saved offline`
+                    : offline.status === 'downloading' && offline.lang === language
+                    ? `Downloading... ${offline.done}/${offline.total}`
+                    : `${currentLanguage.native} is not downloaded yet`}
+                </small>
+              </span>
             </button>
           </div>
         )}
@@ -882,15 +910,15 @@ export const QuranView: React.FC<QuranViewProps> = () => {
       {/* Quran language / tafsir picker */}
       {(picker || showWelcome) && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !showWelcome) setPicker(null); }}>
-          <div dir="ltr" className="max-h-[84vh] w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <div dir="ltr" className="flex max-h-[84vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3">
               <div>
                 <h3 className="text-sm font-bold text-[#14532d]">{picker === 'tafsir' ? 'Select Tafsir' : 'Select Quran language'}</h3>
                 {showWelcome && <p className="mt-1 text-[11px] text-slate-500">Which language do you want to read the Quran in?</p>}
               </div>
               {!showWelcome && <button onClick={() => setPicker(null)} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100"><X size={15} /></button>}
             </div>
-            <div className="max-h-[68vh] overflow-y-auto p-2">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
               {(picker === 'tafsir' ? TAFSIR_EDITIONS : QURAN_LANGUAGES).map((item) => {
                 const isTafsir = 'slug' in item;
                 const active = isTafsir ? item.slug === tafsirSlug : (showWelcome ? item.code === pendingLanguage : item.code === language);
@@ -910,7 +938,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
               })}
             </div>
             {showWelcome && (
-              <div className="border-t border-slate-100 p-3">
+              <div className="shrink-0 border-t border-slate-100 p-3">
                 <p className="mb-2 text-center text-[10px] text-slate-500">Continue saves the whole Quran on your device for offline reading.</p>
                 <div className="flex gap-2">
                   <button onClick={skipWelcome} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600">Skip for now</button>
