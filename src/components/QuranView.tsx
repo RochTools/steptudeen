@@ -4,7 +4,9 @@ import {
   BookOpen,
   Bookmark,
   Check,
+  CheckCircle2,
   ChevronRight,
+  Download,
   Languages,
   MoreVertical,
   Pause,
@@ -78,24 +80,35 @@ type LastSeen = {
   savedAt: number;
 };
 
-type AudioMode = 'surah' | 'ayah';
+type OfflineStatus = 'idle' | 'downloading' | 'done' | 'error';
+
+type OfflineState = {
+  status: OfflineStatus;
+  done: number;
+  total: number;
+  lang: string;
+};
+
+// 'surah' / 'ayah' = Arabic only (unchanged legacy behaviour).
+// 'surah-translation' / 'ayah-translation' = Arabic ayah, then that ayah's translation audio, then next ayah.
+type AudioMode = 'surah' | 'ayah' | 'surah-translation' | 'ayah-translation';
 type AudioStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'complete' | 'error';
+// Which of the two tracks for the current ayah is playing when mode includes translation.
+type AudioLeg = 'arabic' | 'translation';
 
 type AudioState = {
   surah: number;
   ayah: number;
   total: number;
   mode: AudioMode;
-  editionId: string;
+  leg: AudioLeg;
   status: AudioStatus;
 };
 
-type AudioEdition = {
-  id: string;
-  /** Quran language code this edition belongs to (matches QuranLanguage.code) */
+type TranslationAudioEdition = {
+  /** Quran language code this belongs to (matches QuranLanguage.code) */
   language: string;
   name: string;
-  reciter: string;
   /** everyayah.com data folder, trailing slash included */
   base: string;
 };
@@ -104,21 +117,25 @@ const QURAN_CDN = 'https://cdn.jsdelivr.net/gh/RochTools/quran-api@main/Quran/';
 const QURAN_FALLBACK = 'https://raw.githubusercontent.com/RochTools/quran-api/main/Quran/';
 const TAFSIR_CDN = 'https://cdn.jsdelivr.net/gh/RochTools/quran-tafsir-api@main/tafsir/';
 const TAFSIR_FALLBACK = 'https://raw.githubusercontent.com/RochTools/quran-tafsir-api/main/tafsir/';
+const AUDIO_BASE = 'https://everyayah.com/data/Alafasy_128kbps/';
 
-// All recitation/translation audio comes from everyayah.com, same host as the Arabic recitation.
-const AUDIO_EDITIONS: AudioEdition[] = [
-  { id: 'ar-alafasy', language: 'ar', name: 'Mishary Alafasy', reciter: 'Arabic Recitation', base: 'https://everyayah.com/data/Alafasy_128kbps/' },
-  { id: 'ur-shamshad', language: 'ur', name: 'Shamshad Ali Khan', reciter: 'Urdu Translation', base: 'https://everyayah.com/data/translations/urdu_shamshad_ali_khan_46kbps/' },
-  { id: 'ur-farhat', language: 'ur', name: 'Farhat Hashmi', reciter: 'Urdu Translation (word-for-word)', base: 'https://everyayah.com/data/translations/urdu_farhat_hashmi/' },
-  { id: 'en-walk', language: 'en', name: 'Ibrahim Walk', reciter: 'English Translation (Sahih Intl.)', base: 'https://everyayah.com/data/English/Sahih_Intnl_Ibrahim_Walk_192kbps/' },
+// Per-ayah translation recitation, same host as AUDIO_BASE (everyayah.com). Arabic recitation
+// (AUDIO_BASE) always plays regardless of reading language; this only supplies the second,
+// translated track for "Arabic + Translation" playback. Languages without an entry here simply
+// don't offer that option (checked via TRANSLATION_AUDIO_BY_LANGUAGE below).
+const TRANSLATION_AUDIO_EDITIONS: TranslationAudioEdition[] = [
+  { language: 'ur', name: 'Shamshad Ali Khan', base: 'https://everyayah.com/data/translations/urdu_shamshad_ali_khan_46kbps/' },
+  { language: 'en', name: 'Ibrahim Walk', base: 'https://everyayah.com/data/English/Sahih_Intnl_Ibrahim_Walk_192kbps/' },
 ];
-const DEFAULT_AUDIO_EDITION = 'ar-alafasy';
+const TRANSLATION_AUDIO_BY_LANGUAGE: Record<string, TranslationAudioEdition> =
+  Object.fromEntries(TRANSLATION_AUDIO_EDITIONS.map((item) => [item.language, item]));
 
 const LANGUAGE_KEY = 'steptudeen_app_quran_language';
 const TAFSIR_KEY = 'steptudeen_app_quran_tafsir';
-const AUDIO_EDITION_KEY = 'steptudeen_app_quran_audio_edition';
 const LAST_SEEN_KEY = 'steptudeen_app_quran_last_seen';
 const SEARCH_TARGET_KEY = 'steptudeen_app_quran_search_target';
+const OFFLINE_DONE_KEY = 'steptudeen_app_quran_offline_done'; // value = language code that is fully downloaded
+const SURAH_TOTAL = 114;
 
 const QURAN_LANGUAGES: QuranLanguage[] = [
   { code: 'ur', native: 'اردو', english: 'Urdu', dir: 'rtl' },
@@ -161,13 +178,6 @@ const PREFERRED_TAFSIR: Record<string, string> = {
   tr: 'saadi-tr',
 };
 
-// When the user picks a Quran language, default the audio to the first matching
-// edition for that language (falls back to the Arabic recitation if none exists yet).
-const PREFERRED_AUDIO: Record<string, string> = {
-  ur: 'ur-shamshad',
-  en: 'en-walk',
-};
-
 const ENGLISH_NAMES = [
   'Al-Fatihah','Al-Baqarah','Aal-Imran','An-Nisa',"Al-Ma'idah","Al-An'am","Al-A'raf",'Al-Anfal','At-Tawbah','Yunus','Hud','Yusuf',"Ar-Ra'd",'Ibrahim','Al-Hijr','An-Nahl','Al-Isra','Al-Kahf','Maryam','Ta-Ha','Al-Anbiya','Al-Hajj',"Al-Mu'minun",'An-Nur','Al-Furqan',"Ash-Shu'ara",'An-Naml','Al-Qasas','Al-Ankabut','Ar-Rum','Luqman','As-Sajdah','Al-Ahzab','Saba','Fatir','Ya-Sin','As-Saffat','Sad','Az-Zumar','Ghafir','Fussilat','Ash-Shura','Az-Zukhruf','Ad-Dukhan','Al-Jathiyah','Al-Ahqaf','Muhammad','Al-Fath','Al-Hujurat','Qaf','Adh-Dhariyat','At-Tur','An-Najm','Al-Qamar','Ar-Rahman',"Al-Waqi'ah",'Al-Hadid','Al-Mujadila','Al-Hashr','Al-Mumtahanah','As-Saff',"Al-Jumu'ah",'Al-Munafiqun','At-Taghabun','At-Talaq','At-Tahrim','Al-Mulk','Al-Qalam','Al-Haqqah',"Al-Ma'arij",'Nuh','Al-Jinn','Al-Muzzammil','Al-Muddaththir','Al-Qiyamah','Al-Insan','Al-Mursalat','An-Naba',"An-Nazi'at",'Abasa','At-Takwir','Al-Infitar','Al-Mutaffifin','Al-Inshiqaq','Al-Buruj','At-Tariq',"Al-A'la",'Al-Ghashiyah','Al-Fajr','Al-Balad','Ash-Shams','Al-Layl','Ad-Duha','Ash-Sharh','At-Tin','Al-Alaq','Al-Qadr','Al-Bayyinah','Az-Zalzalah','Al-Adiyat',"Al-Qari'ah",'At-Takathur','Al-Asr','Al-Humazah','Al-Fil','Quraysh',"Al-Ma'un",'Al-Kawthar','Al-Kafirun','An-Nasr','Al-Masad','Al-Ikhlas','Al-Falaq','An-Nas'
 ];
@@ -205,6 +215,37 @@ async function fetchJson<T>(primary: string, fallback: string, signal?: AbortSig
     if (signal?.aborted) throw error;
     return request(fallback);
   }
+}
+
+// Fallback when no service worker is available: the app downloads every surah itself.
+// The browser HTTP cache keeps them, and surahCache serves them in this session.
+async function downloadAllSurahsDirect(
+  lang: string,
+  onProgress: (done: number) => void,
+  signal: AbortSignal
+): Promise<boolean> {
+  let done = 0;
+  let failed = 0;
+  const batch = 6;
+  for (let i = 1; i <= SURAH_TOTAL; i += batch) {
+    const nums = Array.from({ length: Math.min(batch, SURAH_TOTAL - i + 1) }, (_, k) => i + k);
+    await Promise.all(nums.map(async (n) => {
+      const key = `${lang}_${n}`;
+      try {
+        if (!surahCache.has(key)) {
+          const data = await fetchJson<SurahPayload>(`${QURAN_CDN}${lang}/${n}.json`, `${QURAN_FALLBACK}${lang}/${n}.json`, signal);
+          surahCache.set(key, data);
+        }
+      } catch {
+        failed++;
+      } finally {
+        done++;
+        onProgress(done);
+      }
+    }));
+    if (signal.aborted) return false;
+  }
+  return failed === 0;
 }
 
 function pad3(value: number) {
@@ -286,7 +327,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
   const [search, setSearch] = useState('');
   const [selectedSurah, setSelectedSurah] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [picker, setPicker] = useState<'quran' | 'tafsir' | 'audio' | null>(null);
+  const [picker, setPicker] = useState<'quran' | 'tafsir' | null>(null);
 
   const [language, setLanguage] = useState(() => {
     if (typeof window === 'undefined') return 'ur';
@@ -296,14 +337,20 @@ export const QuranView: React.FC<QuranViewProps> = () => {
     if (typeof window === 'undefined') return 'ibn-kathir-ur';
     return localStorage.getItem(TAFSIR_KEY) || 'ibn-kathir-ur';
   });
-  const [audioEditionId, setAudioEditionId] = useState(() => {
-    if (typeof window === 'undefined') return DEFAULT_AUDIO_EDITION;
-    return localStorage.getItem(AUDIO_EDITION_KEY) || DEFAULT_AUDIO_EDITION;
-  });
   const [showWelcome, setShowWelcome] = useState(() => {
     if (typeof window === 'undefined') return false;
     return !localStorage.getItem(LANGUAGE_KEY);
   });
+  // In the welcome popup the user first highlights a language, then presses Continue.
+  const [pendingLanguage, setPendingLanguage] = useState('ur');
+  const [offline, setOffline] = useState<OfflineState>({ status: 'idle', done: 0, total: SURAH_TOTAL, lang: '' });
+  // Which language is fully saved offline right now (persists across app restarts).
+  const [offlineDoneLang, setOfflineDoneLang] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(OFFLINE_DONE_KEY);
+  });
+  const [offlineOpen, setOfflineOpen] = useState(false); // progress popup visible?
+  const offlineAbortRef = useRef<AbortController | null>(null);
 
   const [surahData, setSurahData] = useState<SurahPayload | null>(null);
   const [surahLoading, setSurahLoading] = useState(false);
@@ -329,14 +376,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
 
   const currentLanguage = QURAN_LANGUAGES.find((item) => item.code === language) || QURAN_LANGUAGES[0];
   const currentTafsir = TAFSIR_EDITIONS.find((item) => item.slug === tafsirSlug) || TAFSIR_EDITIONS[5];
-  const currentAudioEdition = AUDIO_EDITIONS.find((item) => item.id === audioEditionId) || AUDIO_EDITIONS[0];
-  // Editions for the current reading language first, then everything else (so switching
-  // language doesn't hide other editions the user may still want, e.g. Arabic recitation).
-  const audioEditionChoices = useMemo(() => {
-    const forLanguage = AUDIO_EDITIONS.filter((item) => item.language === language);
-    const rest = AUDIO_EDITIONS.filter((item) => item.language !== language);
-    return [...forLanguage, ...rest];
-  }, [language]);
+  const currentTranslationAudio = TRANSLATION_AUDIO_BY_LANGUAGE[language];
   const selectedMeta = selectedSurah ? SURAHS[selectedSurah - 1] : null;
 
   const filteredSurahs = useMemo(() => {
@@ -403,6 +443,29 @@ export const QuranView: React.FC<QuranViewProps> = () => {
       requestAnimationFrame(() => document.documentElement.style.removeProperty('scroll-behavior'));
     };
   }, [selectedSurah]);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data.type !== 'string' || !data.type.startsWith('QURAN_PRECACHE_')) return;
+      if (data.type === 'QURAN_PRECACHE_PROGRESS') {
+        setOffline((prev) => ({ ...prev, status: 'downloading', done: data.done, total: data.total || SURAH_TOTAL, lang: data.lang }));
+      } else if (data.type === 'QURAN_PRECACHE_DONE') {
+        localStorage.setItem(OFFLINE_DONE_KEY, data.lang);
+        setOfflineDoneLang(data.lang);
+        setOffline({ status: 'done', done: data.total || SURAH_TOTAL, total: data.total || SURAH_TOTAL, lang: data.lang });
+      } else if (data.type === 'QURAN_PRECACHE_ERROR') {
+        setOffline((prev) => ({ ...prev, status: 'error', lang: data.lang }));
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, []);
+
+  useEffect(() => {
+    return () => offlineAbortRef.current?.abort();
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -486,6 +549,57 @@ export const QuranView: React.FC<QuranViewProps> = () => {
     };
   }, []);
 
+  const startOfflineDownload = async (code: string) => {
+    setOffline({ status: 'downloading', done: 0, total: SURAH_TOTAL, lang: code });
+    setOfflineOpen(true);
+
+    // Preferred path: ask the service worker (survives the popup being closed).
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 4000)),
+        ]);
+        const worker = reg?.active || navigator.serviceWorker.controller;
+        if (worker) {
+          worker.postMessage({ type: 'PRECACHE_QURAN', lang: code });
+          return;
+        }
+      } catch {
+        /* fall through to direct download */
+      }
+    }
+
+    // Fallback path: no service worker, download directly from the app.
+    offlineAbortRef.current?.abort();
+    const controller = new AbortController();
+    offlineAbortRef.current = controller;
+    const ok = await downloadAllSurahsDirect(
+      code,
+      (done) => setOffline((prev) => ({ ...prev, status: 'downloading', done })),
+      controller.signal
+    );
+    if (controller.signal.aborted) return;
+    if (ok) {
+      localStorage.setItem(OFFLINE_DONE_KEY, code);
+      setOfflineDoneLang(code);
+      setOffline({ status: 'done', done: SURAH_TOTAL, total: SURAH_TOTAL, lang: code });
+    } else {
+      setOffline((prev) => ({ ...prev, status: 'error' }));
+    }
+  };
+
+  const continueWelcome = () => {
+    const code = pendingLanguage;
+    chooseQuranLanguage(code);
+    startOfflineDownload(code);
+  };
+
+  const skipWelcome = () => {
+    localStorage.setItem(LANGUAGE_KEY, language);
+    setShowWelcome(false);
+  };
+
   const chooseQuranLanguage = (code: string) => {
     setLanguage(code);
     localStorage.setItem(LANGUAGE_KEY, code);
@@ -493,14 +607,6 @@ export const QuranView: React.FC<QuranViewProps> = () => {
     if (preferred) {
       setTafsirSlug(preferred);
       localStorage.setItem(TAFSIR_KEY, preferred);
-    }
-    // Only switch the remembered audio automatically if the user has never chosen one
-    // for themselves yet; once they pick an edition explicitly we stop overriding it.
-    const hasExplicitAudioChoice = typeof window !== 'undefined' && !!localStorage.getItem(AUDIO_EDITION_KEY);
-    const preferredAudio = PREFERRED_AUDIO[code];
-    if (preferredAudio && !hasExplicitAudioChoice) {
-      setAudioEditionId(preferredAudio);
-      localStorage.setItem(AUDIO_EDITION_KEY, preferredAudio);
     }
     setPicker(null);
     setShowWelcome(false);
@@ -512,19 +618,6 @@ export const QuranView: React.FC<QuranViewProps> = () => {
     setPicker(null);
     setTafsirOpen(false);
     setTafsirPages([]);
-  };
-
-  const chooseAudioEdition = (id: string) => {
-    setAudioEditionId(id);
-    localStorage.setItem(AUDIO_EDITION_KEY, id);
-    setPicker(null);
-    // If something is currently playing, restart the same surah/ayah on the new edition
-    // rather than leaving a stale track from the previous reciter/translation running.
-    const current = audioStateRef.current;
-    if (current) {
-      const edition = AUDIO_EDITIONS.find((item) => item.id === id) || AUDIO_EDITIONS[0];
-      playTrack({ ...current, editionId: edition.id, status: 'loading' });
-    }
   };
 
   const closeReader = () => {
@@ -600,11 +693,15 @@ export const QuranView: React.FC<QuranViewProps> = () => {
     disposeAudio(audioRef.current);
     audioRef.current = null;
 
-    const edition = AUDIO_EDITIONS.find((item) => item.id === state.editionId) || AUDIO_EDITIONS[0];
-    const audio = new Audio(`${edition.base}${pad3(state.surah)}${pad3(state.ayah)}.mp3`);
+    const wantsTranslation = state.mode === 'surah-translation' || state.mode === 'ayah-translation';
+    const translationEdition = wantsTranslation ? TRANSLATION_AUDIO_BY_LANGUAGE[language] : undefined;
+    const useTranslationLeg = state.leg === 'translation' && !!translationEdition;
+    const base = useTranslationLeg ? translationEdition!.base : AUDIO_BASE;
+
+    const audio = new Audio(`${base}${pad3(state.surah)}${pad3(state.ayah)}.mp3`);
     audio.preload = 'auto';
     audioRef.current = audio;
-    updateAudio({ ...state, status: 'loading' });
+    updateAudio({ ...state, leg: useTranslationLeg ? 'translation' : 'arabic', status: 'loading' });
 
     audio.onplay = () => {
       if (audioRef.current !== audio || !audioStateRef.current) return;
@@ -618,8 +715,20 @@ export const QuranView: React.FC<QuranViewProps> = () => {
       if (audioRef.current !== audio) return;
       const current = audioStateRef.current;
       if (!current) return;
-      if (current.mode === 'surah' && current.ayah < current.total) {
-        playTrack({ ...current, ayah: current.ayah + 1, status: 'loading' });
+
+      const isTranslationMode = current.mode === 'surah-translation' || current.mode === 'ayah-translation';
+      const hasTranslationTrack = isTranslationMode && !!TRANSLATION_AUDIO_BY_LANGUAGE[language];
+
+      // Arabic leg just finished and a translation track exists for this language:
+      // play that same ayah's translation next, before moving on.
+      if (isTranslationMode && current.leg === 'arabic' && hasTranslationTrack) {
+        playTrack({ ...current, leg: 'translation', status: 'loading' });
+        return;
+      }
+
+      const isSurahWide = current.mode === 'surah' || current.mode === 'surah-translation';
+      if (isSurahWide && current.ayah < current.total) {
+        playTrack({ ...current, ayah: current.ayah + 1, leg: 'arabic', status: 'loading' });
       } else {
         updateAudio({ ...current, status: 'complete' });
       }
@@ -637,13 +746,14 @@ export const QuranView: React.FC<QuranViewProps> = () => {
 
   const startAudio = (mode: AudioMode) => {
     if (!selectedSurah || !surahData?.verses?.length || audioChoiceAyah == null) return;
-    const ayah = mode === 'surah' ? 1 : audioChoiceAyah;
+    const isSurahWide = mode === 'surah' || mode === 'surah-translation';
+    const ayah = isSurahWide ? 1 : audioChoiceAyah;
     playTrack({
       surah: selectedSurah,
       ayah,
-      total: mode === 'surah' ? surahData.verses.length : ayah,
+      total: isSurahWide ? surahData.verses.length : ayah,
       mode,
-      editionId: audioEditionId,
+      leg: 'arabic',
       status: 'loading',
     });
     setAudioChoiceAyah(null);
@@ -708,13 +818,38 @@ export const QuranView: React.FC<QuranViewProps> = () => {
               <BookOpen size={17} className="mt-0.5 text-[#14532d]" />
               <span><strong className="block text-sm">Select Tafsir</strong><small className="block text-[11px] text-slate-500">{currentTafsir.name} - {currentTafsir.language}</small></span>
             </button>
-            <button onClick={() => { setPicker('audio'); setMenuOpen(false); }} className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-[#f0f7f1]">
-              <Volume2 size={17} className="mt-0.5 text-[#14532d]" />
-              <span><strong className="block text-sm">Select Audio</strong><small className="block text-[11px] text-slate-500">{currentAudioEdition.name} - {currentAudioEdition.reciter}</small></span>
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                if (offlineDoneLang === language) return;
+                if (offline.status === 'downloading') { setOfflineOpen(true); return; }
+                startOfflineDownload(language);
+              }}
+              className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-[#f0f7f1]"
+            >
+              {offlineDoneLang === language ? <CheckCircle2 size={17} className="mt-0.5 text-[#14532d]" /> : <Download size={17} className="mt-0.5 text-[#14532d]" />}
+              <span>
+                <strong className="block text-sm">Download for offline</strong>
+                <small className="block text-[11px] text-slate-500">
+                  {offlineDoneLang === language
+                    ? `${currentLanguage.native} is saved offline`
+                    : offline.status === 'downloading' && offline.lang === language
+                    ? `Downloading... ${offline.done}/${offline.total}`
+                    : `${currentLanguage.native} is not downloaded yet`}
+                </small>
+              </span>
             </button>
           </div>
         )}
       </div>
+
+      {/* Background download pill (popup closed but download still running) */}
+      {!offlineOpen && offline.status === 'downloading' && (
+        <button onClick={() => setOfflineOpen(true)} className="mb-3 flex w-full items-center justify-between gap-2 rounded-xl border border-[#d8e4da] bg-[#f0f7f1] px-3 py-2 text-left text-[11px] font-bold text-[#14532d]">
+          <span className="flex items-center gap-2"><Download size={14} className="animate-pulse" /> Saving Quran offline... {Math.round((offline.done / offline.total) * 100)}%</span>
+          <ChevronRight size={13} />
+        </button>
+      )}
 
       {/* Surah cards */}
       {filteredSurahs.length ? (
@@ -816,71 +951,84 @@ export const QuranView: React.FC<QuranViewProps> = () => {
         </div>
       )}
 
-      {/* Quran language / tafsir / audio picker */}
+      {/* Quran language / tafsir picker */}
       {(picker || showWelcome) && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !showWelcome) setPicker(null); }}>
-          <div dir="ltr" className="max-h-[84vh] w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <div dir="ltr" className="flex max-h-[84vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3">
               <div>
-                <h3 className="text-sm font-bold text-[#14532d]">{picker === 'tafsir' ? 'Select Tafsir' : picker === 'audio' ? 'Select Audio' : 'Select Quran language'}</h3>
-                {showWelcome && <p className="mt-1 text-[11px] text-slate-500">Choose the translation language you want to read.</p>}
+                <h3 className="text-sm font-bold text-[#14532d]">{picker === 'tafsir' ? 'Select Tafsir' : 'Select Quran language'}</h3>
+                {showWelcome && <p className="mt-1 text-[11px] text-slate-500">Which language do you want to read the Quran in?</p>}
               </div>
               {!showWelcome && <button onClick={() => setPicker(null)} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100"><X size={15} /></button>}
             </div>
-            <div className="max-h-[68vh] overflow-y-auto p-2">
-              {picker === 'tafsir' && TAFSIR_EDITIONS.map((item) => {
-                const active = item.slug === tafsirSlug;
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {(picker === 'tafsir' ? TAFSIR_EDITIONS : QURAN_LANGUAGES).map((item) => {
+                const isTafsir = 'slug' in item;
+                const active = isTafsir ? item.slug === tafsirSlug : (showWelcome ? item.code === pendingLanguage : item.code === language);
                 return (
                   <button
-                    key={item.slug}
-                    onClick={() => chooseTafsir(item.slug)}
+                    key={isTafsir ? item.slug : item.code}
+                    onClick={() => isTafsir ? chooseTafsir(item.slug) : (showWelcome ? setPendingLanguage(item.code) : chooseQuranLanguage(item.code))}
                     className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left ${active ? 'bg-[#f0f7f1] text-[#14532d]' : 'hover:bg-slate-50'}`}
                   >
                     <span>
-                      <strong className="block text-sm" dir="auto">{item.name}</strong>
-                      <small className="mt-1 block text-[10px] text-slate-500">{item.language} - {item.author}</small>
+                      <strong className="block text-sm" dir="auto">{isTafsir ? item.name : item.native}</strong>
+                      <small className="mt-1 block text-[10px] text-slate-500">{isTafsir ? `${item.language} - ${item.author}` : item.english}</small>
                     </span>
                     {active && <Check size={16} />}
                   </button>
                 );
               })}
+            </div>
+            {showWelcome && (
+              <div className="shrink-0 border-t border-slate-100 p-3">
+                <p className="mb-2 text-center text-[10px] text-slate-500">Continue saves the whole Quran on your device for offline reading.</p>
+                <div className="flex gap-2">
+                  <button onClick={skipWelcome} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600">Skip for now</button>
+                  <button onClick={continueWelcome} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#14532d] py-2.5 text-xs font-bold text-white"><Check size={14} /> Continue</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
-              {picker === 'audio' && audioEditionChoices.map((item) => {
-                const active = item.id === audioEditionId;
-                const itemLanguage = QURAN_LANGUAGES.find((entry) => entry.code === item.language);
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => chooseAudioEdition(item.id)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left ${active ? 'bg-[#f0f7f1] text-[#14532d]' : 'hover:bg-slate-50'}`}
-                  >
-                    <span>
-                      <strong className="block text-sm" dir="auto">{item.name}</strong>
-                      <small className="mt-1 block text-[10px] text-slate-500">{item.reciter}{itemLanguage ? ` - ${itemLanguage.english}` : ''}</small>
-                    </span>
-                    {active && <Check size={16} />}
-                  </button>
-                );
-              })}
-
-              {picker !== 'tafsir' && picker !== 'audio' && QURAN_LANGUAGES.map((item) => {
-                const active = item.code === language;
-                return (
-                  <button
-                    key={item.code}
-                    onClick={() => chooseQuranLanguage(item.code)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left ${active ? 'bg-[#f0f7f1] text-[#14532d]' : 'hover:bg-slate-50'}`}
-                  >
-                    <span>
-                      <strong className="block text-sm" dir="auto">{item.native}</strong>
-                      <small className="mt-1 block text-[10px] text-slate-500">{item.english}</small>
-                    </span>
-                    {active && <Check size={16} />}
-                  </button>
-                );
-              })}
-
-              {showWelcome && <button onClick={() => { localStorage.setItem(LANGUAGE_KEY, language); setShowWelcome(false); }} className="mt-2 w-full py-2 text-xs text-slate-500 underline">Skip for now</button>}
+      {/* Offline download progress popup */}
+      {offlineOpen && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/65 p-4">
+          <div dir="ltr" className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl">
+            {offline.status === 'done' ? (
+              <>
+                <CheckCircle2 className="mx-auto mb-3 text-[#14532d]" size={44} />
+                <h3 className="text-base font-bold text-[#14532d]">Quran is ready for offline use!</h3>
+                <p className="mt-2 text-xs text-slate-500">All 114 surahs are saved on your device.</p>
+              </>
+            ) : offline.status === 'error' ? (
+              <>
+                <AlertTriangle className="mx-auto mb-3 text-rose-600" size={40} />
+                <h3 className="text-base font-bold text-slate-800">Download interrupted</h3>
+                <p className="mt-2 text-xs text-slate-500">Check your internet and try again. Surahs already saved will not be downloaded again.</p>
+              </>
+            ) : (
+              <>
+                <Download className="mx-auto mb-3 animate-pulse text-[#14532d]" size={38} />
+                <h3 className="text-base font-bold text-[#14532d]">Preparing your Quran for offline use...</h3>
+                <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-[#f0f7f1]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((offline.done / offline.total) * 100)}>
+                  <div className="h-full rounded-full bg-[#14532d] transition-all duration-300" style={{ width: `${Math.round((offline.done / offline.total) * 100)}%` }} />
+                </div>
+                <p className="mt-2 text-sm font-bold text-[#14532d]">{Math.round((offline.done / offline.total) * 100)}%</p>
+                <p className="mt-1 text-xs text-slate-500">{offline.done} of {offline.total} surahs downloaded</p>
+              </>
+            )}
+            <p className="mt-3 text-[10px] text-slate-400">Saved only on your device. Nothing is sent to any server.</p>
+            <div className="mt-4 flex gap-2">
+              {offline.status === 'error' && (
+                <button onClick={() => startOfflineDownload(offline.lang || language)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#14532d] py-2.5 text-xs font-bold text-white"><RefreshCw size={13} /> Try again</button>
+              )}
+              <button onClick={() => setOfflineOpen(false)} className={`flex-1 rounded-xl py-2.5 text-xs font-bold ${offline.status === 'done' ? 'bg-[#14532d] text-white' : 'border border-slate-200 text-slate-600'}`}>
+                {offline.status === 'done' ? 'Done' : offline.status === 'error' ? 'Close' : 'Continue in background'}
+              </button>
             </div>
           </div>
         </div>
@@ -893,10 +1041,16 @@ export const QuranView: React.FC<QuranViewProps> = () => {
             <button onClick={() => setAudioChoiceAyah(null)} className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100"><X size={15} /></button>
             <Volume2 className="mx-auto mb-3 mt-2 text-[#14532d]" size={28} />
             <h3 className="text-lg font-bold text-[#14532d]">Choose Recitation</h3>
-            <p className="mb-1 mt-1 text-xs text-slate-500">Surah {selectedMeta.en} - Ayah {audioChoiceAyah}</p>
-            <button onClick={() => { setAudioChoiceAyah(null); setPicker('audio'); }} className="mb-4 text-[11px] font-semibold text-[#14532d] underline">{currentAudioEdition.name} ({currentAudioEdition.reciter}) - change</button>
+            <p className="mb-4 mt-1 text-xs text-slate-500">Surah {selectedMeta.en} - Ayah {audioChoiceAyah}</p>
             <button onClick={() => startAudio('surah')} className="mb-2 flex w-full items-center justify-between rounded-xl border border-[#d8e4da] p-3 text-left hover:bg-[#f0f7f1]"><span><strong className="block text-sm">Full Surah Recitation</strong><small className="text-[10px] text-slate-500">Play all ayahs from the beginning</small></span><ChevronRight size={14} /></button>
-            <button onClick={() => startAudio('ayah')} className="flex w-full items-center justify-between rounded-xl border border-[#d8e4da] p-3 text-left hover:bg-[#f0f7f1]"><span><strong className="block text-sm">Single Ayah Recitation</strong><small className="text-[10px] text-slate-500">Play Ayah {audioChoiceAyah} only</small></span><ChevronRight size={14} /></button>
+            <button onClick={() => startAudio('ayah')} className="mb-2 flex w-full items-center justify-between rounded-xl border border-[#d8e4da] p-3 text-left hover:bg-[#f0f7f1]"><span><strong className="block text-sm">Single Ayah Recitation</strong><small className="text-[10px] text-slate-500">Play Ayah {audioChoiceAyah} only</small></span><ChevronRight size={14} /></button>
+            {currentTranslationAudio && (
+              <>
+                <div className="my-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400"><span className="h-px flex-1 bg-slate-200" /> Arabic + {currentLanguage.english} <span className="h-px flex-1 bg-slate-200" /></div>
+                <button onClick={() => startAudio('surah-translation')} className="mb-2 flex w-full items-center justify-between rounded-xl border border-[#d8e4da] p-3 text-left hover:bg-[#f0f7f1]"><span><strong className="block text-sm">Full Surah with Translation</strong><small className="text-[10px] text-slate-500">Each ayah, then its {currentLanguage.english} translation ({currentTranslationAudio.name})</small></span><ChevronRight size={14} /></button>
+                <button onClick={() => startAudio('ayah-translation')} className="flex w-full items-center justify-between rounded-xl border border-[#d8e4da] p-3 text-left hover:bg-[#f0f7f1]"><span><strong className="block text-sm">This Ayah with Translation</strong><small className="text-[10px] text-slate-500">Ayah {audioChoiceAyah}, then its {currentLanguage.english} translation</small></span><ChevronRight size={14} /></button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -904,7 +1058,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
       {/* Compact audio player */}
       {audioState && (
         <div dir="ltr" className="fixed bottom-3 left-3 right-3 z-[90] mx-auto flex max-w-lg items-center justify-between gap-3 rounded-2xl border border-[#d8e4da] bg-white p-3 shadow-2xl">
-          <div className="flex min-w-0 items-center gap-2"><Volume2 className="shrink-0 text-[#14532d]" size={19} /><div className="min-w-0"><strong className="block truncate text-xs">{SURAHS[audioState.surah - 1]?.en} - Ayah {audioState.ayah}</strong><small className="block truncate text-[10px] text-slate-500">{(AUDIO_EDITIONS.find((item) => item.id === audioState.editionId) || AUDIO_EDITIONS[0]).name} - {audioState.status === 'loading' ? 'Loading audio...' : audioState.status === 'error' ? 'Audio could not be loaded' : audioState.status === 'complete' ? 'Recitation complete' : audioState.status}</small></div></div>
+          <div className="flex min-w-0 items-center gap-2"><Volume2 className="shrink-0 text-[#14532d]" size={19} /><div className="min-w-0"><strong className="block truncate text-xs">{SURAHS[audioState.surah - 1]?.en} - Ayah {audioState.ayah}{(audioState.mode === 'surah-translation' || audioState.mode === 'ayah-translation') ? ` - ${audioState.leg === 'translation' ? currentLanguage.english : 'Arabic'}` : ''}</strong><small className="block text-[10px] text-slate-500">{audioState.status === 'loading' ? 'Loading audio...' : audioState.status === 'error' ? 'Audio could not be loaded' : audioState.status === 'complete' ? 'Recitation complete' : audioState.status}</small></div></div>
           <div className="flex shrink-0 gap-2"><button onClick={toggleAudio} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#14532d] text-white">{audioState.status === 'playing' ? <Pause size={15} /> : <Play size={15} />}</button><button onClick={stopAudio} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#14532d] text-white"><Square size={14} /></button></div>
         </div>
       )}
