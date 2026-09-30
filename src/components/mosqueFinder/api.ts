@@ -10,32 +10,36 @@ interface OverpassElement {
   tags?: Record<string, string>;
 }
 
-/* Overpass کا مرکزی سرور (overpass-api.de) اب براؤزر کی POST درخواستوں کو
-   CORS preflight پر ہی 403/406 کے ساتھ رد کر دیتا ہے (1-2 سیکنڈ میں فوری ناکامی،
-   query چلنے سے پہلے ہی)۔ اس لیے:
-     1) POST کی بجائے GET — چھوٹی query "simple request" ہے، preflight نہیں چاہیے
-     2) ایک سے زیادہ آئینے (mirrors) — پہلا ناکام ہو تو اگلا خود بخود آزمائیں
+/* پہلے یہاں GET (query کو URL میں) استعمال ہو رہا تھا، اس خیال پر کہ overpass-api.de
+   POST کو preflight پر رد کرتا ہے۔ یہ خیال غلط ثابت ہوا: ہماری اصل standalone HTML
+   فائل آج بھی اسی overpass-api.de کو POST سے کال کر کے کامیابی سے چلتی ہے۔
 
-   overpass-api.de خود اکثر busy/down رہتا ہے (عوامی رپورٹس کے مطابق)، اس لیے اسے
-   فہرست میں سب سے آخر میں رکھا ہے — باقی تین پہلے آزمائے جائیں گے، یہ صرف آخری
-   موقع کے طور پر رہے گا۔ اسے مکمل نہیں ہٹایا، کیونکہ اگر باقی تین بھی ناکام ہوں
-   تو یہ ایک اضافی موقع دیتا ہے۔ */
+   اصل وجہ کچھ اور تھی: ہماری query میں 4 شرطیں ہیں (node/way × place_of_worship/mosque)،
+   جو GET میں پورے کی پوری URL کے اندر جاتی ہے۔ کئی سرور/پراکسی لمبے URL کو 414 یا
+   خاموشی سے رد کر دیتے ہیں — اور وہ ناکامی بھی ہمارے catch میں پھنس کر وہی عمومی
+   "servers busy" پیغام بنا دیتی تھی، اصل وجہ کبھی نظر نہیں آئی۔
+
+   حل: standalone HTML کے عین مطابق POST پر واپس، جہاں query request body میں جاتی
+   ہے (URL کی لمبائی کی حد کا مسئلہ ہی نہیں رہتا)۔ آئینوں (mirrors) کی اصل ترتیب بھی
+   واپس — overpass-api.de پہلے نمبر پر، کیونکہ عملی طور پر یہی سب سے تیز/قابلِ اعتماد
+   نکلا۔ باقی تین بدستور fallback کے طور پر موجود ہیں۔ */
 const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-  'https://overpass-api.de/api/interpreter',
 ];
 
-async function fetchFromEndpoint(endpoint: string, query: string, timeoutMs = 8000): Promise<OverpassElement[]> {
+async function fetchFromEndpoint(endpoint: string, query: string, timeoutMs = 15000): Promise<OverpassElement[]> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, {
-      method: 'GET',
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      body: 'data=' + encodeURIComponent(query),
       signal: ctrl.signal,
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw new Error(`HTTP ${res.status} from ${endpoint}`);
     const json = (await res.json()) as { elements?: OverpassElement[] };
     return json.elements || [];
   } finally {
@@ -56,17 +60,21 @@ export async function fetchMosquesFromAPI(lat: number, lng: number, radius: numb
     out center;
   `;
 
-  let lastErr: unknown = null;
+  const failures: string[] = [];
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
       const elements = await fetchFromEndpoint(endpoint, query);
       return processElements(elements);
     } catch (err) {
-      lastErr = err;
+      // ہر آئینے کی اصل ناکامی محفوظ کر لیں (صرف last error نہیں) تاکہ اگر سب ناکام
+      // ہوں تو console میں اصل وجہ (timeout؟ HTTP 414؟ CORS؟) نظر آئے، اندازہ نہ لگانا پڑے۔
+      const reason = err instanceof Error ? err.message : String(err);
+      failures.push(`${endpoint}: ${reason}`);
       // اگلے آئینے (mirror) پر آزمائیں
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error('All Overpass mirrors failed');
+  console.error('All Overpass mirrors failed:\n' + failures.join('\n'));
+  throw new Error('All Overpass mirrors failed');
 }
 
 /** raw Overpass elements → compact de-duplicated list (small = cache-friendly) */
