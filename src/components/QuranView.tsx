@@ -126,11 +126,6 @@ const AUDIO_BASE = 'https://everyayah.com/data/Alafasy_128kbps/';
 const TRANSLATION_AUDIO_EDITIONS: TranslationAudioEdition[] = [
   { language: 'ur', name: 'Shamshad Ali Khan', base: 'https://everyayah.com/data/translations/urdu_shamshad_ali_khan_46kbps/' },
   { language: 'en', name: 'Ibrahim Walk', base: 'https://everyayah.com/data/English/Sahih_Intnl_Ibrahim_Walk_192kbps/' },
-  {
-    language: 'tr',
-    name: 'Besim Korkut',
-    base: 'https://everyayah.com/data/translations/besim_korkut_ajet_po_ajet/',
-  },
 ];
 const TRANSLATION_AUDIO_BY_LANGUAGE: Record<string, TranslationAudioEdition> =
   Object.fromEntries(TRANSLATION_AUDIO_EDITIONS.map((item) => [item.language, item]));
