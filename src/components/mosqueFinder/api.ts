@@ -14,15 +14,20 @@ interface OverpassElement {
    CORS preflight پر ہی 403/406 کے ساتھ رد کر دیتا ہے (1-2 سیکنڈ میں فوری ناکامی،
    query چلنے سے پہلے ہی)۔ اس لیے:
      1) POST کی بجائے GET — چھوٹی query "simple request" ہے، preflight نہیں چاہیے
-     2) ایک سے زیادہ آئینے (mirrors) — پہلا ناکام ہو تو اگلا خود بخود آزمائیں */
+     2) ایک سے زیادہ آئینے (mirrors) — پہلا ناکام ہو تو اگلا خود بخود آزمائیں
+
+   overpass-api.de خود اکثر busy/down رہتا ہے (عوامی رپورٹس کے مطابق)، اس لیے اسے
+   فہرست میں سب سے آخر میں رکھا ہے — باقی تین پہلے آزمائے جائیں گے، یہ صرف آخری
+   موقع کے طور پر رہے گا۔ اسے مکمل نہیں ہٹایا، کیونکہ اگر باقی تین بھی ناکام ہوں
+   تو یہ ایک اضافی موقع دیتا ہے۔ */
 const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  'https://overpass-api.de/api/interpreter',
 ];
 
-async function fetchFromEndpoint(endpoint: string, query: string, timeoutMs = 15000): Promise<OverpassElement[]> {
+async function fetchFromEndpoint(endpoint: string, query: string, timeoutMs = 8000): Promise<OverpassElement[]> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
