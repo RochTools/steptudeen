@@ -23,29 +23,7 @@ interface OverpassElement {
    ہے (URL کی لمبائی کی حد کا مسئلہ ہی نہیں رہتا)۔ آئینوں (mirrors) کی اصل ترتیب بھی
    واپس — overpass-api.de پہلے نمبر پر، کیونکہ عملی طور پر یہی سب سے تیز/قابلِ اعتماد
    نکلا۔ باقی تین بدستور fallback کے طور پر موجود ہیں۔ */
-const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-];
-
-async function fetchFromEndpoint(endpoint: string, query: string, timeoutMs = 150000): Promise<OverpassElement[]> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      body: 'data=' + encodeURIComponent(query),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${endpoint}`);
-    const json = (await res.json()) as { elements?: OverpassElement[] };
-    return json.elements || [];
-  } finally {
-    clearTimeout(timer);
-  }
-}
+const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
 /** All nearby mosques within `radius` meters of (lat, lng). */
 export async function fetchMosquesFromAPI(lat: number, lng: number, radius: number): Promise<MosqueLite[]> {
@@ -60,25 +38,24 @@ export async function fetchMosquesFromAPI(lat: number, lng: number, radius: numb
     out center;
   `;
 
-  const failures: string[] = [];
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      const elements = await fetchFromEndpoint(endpoint, query);
-      return processElements(elements);
-    } catch (err) {
-      // ہر آئینے کی اصل ناکامی محفوظ کر لیں (صرف last error نہیں) تاکہ اگر سب ناکام
-      // ہوں تو console میں اصل وجہ (timeout؟ HTTP 414؟ CORS؟) نظر آئے، اندازہ نہ لگانا پڑے۔
-      const reason = err instanceof Error ? err.message : String(err);
-      failures.push(`${endpoint}: ${reason}`);
-      // اگلے آئینے (mirror) پر آزمائیں
-    }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25000); // 25 second timeout
+  try {
+    const res = await fetch(OVERPASS_URL, {
+      method: 'POST',
+      body: 'data=' + encodeURIComponent(query),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = (await res.json()) as { elements?: OverpassElement[] };
+    return processElements(json.elements || []);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error('Overpass failed:', reason);
+    throw new Error(reason);
+  } finally {
+    clearTimeout(timer);
   }
-  console.error('All Overpass mirrors failed:\n' + failures.join('\n'));
-  // Keep this short: it's rendered directly in the on-screen status toast on the phone.
-  // Shows only the LAST (most recent) mirror's reason — full detail for every mirror is
-  // still in console.error above for anyone who does have dev tools open.
-  const lastReason = failures[failures.length - 1] || 'unknown error';
-  throw new Error(`${OVERPASS_ENDPOINTS.length} servers tried, all failed. Last: ${lastReason}`);
 }
 
 /** raw Overpass elements → compact de-duplicated list (small = cache-friendly) */
