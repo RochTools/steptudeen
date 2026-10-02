@@ -31,8 +31,7 @@ const OVERPASS_ENDPOINTS = [
 ];
 const TIMEOUT_MS = 25000; // 25 seconds per server
 
-async function fetchFromEndpoint(endpoint: string, query: string): Promise<OverpassElement[]> {
-  const ctrl = new AbortController();
+async function fetchFromEndpoint(endpoint: string, query: string, ctrl: AbortController): Promise<OverpassElement[]> {
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(endpoint, {
@@ -50,30 +49,34 @@ async function fetchFromEndpoint(endpoint: string, query: string): Promise<Overp
 
 /** All nearby mosques within `radius` meters of (lat, lng). */
 export async function fetchMosquesFromAPI(lat: number, lng: number, radius: number): Promise<MosqueLite[]> {
+  // nwr = node + way + relation in one statement (lighter than 4 separate ones)
   const query = `
     [out:json][timeout:25];
     (
-      node["amenity"="place_of_worship"]["religion"="muslim"](around:${radius},${lat},${lng});
-      way["amenity"="place_of_worship"]["religion"="muslim"](around:${radius},${lat},${lng});
-      node["building"="mosque"](around:${radius},${lat},${lng});
-      way["building"="mosque"](around:${radius},${lat},${lng});
+      nwr["amenity"="place_of_worship"]["religion"="muslim"](around:${Math.round(radius)},${lat},${lng});
+      nwr["building"="mosque"](around:${Math.round(radius)},${lat},${lng});
     );
-    out center;
+    out center qt;
   `;
 
-  // A quick failure (e.g. "Failed to fetch") moves on to the next server immediately,
-  // so no time is wasted. A slow server is cut off after 25 seconds.
-  const failures: string[] = [];
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      return processElements(await fetchFromEndpoint(endpoint, query));
-    } catch (err) {
-      const host = new URL(endpoint).hostname;
-      failures.push(`${host}: ${err instanceof Error ? err.message : String(err)}`);
-    }
+  // All servers are asked AT THE SAME TIME; the first good answer wins and the rest are cancelled.
+  // (Sequential tries made one slow server cost 25s each.)
+  const ctrls = OVERPASS_ENDPOINTS.map(() => new AbortController());
+  const attempts = OVERPASS_ENDPOINTS.map((ep, i) =>
+    fetchFromEndpoint(ep, query, ctrls[i]).catch((err) => {
+      const host = new URL(ep).hostname;
+      throw new Error(`${host}: ${err instanceof Error ? err.message : String(err)}`);
+    }),
+  );
+  try {
+    const elements = await Promise.any(attempts);
+    ctrls.forEach((c) => c.abort());
+    return processElements(elements);
+  } catch (e) {
+    const errs = e instanceof AggregateError ? (e.errors as Error[]).map((x) => x.message) : [String(e)];
+    console.error('All Overpass servers failed:\n' + errs.join('\n'));
+    throw new Error(errs.join(' | '));
   }
-  console.error('All Overpass servers failed:\n' + failures.join('\n'));
-  throw new Error(failures.join(' | '));
 }
 
 /** raw Overpass elements → compact de-duplicated list (small = cache-friendly) */
