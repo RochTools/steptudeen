@@ -744,13 +744,18 @@ export default function MosqueFinder({
         try {
           list = await fetchMosquesFromAPI(lat, lng, radius);
           cacheSet(cacheKey, list);
-        } catch {
+        } catch (err) {
           const stale = cacheGetStale<MosqueLite[]>(cacheKey, STALE_MAX);
           if (stale) {
             list = stale;
             srcLabel = ' (offline cache)';
           } else {
-            showStatus('error', 'Mosque search servers are busy right now — please try again in a moment', 4000);
+            // Show the real failure reason on screen (not just a generic "busy" message) so it's
+            // visible directly on a phone, without needing desktop dev tools. fetchMosquesFromAPI
+            // throws one Error whose message lists every mirror's own failure (timeout, HTTP code,
+            // CORS, etc.) — see the "All Overpass mirrors failed:" log it also writes to console.
+            const reason = err instanceof Error ? err.message : String(err);
+            showStatus('error', `Mosque search failed — ${reason}`, 8000);
             if (mounted) setFinding(false);
             return;
           }
