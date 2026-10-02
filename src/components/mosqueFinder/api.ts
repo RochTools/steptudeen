@@ -48,8 +48,8 @@ async function fetchFromEndpoint(endpoint: string, query: string, ctrl: AbortCon
   }
 }
 
-/** All nearby mosques within `radius` meters of (lat, lng). */
-export async function fetchMosquesFromAPI(lat: number, lng: number, radius: number): Promise<MosqueLite[]> {
+/** Fallback: browser talks to Overpass directly (used only if /api/mosques doesn't exist, e.g. local dev). */
+async function fetchMosquesDirect(lat: number, lng: number, radius: number): Promise<MosqueLite[]> {
   // nwr = node + way + relation in one statement (lighter than 4 separate ones)
   const query = `
     [out:json][timeout:25];
@@ -77,6 +77,28 @@ export async function fetchMosquesFromAPI(lat: number, lng: number, radius: numb
     const errs = e instanceof AggregateError ? (e.errors as Error[]).map((x) => x.message) : [String(e)];
     console.error('All Overpass servers failed:\n' + errs.join('\n'));
     throw new Error(errs.join(' | '));
+  }
+}
+
+/** All nearby mosques within `radius` meters of (lat, lng) — via our own cached /api/mosques. */
+export async function fetchMosquesFromAPI(lat: number, lng: number, radius: number): Promise<MosqueLite[]> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 40000);
+  try {
+    const res = await fetch(
+      `/api/mosques?lat=${lat.toFixed(5)}&lng=${lng.toFixed(5)}&r=${Math.round(radius)}`,
+      { signal: ctrl.signal },
+    );
+    const type = res.headers.get('content-type') || '';
+    // 404 / HTML واپس آئے تو مطلب یہ endpoint موجود نہیں (مثلاً لوکل dev) → براہِ راست Overpass
+    if (res.status === 404 || !type.includes('application/json')) {
+      return await fetchMosquesDirect(lat, lng, radius);
+    }
+    const data = await res.json();
+    if (!res.ok) throw new Error((data as { error?: string }).error || 'HTTP ' + res.status);
+    return data as MosqueLite[];
+  } finally {
+    clearTimeout(timer);
   }
 }
 
