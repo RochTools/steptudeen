@@ -23,7 +23,30 @@ interface OverpassElement {
    ہے (URL کی لمبائی کی حد کا مسئلہ ہی نہیں رہتا)۔ آئینوں (mirrors) کی اصل ترتیب بھی
    واپس — overpass-api.de پہلے نمبر پر، کیونکہ عملی طور پر یہی سب سے تیز/قابلِ اعتماد
    نکلا۔ باقی تین بدستور fallback کے طور پر موجود ہیں۔ */
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter', // same server as the HTML file — always tried first
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+const TIMEOUT_MS = 25000; // 25 seconds per server
+
+async function fetchFromEndpoint(endpoint: string, query: string): Promise<OverpassElement[]> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      body: 'data=' + encodeURIComponent(query),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = (await res.json()) as { elements?: OverpassElement[] };
+    return json.elements || [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** All nearby mosques within `radius` meters of (lat, lng). */
 export async function fetchMosquesFromAPI(lat: number, lng: number, radius: number): Promise<MosqueLite[]> {
@@ -38,24 +61,19 @@ export async function fetchMosquesFromAPI(lat: number, lng: number, radius: numb
     out center;
   `;
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25000); // 25 second timeout
-  try {
-    const res = await fetch(OVERPASS_URL, {
-      method: 'POST',
-      body: 'data=' + encodeURIComponent(query),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = (await res.json()) as { elements?: OverpassElement[] };
-    return processElements(json.elements || []);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    console.error('Overpass failed:', reason);
-    throw new Error(reason);
-  } finally {
-    clearTimeout(timer);
+  // A quick failure (e.g. "Failed to fetch") moves on to the next server immediately,
+  // so no time is wasted. A slow server is cut off after 25 seconds.
+  const failures: string[] = [];
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      return processElements(await fetchFromEndpoint(endpoint, query));
+    } catch (err) {
+      const host = new URL(endpoint).hostname;
+      failures.push(`${host}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
+  console.error('All Overpass servers failed:\n' + failures.join('\n'));
+  throw new Error(failures.join(' | '));
 }
 
 /** raw Overpass elements → compact de-duplicated list (small = cache-friendly) */
