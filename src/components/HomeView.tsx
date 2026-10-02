@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Bell, BookOpen, CalendarDays, ChevronDown, CircleDot, Compass, Heart, MapPin, MapPinned, Menu, MoreVertical, Scroll, Search, SlidersHorizontal, Sunrise, User, X } from 'lucide-react';
+import {
+  AlertTriangle, Bell, BookOpen, CalendarDays, ChevronDown, CircleDot, Compass, Heart,
+  MapPin, MapPinned, Menu, Scroll, Search, SlidersHorizontal, Sunrise, User, X,
+} from 'lucide-react';
 import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
 import { InboxItem, readInbox, markInboxRead } from '../utils/notifications';
+
+/* ═══════════════════════════ Types ═══════════════════════════ */
 
 interface HomeViewProps {
   onNavigate: (view: string) => void;
@@ -22,52 +27,41 @@ interface HomeViewProps {
   isLoading?: boolean;
 }
 
-const SURAH_NAMES_UR = [
-  'الفاتحہ','البقرہ','آل عمران','النساء','المائدہ','الانعام','الاعراف','الانفال',
-  'التوبہ','یونس','ہود','یوسف','الرعد','ابراہیم','الحجر','النحل','الاسراء',
-  'الکہف','مریم','طہ','الانبیاء','الحج','المومنون','النور','الفرقان','الشعراء',
-  'النمل','القصص','العنکبوت','الروم','لقمان','السجدہ','الاحزاب','سبا','فاطر',
-  'یسین','الصافات','ص','الزمر','غافر','فصلت','الشوریٰ','الزخرف','الدخان',
-  'الجاثیہ','الاحقاف','محمد','الفتح','الحجرات','ق','الذاریات','الطور','النجم',
-  'القمر','الرحمٰن','الواقعہ','الحدید','المجادلہ','الحشر','الممتحنہ','الصف',
-  'الجمعہ','المنافقون','التغابن','الطلاق','التحریم','الملک','القلم','الحاقہ',
-  'المعارج','نوح','الجن','المزمل','المدثر','القیامہ','الانسان','المرسلات',
-  'النبا','النازعات','عبس','التکویر','الانفطار','المطففین','الانشقاق','البروج',
-  'الطارق','الاعلیٰ','الغاشیہ','الفجر','البلد','الشمس','اللیل','الضحیٰ',
-  'الشرح','التین','العلق','القدر','البینہ','الزلزلہ','العادیات','القارعہ',
-  'التکاثر','العصر','الہمزہ','الفیل','قریش','الماعون','الکوثر','الکافرون',
-  'النصر','المسد','الاخلاص','الفلق','الناس'
-];
+interface DailyText { ar: string; ur: string; ref: string }
+
+interface SearchResult {
+  title: string;
+  subtitle?: string;
+  type: string;
+  action: () => void;
+}
+
+interface SurahTarget { surah: number; ayah?: number }
+
+/* ═══════════════════════════ Constants ═══════════════════════════ */
 
 const QURAN_CDN = 'https://cdn.jsdelivr.net/gh/RochTools/quran-api@main/Quran/';
 const QURAN_FALLBACK = 'https://raw.githubusercontent.com/RochTools/quran-api/main/Quran/';
 const QURAN_SEARCH_TARGET_KEY = 'steptudeen_app_quran_search_target';
+const QURAN_LANGUAGE_KEY = 'steptudeen_app_quran_language';
 const HADITH_HOME_TARGET_KEY = 'steptudeen_app_hadith_book_target';
 
-const formatTo12Hour = (time24: string) => {
-  if (!time24) return '';
-  const [hStr, mStr] = time24.split(':');
-  let h = parseInt(hStr, 10);
-  const m = parseInt(mStr, 10);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12;
-  h = h ? h : 12;
-  const strHrs = h < 10 ? '0' + h : h;
-  const strMins = m < 10 ? '0' + m : m;
-  return `${strHrs}:${strMins} ${ampm}`;
-};
+const CARD_SHADOW = 'shadow-[0_2px_10px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.03)]';
+const DEFAULT_LOCATION_NAME = 'Current location';
+const CURRENT_PRAYER_WINDOW_MINS = 30;
 
 const SECTIONS = [
-  { icon: '', title: 'Quran', subtitle: '114 Surahs', type: 'Section', nav: 'quran' },
-  { icon: '', title: 'Hadith', subtitle: 'Authentic Hadith collections', type: 'Section', nav: 'hadith' },
-  { icon: '', title: 'Prayer Guide', subtitle: 'Learn how to pray', type: 'Section', nav: 'namaz' },
-  { icon: '', title: 'Duas', subtitle: 'Daily supplications', type: 'Section', nav: 'duas' },
-  { icon: '', title: 'Tasbih Counter', subtitle: 'Daily dhikr', type: 'Section', nav: 'tasbih' },
-  { icon: '', title: 'Qibla Direction', subtitle: 'Find the Qibla', type: 'Section', nav: 'qibla' },
-  { icon: '', title: 'Nearby Mosques', subtitle: 'Jumu’ah timings', type: 'Section', nav: 'mosques' },
+  { title: 'Quran', subtitle: '114 Surahs', nav: 'quran' },
+  { title: 'Hadith', subtitle: 'Authentic Hadith collections', nav: 'hadith' },
+  { title: 'Prayer Guide', subtitle: 'Learn how to pray', nav: 'namaz' },
+  { title: 'Duas', subtitle: 'Daily supplications', nav: 'duas' },
+  { title: 'Tasbih Counter', subtitle: 'Daily dhikr', nav: 'tasbih' },
+  { title: 'Qibla Direction', subtitle: 'Find the Qibla', nav: 'qibla' },
+  { title: 'Nearby Mosques', subtitle: 'Jumu’ah timings', nav: 'mosques' },
 ];
 
-const SURAH_MAP: { [key: string]: number } = {
+const SURAH_MAP: Record<string, number> = {
+  // Urdu
   'فاتحہ': 1, 'بقرہ': 2, 'آل عمران': 3, 'نساء': 4, 'مائدہ': 5,
   'انعام': 6, 'اعراف': 7, 'انفال': 8, 'توبہ': 9, 'یونس': 10,
   'ہود': 11, 'یوسف': 12, 'رعد': 13, 'ابراہیم': 14, 'حجر': 15,
@@ -92,6 +86,7 @@ const SURAH_MAP: { [key: string]: number } = {
   'عصر': 103, 'ہمزہ': 104, 'فیل': 105, 'قریش': 106, 'ماعون': 107,
   'کوثر': 108, 'کافرون': 109, 'نصر': 110, 'مسد': 111, 'لہب': 111,
   'اخلاص': 112, 'فلق': 113, 'ناس': 114,
+  // English
   'fatiha': 1, 'baqarah': 2, 'al-baqarah': 2, 'imran': 3, 'nisa': 4,
   'maidah': 5, 'anam': 6, 'araf': 7, 'anfal': 8, 'tawbah': 9,
   'yunus': 10, 'hud': 11, 'yusuf': 12, 'rad': 13, 'ibrahim': 14,
@@ -117,13 +112,55 @@ const SURAH_MAP: { [key: string]: number } = {
   'fil': 105, 'quraysh': 106, 'maun': 107, 'kawthar': 108,
   'kafirun': 109, 'nasr': 110, 'masad': 111, 'ikhlas': 112,
   'falaq': 113, 'nas': 114,
+  // Arabic
   'الفاتحة': 1, 'البقرة': 2, 'النساء': 4, 'المائدة': 5, 'يس': 36,
   'الواقعة': 56, 'الملك': 67, 'الإخلاص': 112,
 };
 
+// Longest alias first, so short keys never win over longer, more specific ones.
+const SURAH_ALIASES = Object.entries(SURAH_MAP)
+  .map(([alias, number]) => [alias.toLowerCase(), number] as const)
+  .sort((a, b) => b[0].length - a[0].length);
 
-// ═══════════ Home cards: ہر کارڈ کا اپنا رنگ ═══════════
+const FAMOUS_AYAHS = [
+  { s: 2, a: 255 }, { s: 2, a: 286 }, { s: 3, a: 185 }, { s: 2, a: 152 },
+  { s: 13, a: 28 }, { s: 2, a: 153 }, { s: 65, a: 3 }, { s: 94, a: 5 },
+  { s: 2, a: 201 }, { s: 3, a: 8 }, { s: 39, a: 53 }, { s: 55, a: 13 }, { s: 50, a: 16 },
+];
+
+const FALLBACK_AYAH: DailyText = {
+  ar: 'وَمَا تَوْفِيقِي إِلَّا بِاللَّهِ ۚ عَلَيْهِ تَوَكَّلْتُ وَإِلَيْهِ أُنِيبُ',
+  ur: 'اور میری توفیق صرف اللہ کی طرف سے ہے، اسی پر میں نے بھروسہ کیا اور اسی کی طرف رجوع کرتا ہوں۔',
+  ref: 'Surah Hud · Ayah 88',
+};
+
+const DAILY_HADITHS: DailyText[] = [
+  { ar: 'إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ', ur: 'اعمال کا دارومدار نیتوں پر ہے۔', ref: 'Sahih Bukhari · Hadith 1' },
+  { ar: 'الْمُسْلِمُ مَنْ سَلِمَ الْمُسْلِمُونَ مِنْ لِسَانِهِ وَيَدِهِ', ur: 'مسلمان وہ ہے جس کی زبان اور ہاتھ سے دوسرے مسلمان محفوظ رہیں۔', ref: 'Sahih Bukhari · Hadith 10' },
+  { ar: 'لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى يُحِبَّ لِأَخِيهِ مَا يُحِبُّ لِنَفْسِهِ', ur: 'تم میں سے کوئی اس وقت تک مومن نہیں ہو سکتا جب تک اپنے بھائی کے لیے وہ نہ چاہے جو اپنے لیے چاہتا ہے۔', ref: 'Sahih Bukhari · Hadith 13' },
+  { ar: 'مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الْآخِرِ فَلْيَقُلْ خَيْرًا أَوْ لِيَصْمُتْ', ur: 'جو اللہ اور آخرت کے دن پر ایمان رکھتا ہو وہ اچھی بات کہے یا خاموش رہے۔', ref: 'Sahih Bukhari · Hadith 6018' },
+  { ar: 'الدِّينُ النَّصِيحَةُ', ur: 'دین خیرخواہی کا نام ہے۔', ref: 'Sahih Muslim · Hadith 55' },
+  { ar: 'خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ', ur: 'تم میں سے بہترین وہ ہے جو قرآن سیکھے اور سکھائے۔', ref: 'Sahih Bukhari · Hadith 5027' },
+  { ar: 'اتَّقِ اللَّهَ حَيْثُمَا كُنْتَ وَأَتْبِعِ السَّيِّئَةَ الْحَسَنَةَ تَمْحُهَا', ur: 'جہاں بھی ہو اللہ سے ڈرو، اور برائی کے بعد نیکی کرو وہ اسے مٹا دے گی۔', ref: 'Sunan Tirmidhi · Hadith 1987' },
+  { ar: 'الطَّهُورُ شَطْرُ الْإِيمَانِ', ur: 'پاکیزگی نصف ایمان ہے۔', ref: 'Sahih Muslim · Hadith 223' },
+  { ar: 'أَحَبُّ الْأَعْمَالِ إِلَى اللَّهِ أَدْوَمُهَا وَإِنْ قَلَّ', ur: 'اللہ کو سب سے محبوب عمل وہ ہے جو ہمیشہ کیا جائے، چاہے تھوڑا ہی ہو۔', ref: 'Sahih Bukhari · Hadith 6465' },
+  { ar: 'مَنْ صَامَ رَمَضَانَ إِيمَانًا وَاحْتِسَابًا غُفِرَ لَهُ مَا تَقَدَّمَ مِنْ ذَنْبِهِ', ur: 'جس نے ایمان اور ثواب کی نیت سے رمضان کے روزے رکھے اس کے پچھلے گناہ معاف کر دیے گئے۔', ref: 'Sahih Bukhari · Hadith 38' },
+  { ar: 'بُنِيَ الْإِسْلَامُ عَلَى خَمْسٍ', ur: 'اسلام پانچ چیزوں پر قائم ہے: توحید، نماز، زکوٰۃ، حج اور روزہ۔', ref: 'Sahih Bukhari · Hadith 8' },
+  { ar: 'خَيْرُ النَّاسِ أَنْفَعُهُمْ لِلنَّاسِ', ur: 'لوگوں میں سب سے بہتر وہ ہے جو لوگوں کے لیے سب سے زیادہ نفع بخش ہو۔', ref: "Al-Mu'jam al-Awsat · Hadith 5787" },
+  { ar: 'إِنَّ اللَّهَ رَفِيقٌ يُحِبُّ الرِّفْقَ', ur: 'بے شک اللہ نرم مزاج ہے اور نرمی کو پسند کرتا ہے۔', ref: 'Sahih Bukhari · Hadith 6927' },
+  { ar: 'مَنْ سَلَكَ طَرِيقًا يَلْتَمِسُ فِيهِ عِلْمًا سَهَّلَ اللَّهُ لَهُ طَرِيقًا إِلَى الْجَنَّةِ', ur: 'جو علم کی تلاش میں کوئی راستہ اختیار کرے اللہ اس کے لیے جنت کا راستہ آسان کر دیتا ہے۔', ref: 'Sahih Muslim · Hadith 2699' },
+  { ar: 'اللَّهُمَّ لَا سَهْلَ إِلَّا مَا جَعَلْتَهُ سَهْلًا', ur: 'اے اللہ! کوئی چیز آسان نہیں مگر جسے تو آسان بنا دے۔', ref: 'Ibn Hibban · Hadith 974' },
+  { ar: 'أَفْضَلُ الصَّلَاةِ بَعْدَ الْفَرِيضَةِ صَلَاةُ اللَّيْلِ', ur: 'فرض نماز کے بعد سب سے افضل نماز رات کی نماز (تہجد) ہے۔', ref: 'Sahih Muslim · Hadith 1163' },
+  { ar: 'الْمُؤْمِنُ الْقَوِيُّ خَيْرٌ وَأَحَبُّ إِلَى اللَّهِ مِنَ الْمُؤْمِنِ الضَّعِيفِ', ur: 'طاقتور مومن کمزور مومن سے بہتر اور اللہ کو زیادہ محبوب ہے۔', ref: 'Sahih Muslim · Hadith 2664' },
+  { ar: 'كُلُّ مَعْرُوفٍ صَدَقَةٌ', ur: 'ہر نیکی صدقہ ہے۔', ref: 'Sahih Bukhari · Hadith 6021' },
+  { ar: 'إِنَّ مِنْ أَكْمَلِ الْمُؤْمِنِينَ إِيمَانًا أَحْسَنُهُمْ خُلُقًا', ur: 'ایمان میں سب سے کامل مومن وہ ہے جس کے اخلاق سب سے اچھے ہوں۔', ref: 'Sunan Tirmidhi · Hadith 1162' },
+  { ar: 'مَنْ لَا يَشْكُرُ النَّاسَ لَا يَشْكُرُ اللَّهَ', ur: 'جو لوگوں کا شکریہ ادا نہیں کرتا وہ اللہ کا بھی شکر ادا نہیں کرتا۔', ref: 'Sunan Tirmidhi · Hadith 1954' },
+];
+
+/* ═══════════════════════════ Home cards ═══════════════════════════ */
+
 type CardTheme = { bg: string; icon: string; title: string; label: string };
+
 const CARD_THEMES: Record<string, CardTheme> = {
   green:  { bg: '#E1F5EE', icon: '#0F6E56', title: '#04342C', label: '#085041' },
   purple: { bg: '#EEEDFE', icon: '#534AB7', title: '#26215C', label: '#3C3489' },
@@ -135,15 +172,200 @@ const CARD_THEMES: Record<string, CardTheme> = {
   rose:   { bg: '#FCE8EC', icon: '#B0294A', title: '#5A0F22', label: '#7E1B36' },
 };
 
-interface HomeCardProps {
+type CardIcon = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+
+interface HomeCardConfig {
   theme: keyof typeof CARD_THEMES;
-  Icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  Icon: CardIcon;
   urdu: string;
   label: string;
-  onClick: () => void;
+  /** Either a top-level view to open, or a Hadith book to open inside the Hadith view. */
+  nav?: string;
+  hadithBook?: string;
 }
 
-const HomeCard: React.FC<HomeCardProps> = ({ theme, Icon, urdu, label, onClick }) => {
+const HOME_CARDS: HomeCardConfig[] = [
+  { theme: 'green',  Icon: BookOpen,   urdu: 'القرآن الکریم',   label: 'Quran',            nav: 'quran' },
+  { theme: 'purple', Icon: User,       urdu: 'نماز کا طریقہ',   label: 'Prayer',           nav: 'namaz' },
+  { theme: 'pink',   Icon: Heart,      urdu: 'مسنون دعائیں',    label: 'Duas',             nav: 'duas' },
+  { theme: 'amber',  Icon: CircleDot,  urdu: 'تسبیح کاؤنٹر',   label: 'Tasbih',           nav: 'tasbih' },
+  { theme: 'blue',   Icon: Compass,    urdu: 'قبلہ رخ سمت',     label: 'Qibla',            nav: 'qibla' },
+  { theme: 'coral',  Icon: BookOpen,   urdu: 'صحیح بخاری',      label: 'Sahih Bukhari',    hadithBook: 'bukhari' },
+  { theme: 'teal',   Icon: BookOpen,   urdu: 'صحیح مسلم',       label: 'Sahih Muslim',     hadithBook: 'muslim' },
+  { theme: 'rose',   Icon: Scroll,     urdu: 'سنن ابو داود',    label: 'Sunan Abu Dawud',  hadithBook: 'abudawud' },
+  { theme: 'purple', Icon: Scroll,     urdu: 'جامع ترمذی',      label: 'Jami at-Tirmidhi', hadithBook: 'tirmidhi' },
+  { theme: 'green',  Icon: BookOpen,   urdu: 'سنن نسائی',       label: 'Sunan an-Nasai',   hadithBook: 'nasai' },
+  { theme: 'amber',  Icon: BookOpen,   urdu: 'سنن ابن ماجہ',    label: 'Sunan Ibn Majah',  hadithBook: 'ibnmajah' },
+  { theme: 'blue',   Icon: BookOpen,   urdu: 'موطا امام مالک',  label: 'Muwatta Malik',    hadithBook: 'malik' },
+];
+
+/* ═══════════════════════════ Helpers ═══════════════════════════ */
+
+const readStorage = (key: string): string | null => {
+  try { return localStorage.getItem(key); } catch { return null; }
+};
+
+const writeStorage = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    console.warn(`Could not save "${key}":`, error);
+  }
+};
+
+const formatTo12Hour = (time24: string) => {
+  if (!time24) return '';
+  const [hStr, mStr] = time24.split(':');
+  const hours24 = parseInt(hStr, 10);
+  const minutes = parseInt(mStr, 10);
+  const ampm = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+  return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+};
+
+const timeAgo = (timestamp: number): string => {
+  const diffMin = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  const days = Math.floor(diffHours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
+
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1));
+};
+
+const truncate = (text: unknown, max: number) => {
+  const value = String(text || '');
+  return value.length > max ? `${value.slice(0, max)}...` : value;
+};
+
+const getDayOfYear = (date = new Date()) =>
+  Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000);
+
+const parseSurahAyah = (query: string): SurahTarget | null => {
+  const text = query
+    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .toLowerCase()
+    .trim();
+  if (!text) return null;
+
+  // "2:255" or "2 255"
+  const direct = text.match(/^(\d+)[:\s]+(\d+)$/);
+  if (direct) {
+    const surah = Number(direct[1]);
+    const ayah = Number(direct[2]);
+    return surah >= 1 && surah <= 114 && ayah >= 1 ? { surah, ayah } : null;
+  }
+
+  // A lone number 1-114 is a Surah number.
+  if (/^\d+$/.test(text)) {
+    const surah = Number(text);
+    return surah >= 1 && surah <= 114 ? { surah } : null;
+  }
+
+  const ayahMatch = text.match(/(?:آیت|ايت|ayat|ayah|verse|:)\s*(?:نمبر|number|no\.?)?\s*(\d+)/i);
+  const ayah = ayahMatch ? Number(ayahMatch[1]) : undefined;
+
+  const match = SURAH_ALIASES.find(([alias]) => text.includes(alias));
+  if (!match) return null;
+
+  return ayah && ayah > 0 ? { surah: match[1], ayah } : { surah: match[1] };
+};
+
+const fetchQuranSurah = async (surah: number) => {
+  const language = readStorage(QURAN_LANGUAGE_KEY) || 'ur';
+  const request = async (base: string) => {
+    const response = await fetch(`${base}${language}/${surah}.json`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  };
+  try {
+    return await request(QURAN_CDN);
+  } catch {
+    return request(QURAN_FALLBACK);
+  }
+};
+
+const getNextPrayerDetails = (prayerTimes: Record<string, string>) => {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const toMins = (time?: string) => {
+    if (!time) return 0;
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const prayers = [
+    { key: 'fajr',    label: 'Fajr',    urdu: 'فجر' },
+    { key: 'zuhr',    label: 'Dhuhr',   urdu: 'ظہر' },
+    { key: 'asr',     label: 'Asr',     urdu: 'عصر' },
+    { key: 'maghrib', label: 'Maghrib', urdu: 'مغرب' },
+    { key: 'isha',    label: 'Isha',    urdu: 'عشاء' },
+  ]
+    .map(p => ({ ...p, mins: toMins(prayerTimes[p.key]), time: formatTo12Hour(prayerTimes[p.key] || '--:--') }))
+    .sort((a, b) => a.mins - b.mins);
+
+  // A prayer is "current" for 30 minutes after its start time.
+  const current = prayers.find(p => nowMins >= p.mins && nowMins < p.mins + CURRENT_PRAYER_WINDOW_MINS);
+  if (current) {
+    const minsLeft = current.mins + CURRENT_PRAYER_WINDOW_MINS - nowMins;
+    return {
+      label: current.label,
+      urdu: current.urdu,
+      time: current.time,
+      countdown: `${minsLeft} min remaining`,
+      isCurrent: true,
+    };
+  }
+
+  const upcoming = prayers.find(p => p.mins > nowMins);
+  const next = upcoming ?? prayers[0];
+  const diff = upcoming ? next.mins - nowMins : 1440 - nowMins + next.mins;
+  const hrs = Math.floor(diff / 60);
+  const mins = diff % 60;
+  return {
+    label: next.label,
+    urdu: next.urdu,
+    time: next.time,
+    countdown: hrs > 0 ? `${hrs}h ${mins}m remaining` : `${mins} minutes remaining`,
+    isCurrent: false,
+  };
+};
+
+/** Section + mosque matches for the live search dropdown. */
+const buildLocalResults = (
+  query: string,
+  mosques: Mosque[],
+  onNavigate: (view: string) => void,
+  onOpenMosque: (mosque: Mosque) => void,
+): SearchResult[] => {
+  const sections = SECTIONS
+    .filter(s => s.title.includes(query) || s.subtitle.includes(query))
+    .map(s => ({ title: s.title, subtitle: s.subtitle, type: 'Section', action: () => onNavigate(s.nav) }));
+  const mosqueMatches = mosques
+    .filter(m => m.name.includes(query))
+    .slice(0, 2)
+    .map(m => ({ title: m.name, subtitle: `Jumu’ah: ${m.jumah}`, type: 'Mosque', action: () => onOpenMosque(m) }));
+  return [...sections, ...mosqueMatches];
+};
+
+/* ═══════════════════════════ Small components ═══════════════════════════ */
+
+const Spinner: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) => (
+  <div className={`animate-spin rounded-full border-b-2 border-emerald-600 ${className}`} />
+);
+
+const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void }> = ({ config, onClick }) => {
+  const { theme, Icon, urdu, label } = config;
   const t = CARD_THEMES[theme];
   return (
     <button
@@ -162,11 +384,7 @@ const HomeCard: React.FC<HomeCardProps> = ({ theme, Icon, urdu, label, onClick }
         <Icon size={25} strokeWidth={2} />
       </span>
 
-      <span
-        dir="rtl"
-        style={{ color: t.title }}
-        className="home-card-urdu-title relative text-[19px]"
-      >
+      <span dir="rtl" style={{ color: t.title }} className="home-card-urdu-title relative text-[19px]">
         {urdu}
       </span>
 
@@ -180,162 +398,112 @@ const HomeCard: React.FC<HomeCardProps> = ({ theme, Icon, urdu, label, onClick }
   );
 };
 
+/* ═══════════════════════════ HomeView ═══════════════════════════ */
+
 export const HomeView: React.FC<HomeViewProps> = ({
   onNavigate,
   prayerTimes,
-  currentPrayer,
   todayDate,
   nearbyMosques,
   savedMosqueIds = [],
   onOpenMosque,
   userCoords,
-  requestLocation,
   isAuthenticated,
   isUserAuthenticated,
   userAuthName,
   authName,
   isLoading = false,
 }) => {
-  const [dailyAyah, setDailyAyah] = useState<{ ar: string; ur: string; ref: string } | null>(null);
-  const [dailyHadith, setDailyHadith] = useState<{ ar: string; ur: string; ref: string } | null>(null);
+  const [dailyAyah, setDailyAyah] = useState<DailyText | null>(null);
   const [loadingAyah, setLoadingAyah] = useState(true);
-  const [loadingHadith, setLoadingHadith] = useState(true);
   const [isDeviceOffline, setIsDeviceOffline] = useState<boolean>(!navigator.onLine);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
-  const [locationName, setLocationName] = useState('Current location');
+  const [locationName, setLocationName] = useState(DEFAULT_LOCATION_NAME);
 
-  // ═══════════════════ Bell / Inbox ═══════════════════
-  // Announcements (محفوظ مساجد سے) + نماز کی یاد دہانیوں کی تاریخ — ایک ہی فہرست میں
+  // Bell / inbox
   const [bellOpen, setBellOpen] = useState(false);
   const [prayerInbox, setPrayerInbox] = useState<InboxItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const savedMosquesWithAnnouncement = nearbyMosques.filter(
-    (m) => savedMosqueIds.includes(m.id) && m.announcement && m.announcement.trim() !== ''
-  );
+  // Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // ہر بار ہوم صفحہ کھلنے پر تازہ ترین گنتی لے لیں (نئی نماز notification کے بعد بھی)
+  const savedMosquesWithAnnouncement = useMemo(
+    () => nearbyMosques.filter(m => savedMosqueIds.includes(m.id) && m.announcement?.trim()),
+    [nearbyMosques, savedMosqueIds],
+  );
+  const announcementCount = savedMosquesWithAnnouncement.length;
+
+  const dailyHadith = useMemo(() => DAILY_HADITHS[getDayOfYear() % DAILY_HADITHS.length], []);
+
+  const closestMosques = useMemo(() => {
+    if (!userCoords) return [];
+    return nearbyMosques
+      .map(mosque => ({
+        mosque,
+        distance: calculateDistance(userCoords.latitude, userCoords.longitude, mosque.latitude, mosque.longitude),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 3);
+  }, [nearbyMosques, userCoords]);
+
+  const nextPrayer = getNextPrayerDetails(prayerTimes);
+  const gregorianDate = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
+
+  // Guest mode: if neither an Imam nor a user is logged in, the user dashboard still opens.
+  const accountLabel = isAuthenticated
+    ? (authName || 'Imam account')
+    : isUserAuthenticated ? (userAuthName || 'My account') : 'My Dashboard';
+  const accountTarget = isAuthenticated ? 'imam-login' : 'user-dashboard';
+
+  /* ───── Inbox: refresh on mount and every minute ───── */
   useEffect(() => {
     const refresh = () => {
-      setPrayerInbox(readInbox());
-      const unreadPrayers = readInbox().filter((i) => !i.read).length;
-      setUnreadCount(unreadPrayers + savedMosquesWithAnnouncement.length);
+      const inbox = readInbox();
+      setPrayerInbox(inbox);
+      setUnreadCount(inbox.filter(item => !item.read).length + announcementCount);
     };
     refresh();
-    // ہر منٹ ریفریش — تاکہ ابھی ابھی آئی نماز کی نوٹیفکیشن بھی نظر آئے
-    const t = setInterval(refresh, 60000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedMosquesWithAnnouncement.length]);
+    const timer = setInterval(refresh, 60000);
+    return () => clearInterval(timer);
+  }, [announcementCount]);
 
-  const openBell = () => {
-    setBellOpen((v) => !v);
+  const toggleBell = () => {
     if (!bellOpen) {
       markInboxRead();
       setUnreadCount(0);
       setPrayerInbox(readInbox());
     }
+    setBellOpen(open => !open);
   };
 
-  const timeAgo = (ts: number): string => {
-    const diffMin = Math.max(0, Math.floor((Date.now() - ts) / 60000));
-    if (diffMin < 1) return 'just now';
-    if (diffMin < 60) return `${diffMin} min ago`;
-    const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return `${diffH} hr ago`;
-    return `${Math.floor(diffH / 24)} day${Math.floor(diffH / 24) > 1 ? 's' : ''} ago`;
-  };
+  /* ───── Live search (sections + mosques) ───── */
+  useEffect(() => {
+    const query = searchQuery.trim();
+    setSearchResults(query ? buildLocalResults(searchQuery, nearbyMosques, onNavigate, onOpenMosque) : []);
+  }, [searchQuery, nearbyMosques, onNavigate, onOpenMosque]);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{ icon: string; title: string; subtitle?: string; type: string; action: () => void }[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-
-  const parseSurahAyah = (query: string): { surah: number; ayah?: number } | null => {
-    const normalizedDigits = query
-      .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
-      .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
-    const text = normalizedDigits.toLowerCase().trim();
-    if (!text) return null;
-
-    // Direct forms: 2:255 or 2 255
-    const directAyah = text.match(/^(\d+)[:\s]+(\d+)$/);
-    if (directAyah) {
-      const surah = Number(directAyah[1]);
-      const ayah = Number(directAyah[2]);
-      return surah >= 1 && surah <= 114 && ayah >= 1 ? { surah, ayah } : null;
-    }
-
-    // A single number from 1-114 means a Surah number.
-    if (/^\d+$/.test(text)) {
-      const surah = Number(text);
-      return surah >= 1 && surah <= 114 ? { surah } : null;
-    }
-
-    const ayahMatch = text.match(/(?:آیت|ايت|ayat|ayah|verse|:)\s*(?:نمبر|number|no\.?)?\s*(\d+)/i);
-    const ayah = ayahMatch ? Number(ayahMatch[1]) : undefined;
-    let surah = 0;
-
-    // Prefer the longest matching alias so short keys do not win first.
-    const aliases = Object.entries(SURAH_MAP).sort((a, b) => b[0].length - a[0].length);
-    for (const [alias, number] of aliases) {
-      if (text.includes(alias.toLowerCase())) {
-        surah = number;
-        break;
-      }
-    }
-
-    if (!surah) return null;
-    return ayah && ayah > 0 ? { surah, ayah } : { surah };
-  };
-
-  const saveQuranSearchTarget = (target: { surah: number; ayah?: number }) => {
-    try {
-      localStorage.setItem(QURAN_SEARCH_TARGET_KEY, JSON.stringify(target));
-    } catch (error) {
-      console.warn('Could not save Quran search target:', error);
-    }
-    // Navigation must still happen even if storage is unavailable.
-    onNavigate('quran');
-  };
-
-  const fetchQuranSurah = async (surah: number) => {
-    const savedLanguage = localStorage.getItem('steptudeen_app_quran_language') || 'ur';
-    const request = async (url: string) => {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json();
-    };
-    try {
-      return await request(`${QURAN_CDN}${savedLanguage}/${surah}.json`);
-    } catch {
-      return request(`${QURAN_FALLBACK}${savedLanguage}/${surah}.json`);
-    }
+  const saveQuranTarget = (target: SurahTarget) => {
+    writeStorage(QURAN_SEARCH_TARGET_KEY, JSON.stringify(target));
+    onNavigate('quran'); // navigate even if storage is unavailable
   };
 
   const handleSearch = async () => {
     const query = searchQuery.trim();
     if (!query) return;
 
-    const localResults = SECTIONS
-      .filter(section => section.title.includes(query) || (section.subtitle || '').includes(query))
-      .map(section => ({ icon: section.icon, title: section.title, subtitle: section.subtitle, type: section.type, action: () => onNavigate(section.nav) }));
-    const mosqueResults = nearbyMosques
-      .filter(mosque => mosque.name.includes(query))
-      .slice(0, 2)
-      .map(mosque => ({ icon: '', title: mosque.name, subtitle: `Jumu’ah: ${mosque.jumah}`, type: 'Mosque', action: () => onOpenMosque(mosque) }));
-
-    setSearchResults([...localResults, ...mosqueResults]);
     const parsed = parseSurahAyah(query);
     if (!parsed) return;
 
-    // Surah-only search does not need a network request.
+    // Surah-only: no network needed.
     if (!parsed.ayah) {
-      const surahResult = {
-        icon: '',
+      const surahResult: SearchResult = {
         title: `Surah ${parsed.surah}`,
         subtitle: `Surah ${parsed.surah} — open complete Surah`,
         type: 'Surah',
-        action: () => saveQuranSearchTarget(parsed),
+        action: () => saveQuranTarget(parsed),
       };
       setSearchResults(previous => [surahResult, ...previous]);
       return;
@@ -344,197 +512,107 @@ export const HomeView: React.FC<HomeViewProps> = ({
     setIsSearching(true);
     try {
       const data = await fetchQuranSurah(parsed.surah);
-      const verses = Array.isArray(data?.verses) ? data.verses : [];
-      const verse = verses.find((item: any) => Number(item.id) === parsed.ayah) || verses[parsed.ayah - 1];
+      const verses: any[] = Array.isArray(data?.verses) ? data.verses : [];
+      const verse = verses.find(item => Number(item.id) === parsed.ayah) || verses[parsed.ayah - 1];
       if (!verse) throw new Error('Ayah not found');
 
-      const ayahResult = {
-        icon: '',
-        title: String(verse.text || '').slice(0, 70) + (String(verse.text || '').length > 70 ? '...' : ''),
-        subtitle: String(verse.translation || '').slice(0, 90) + (String(verse.translation || '').length > 90 ? '...' : ''),
+      const ayahResult: SearchResult = {
+        title: truncate(verse.text, 70),
+        subtitle: truncate(verse.translation, 90),
         type: 'Ayah',
-        action: () => saveQuranSearchTarget(parsed),
+        action: () => saveQuranTarget(parsed),
       };
       setSearchResults(previous => [ayahResult, ...previous]);
     } catch {
-      setSearchResults(previous => [{
-        icon: '',
+      const errorResult: SearchResult = {
         title: 'The Ayah could not be loaded',
         subtitle: 'Check your internet connection and try again',
         type: 'Error',
         action: () => undefined,
-      }, ...previous]);
+      };
+      setSearchResults(previous => [errorResult, ...previous]);
     } finally {
       setIsSearching(false);
     }
   };
 
-  useEffect(() => {
-    if (!searchQuery.trim()) { setSearchResults([]); return; }
-    const local = SECTIONS
-      .filter(s => s.title.includes(searchQuery) || (s.subtitle || '').includes(searchQuery))
-      .map(s => ({ icon: s.icon, title: s.title, subtitle: s.subtitle, type: s.type, action: () => onNavigate(s.nav) }));
-    const mosques = nearbyMosques
-      .filter(m => m.name.includes(searchQuery))
-      .slice(0, 2)
-      .map(m => ({ icon: '', title: m.name, subtitle: `Jumu’ah: ${m.jumah}`, type: 'Mosque', action: () => onOpenMosque(m) }));
-    setSearchResults([...local, ...mosques]);
-  }, [searchQuery, nearbyMosques, onNavigate, onOpenMosque]);
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+  };
 
+  /* ───── Online / offline banner ───── */
   useEffect(() => {
-    const handleOnline = () => setIsDeviceOffline(false);
-    const handleOffline = () => setIsDeviceOffline(true);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
+    const goOnline = () => setIsDeviceOffline(false);
+    const goOffline = () => setIsDeviceOffline(true);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
   }, []);
 
+  /* ───── City name from coordinates (cached) ───── */
   useEffect(() => {
     if (!userCoords) {
-      setLocationName('Current location');
+      setLocationName(DEFAULT_LOCATION_NAME);
       return;
     }
-    const cacheKey = `location_name_${userCoords.latitude.toFixed(2)}_${userCoords.longitude.toFixed(2)}`;
-    const cached = localStorage.getItem(cacheKey);
+    const { latitude, longitude } = userCoords;
+    const cacheKey = `location_name_${latitude.toFixed(2)}_${longitude.toFixed(2)}`;
+    const cached = readStorage(cacheKey);
     if (cached) {
       setLocationName(cached);
       return;
     }
+
     const controller = new AbortController();
-    fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${userCoords.latitude}&longitude=${userCoords.longitude}&localityLanguage=en`, { signal: controller.signal })
+    fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+      { signal: controller.signal },
+    )
       .then(response => response.json())
       .then(data => {
-        const name = data.city || data.locality || data.principalSubdivision || 'Current location';
+        const name = data.city || data.locality || data.principalSubdivision || DEFAULT_LOCATION_NAME;
         setLocationName(name);
-        localStorage.setItem(cacheKey, name);
+        writeStorage(cacheKey, name);
       })
-      .catch(() => setLocationName('Current location'));
+      .catch(() => setLocationName(DEFAULT_LOCATION_NAME));
     return () => controller.abort();
   }, [userCoords]);
 
-  const getNextPrayerDetails = () => {
-    const now = new Date();
-    const currentInMins = now.getHours() * 60 + now.getMinutes();
-    const parseToMins = (timeStr: string) => { if (!timeStr) return 0; const [h, m] = timeStr.split(':').map(Number); return h * 60 + m; };
-    const prayers = [
-      { name: 'fajr',    label: 'Fajr',    urdu: 'فجر',  mins: parseToMins(prayerTimes.fajr) },
-      { name: 'zuhr',    label: 'Dhuhr',   urdu: 'ظہر',  mins: parseToMins(prayerTimes.zuhr) },
-      { name: 'asr',     label: 'Asr',     urdu: 'عصر',  mins: parseToMins(prayerTimes.asr) },
-      { name: 'maghrib', label: 'Maghrib', urdu: 'مغرب', mins: parseToMins(prayerTimes.maghrib) },
-      { name: 'isha',    label: 'Isha',    urdu: 'عشاء', mins: parseToMins(prayerTimes.isha) },
-    ];
-    prayers.sort((a, b) => a.mins - b.mins);
-
-    // کیا ابھی کوئی نماز کا وقت چل رہا ہے؟ (اذان ہوئی لیکن 30 منٹ نہیں گزرے)
-    const current = prayers.find(p => currentInMins >= p.mins && currentInMins < p.mins + 30);
-    if (current) {
-      const minsLeft = (current.mins + 30) - currentInMins;
-      return {
-        label: current.label,
-        urdu: current.urdu,
-        time: formatTo12Hour(prayerTimes[current.name] || '--:--'),
-        countdown: `${minsLeft} min remaining`,
-        shortCountdown: `${current.label} time`,
-        isCurrent: true,
-      };
-    }
-
-    // اگلی نماز
-    let next = prayers.find(p => p.mins > currentInMins);
-    let isNextDay = false;
-    if (!next) { next = prayers[0]; isNextDay = true; }
-    const nextPrayer = next || prayers[0]!;
-    const diff = isNextDay ? (1440 - currentInMins) + nextPrayer.mins : nextPrayer.mins - currentInMins;
-    const hrs = Math.floor(diff / 60);
-    const mins = diff % 60;
-    return {
-      label: nextPrayer.label,
-      urdu: nextPrayer.urdu,
-      time: formatTo12Hour(prayerTimes[nextPrayer.name] || '--:--'),
-      countdown: hrs > 0 ? `${hrs}h ${mins}m remaining` : `${mins} minutes remaining`,
-      shortCountdown: hrs > 0 ? `${nextPrayer.label} in ${hrs}h ${mins}m` : `${nextPrayer.label} in ${mins}m`,
-      isCurrent: false,
-    };
-  };
-
+  /* ───── Ayah of the day ───── */
   useEffect(() => {
-    const d = new Date();
-    const dayOfYear = Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000);
-    const FAMOUS_AYAHS = [
-      { s: 2, a: 255 }, { s: 2, a: 286 }, { s: 3, a: 185 }, { s: 2, a: 152 },
-      { s: 13, a: 28 }, { s: 2, a: 153 }, { s: 65, a: 3 }, { s: 94, a: 5 },
-      { s: 2, a: 201 }, { s: 3, a: 8 }, { s: 39, a: 53 }, { s: 55, a: 13 }, { s: 50, a: 16 }
-    ];
-    const idx = dayOfYear % FAMOUS_AYAHS.length;
-    const chosen = FAMOUS_AYAHS[idx];
-    fetch(`https://api.alquran.cloud/v1/ayah/${chosen.s}:${chosen.a}/editions/quran-uthmani,ur.jalandhry`)
-      .then(r => r.json())
-      .then(json => {
-        if (json.code === 200 && json.data?.length >= 2) {
-          setDailyAyah({ ar: json.data[0].text, ur: json.data[1].text, ref: `Surah ${chosen.s} · Ayah ${chosen.a}` });
-        } else {
-          setDailyAyah({ ar: "وَمَا تَوْفِيقِي إِلَّا بِاللَّهِ ۚ عَلَيْهِ تَوَكَّلْتُ وَإِلَيْهِ أُنِيبُ", ur: "اور میری توفیق صرف اللہ کی طرف سے ہے، اسی پر میں نے بھروسہ کیا اور اسی کی طرف رجوع کرتا ہوں۔", ref: "Surah Hud · Ayah 88" });
-        }
-        setLoadingAyah(false);
-      })
-      .catch(() => {
-        setDailyAyah({ ar: "وَمَا تَوْفِيقِي إِلَّا بِاللَّهِ ۚ عَلَيْهِ تَوَكَّلْتُ وَإِلَيْهِ أُنِيبُ", ur: "اور میری توفیق صرف اللہ کی طرف سے ہے، اسی پر میں نے بھروسہ کیا اور اسی کی طرف رجوع کرتا ہوں۔", ref: "Surah Hud · Ayah 88" });
-        setLoadingAyah(false);
-      });
+    let cancelled = false;
+    const chosen = FAMOUS_AYAHS[getDayOfYear() % FAMOUS_AYAHS.length];
 
-    const DAILY_HADITHS = [
-      { ar: "إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ", ur: "اعمال کا دارومدار نیتوں پر ہے۔", ref: "Sahih Bukhari · Hadith 1" },
-      { ar: "الْمُسْلِمُ مَنْ سَلِمَ الْمُسْلِمُونَ مِنْ لِسَانِهِ وَيَدِهِ", ur: "مسلمان وہ ہے جس کی زبان اور ہاتھ سے دوسرے مسلمان محفوظ رہیں۔", ref: "Sahih Bukhari · Hadith 10" },
-      { ar: "لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى يُحِبَّ لِأَخِيهِ مَا يُحِبُّ لِنَفْسِهِ", ur: "تم میں سے کوئی اس وقت تک مومن نہیں ہو سکتا جب تک اپنے بھائی کے لیے وہ نہ چاہے جو اپنے لیے چاہتا ہے۔", ref: "Sahih Bukhari · Hadith 13" },
-      { ar: "مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الْآخِرِ فَلْيَقُلْ خَيْرًا أَوْ لِيَصْمُتْ", ur: "جو اللہ اور آخرت کے دن پر ایمان رکھتا ہو وہ اچھی بات کہے یا خاموش رہے۔", ref: "Sahih Bukhari · Hadith 6018" },
-      { ar: "الدِّينُ النَّصِيحَةُ", ur: "دین خیرخواہی کا نام ہے۔", ref: "Sahih Muslim · Hadith 55" },
-      { ar: "خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ", ur: "تم میں سے بہترین وہ ہے جو قرآن سیکھے اور سکھائے۔", ref: "Sahih Bukhari · Hadith 5027" },
-      { ar: "اتَّقِ اللَّهَ حَيْثُمَا كُنْتَ وَأَتْبِعِ السَّيِّئَةَ الْحَسَنَةَ تَمْحُهَا", ur: "جہاں بھی ہو اللہ سے ڈرو، اور برائی کے بعد نیکی کرو وہ اسے مٹا دے گی۔", ref: "Sunan Tirmidhi · Hadith 1987" },
-      { ar: "الطَّهُورُ شَطْرُ الْإِيمَانِ", ur: "پاکیزگی نصف ایمان ہے۔", ref: "Sahih Muslim · Hadith 223" },
-      { ar: "أَحَبُّ الْأَعْمَالِ إِلَى اللَّهِ أَدْوَمُهَا وَإِنْ قَلَّ", ur: "اللہ کو سب سے محبوب عمل وہ ہے جو ہمیشہ کیا جائے، چاہے تھوڑا ہی ہو۔", ref: "Sahih Bukhari · Hadith 6465" },
-      { ar: "مَنْ صَامَ رَمَضَانَ إِيمَانًا وَاحْتِسَابًا غُفِرَ لَهُ مَا تَقَدَّمَ مِنْ ذَنْبِهِ", ur: "جس نے ایمان اور ثواب کی نیت سے رمضان کے روزے رکھے اس کے پچھلے گناہ معاف کر دیے گئے۔", ref: "Sahih Bukhari · Hadith 38" },
-      { ar: "بُنِيَ الْإِسْلَامُ عَلَى خَمْسٍ", ur: "اسلام پانچ چیزوں پر قائم ہے: توحید، نماز، زکوٰۃ، حج اور روزہ۔", ref: "Sahih Bukhari · Hadith 8" },
-      { ar: "خَيْرُ النَّاسِ أَنْفَعُهُمْ لِلنَّاسِ", ur: "لوگوں میں سب سے بہتر وہ ہے جو لوگوں کے لیے سب سے زیادہ نفع بخش ہو۔", ref: "Al-Mu'jam al-Awsat · Hadith 5787" },
-      { ar: "إِنَّ اللَّهَ رَفِيقٌ يُحِبُّ الرِّفْقَ", ur: "بے شک اللہ نرم مزاج ہے اور نرمی کو پسند کرتا ہے۔", ref: "Sahih Bukhari · Hadith 6927" },
-      { ar: "مَنْ سَلَكَ طَرِيقًا يَلْتَمِسُ فِيهِ عِلْمًا سَهَّلَ اللَّهُ لَهُ طَرِيقًا إِلَى الْجَنَّةِ", ur: "جو علم کی تلاش میں کوئی راستہ اختیار کرے اللہ اس کے لیے جنت کا راستہ آسان کر دیتا ہے۔", ref: "Sahih Muslim · Hadith 2699" },
-      { ar: "اللَّهُمَّ لَا سَهْلَ إِلَّا مَا جَعَلْتَهُ سَهْلًا", ur: "اے اللہ! کوئی چیز آسان نہیں مگر جسے تو آسان بنا دے۔", ref: "Ibn Hibban · Hadith 974" },
-      { ar: "أَفْضَلُ الصَّلَاةِ بَعْدَ الْفَرِيضَةِ صَلَاةُ اللَّيْلِ", ur: "فرض نماز کے بعد سب سے افضل نماز رات کی نماز (تہجد) ہے۔", ref: "Sahih Muslim · Hadith 1163" },
-      { ar: "الْمُؤْمِنُ الْقَوِيُّ خَيْرٌ وَأَحَبُّ إِلَى اللَّهِ مِنَ الْمُؤْمِنِ الضَّعِيفِ", ur: "طاقتور مومن کمزور مومن سے بہتر اور اللہ کو زیادہ محبوب ہے۔", ref: "Sahih Muslim · Hadith 2664" },
-      { ar: "كُلُّ مَعْرُوفٍ صَدَقَةٌ", ur: "ہر نیکی صدقہ ہے۔", ref: "Sahih Bukhari · Hadith 6021" },
-      { ar: "إِنَّ مِنْ أَكْمَلِ الْمُؤْمِنِينَ إِيمَانًا أَحْسَنُهُمْ خُلُقًا", ur: "ایمان میں سب سے کامل مومن وہ ہے جس کے اخلاق سب سے اچھے ہوں۔", ref: "Sunan Tirmidhi · Hadith 1162" },
-      { ar: "مَنْ لَا يَشْكُرُ النَّاسَ لَا يَشْكُرُ اللَّهَ", ur: "جو لوگوں کا شکریہ ادا نہیں کرتا وہ اللہ کا بھی شکر ادا نہیں کرتا۔", ref: "Sunan Tirmidhi · Hadith 1954" },
-    ];
-    const hadithIdx = dayOfYear % DAILY_HADITHS.length;
-    setDailyHadith(DAILY_HADITHS[hadithIdx]);
-    setLoadingHadith(false);
+    fetch(`https://api.alquran.cloud/v1/ayah/${chosen.s}:${chosen.a}/editions/quran-uthmani,ur.jalandhry`)
+      .then(response => response.json())
+      .then(json => {
+        if (cancelled) return;
+        const ok = json.code === 200 && json.data?.length >= 2;
+        setDailyAyah(ok
+          ? { ar: json.data[0].text, ur: json.data[1].text, ref: `Surah ${chosen.s} · Ayah ${chosen.a}` }
+          : FALLBACK_AYAH);
+      })
+      .catch(() => { if (!cancelled) setDailyAyah(FALLBACK_AYAH); })
+      .finally(() => { if (!cancelled) setLoadingAyah(false); });
+
+    return () => { cancelled = true; };
   }, []);
 
   const openHadithBook = (bookKey: string) => {
-    try {
-      localStorage.setItem(HADITH_HOME_TARGET_KEY, bookKey);
-    } catch (error) {
-      console.warn('Could not save Hadith book target:', error);
-    }
+    writeStorage(HADITH_HOME_TARGET_KEY, bookKey);
     onNavigate('hadith');
   };
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-    return parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1));
+  const handleCardClick = (card: HomeCardConfig) => {
+    if (card.hadithBook) openHadithBook(card.hadithBook);
+    else if (card.nav) onNavigate(card.nav);
   };
 
-  const nextPrayerDetails = getNextPrayerDetails();
-  const gregorianDate = new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date());
-  // ✅ اب Imam بھی login نہیں اور یوزر بھی login نہیں → پھر بھی یوزر ڈش بورڈ کھلے گا (Guest mode)
-  const accountLabel = isAuthenticated ? (authName || 'Imam account') : isUserAuthenticated ? (userAuthName || 'My account') : 'My Dashboard';
-  const accountTarget = isAuthenticated ? 'imam-login' : 'user-dashboard';
+  /* ═══════════════════════════ Render ═══════════════════════════ */
 
   return (
     <div className="pb-16 animate-fadeIn bg-slate-50">
@@ -549,123 +627,138 @@ export const HomeView: React.FC<HomeViewProps> = ({
         }
       `}</style>
 
-      {/* ═══════════ PROFESSIONAL BLUE PRAYER HEADER ═══════════ */}
+      {/* ═══════════ Header ═══════════ */}
       <div className="relative min-h-[320px] overflow-hidden rounded-b-[26px] bg-[#063b9d] text-white shadow-[0_10px_30px_rgba(5,69,166,.28)]">
         <CelestialHeaderScene prayerTimes={prayerTimes} />
 
-<img
-  src="/mosque-header.webp"
-  alt=""
-  aria-hidden="true"
-  className="pointer-events-none absolute z-[12] select-none opacity-90"
-  style={{ 
-    right: '21px',
-    top: '-10px',
-    width: '94%',
-    maxHeight: 'calc(100% - 90px)',
-    objectFit: 'contain',
-    objectPosition: 'top right'
-  }}
-  decoding="async"
-  fetchPriority="high"
-/>
-        { /* Top actions */ }
-<div className="relative z-20 flex items-center justify-between px-4 pt-3">
+        <img
+          src="/mosque-header.webp"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute z-[12] select-none opacity-90"
+          style={{
+            right: '21px',
+            top: '-10px',
+            width: '94%',
+            maxHeight: 'calc(100% - 90px)',
+            objectFit: 'contain',
+            objectPosition: 'top right',
+          }}
+          decoding="async"
+          fetchPriority="high"
+        />
 
-  <div className="relative flex items-center gap-2">
-    {/* Mosque map — full-screen live finder (Overpass + routing) */}
-    <button
-      type="button"
-      onClick={() => onNavigate('mosque-map')}
-      className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-transform active:scale-95"
-      aria-label="Mosque map"
-      title="Find mosques on the map"
-    >
-      <MapPinned size={20} />
-    </button>
-
-    <button type="button" onClick={openBell} className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm" aria-label="Notifications" title="Inbox">
-      <Bell size={21} />
-      {unreadCount > 0 && (
-        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-bold leading-none text-slate-900">
-          {unreadCount > 9 ? '9+' : unreadCount}
-        </span>
-      )}
-    </button>
-
-    {bellOpen && createPortal(
-      <>
-        {/* transparent full-screen backdrop so tapping outside closes it */}
-        <div className="fixed inset-0 z-[9998]" onClick={() => setBellOpen(false)} />
-        <div className="fixed left-4 right-4 top-16 z-[9999] mx-auto max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-slate-800 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-            <h3 className="text-[15px] font-bold text-slate-900">Inbox</h3>
-            <button type="button" onClick={() => setBellOpen(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
-              <X size={16} />
+        {/* Top actions */}
+        <div className="relative z-20 flex items-center justify-between px-4 pt-3">
+          <div className="relative flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigate('mosque-map')}
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-transform active:scale-95"
+              aria-label="Mosque map"
+              title="Find mosques on the map"
+            >
+              <MapPinned size={20} />
             </button>
-          </div>
 
-          <div className="max-h-[60vh] overflow-y-auto">
-            {savedMosquesWithAnnouncement.length === 0 && prayerInbox.length === 0 && (
-              <div className="px-4 py-8 text-center text-sm text-slate-400">
-                No new notifications yet
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={toggleBell}
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm"
+              aria-label="Notifications"
+              title="Inbox"
+            >
+              <Bell size={21} />
+              {unreadCount > 0 && (
+                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-bold leading-none text-slate-900">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
 
-            {savedMosquesWithAnnouncement.length > 0 && (
-              <div className="border-b border-slate-100 px-4 py-2">
-                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">Mosque Announcements</div>
-                {savedMosquesWithAnnouncement.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => { onOpenMosque(m); setBellOpen(false); }}
-                    className="mb-2 flex w-full items-start gap-2.5 rounded-xl bg-emerald-50 p-3 text-left last:mb-0"
-                  >
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><MapPinned size={14} /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-bold text-slate-800">{m.name}</span>
-                      <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{m.announcement}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {prayerInbox.length > 0 && (
-              <div className="px-4 py-2">
-                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Prayer Reminders</div>
-                {prayerInbox.map((item) => (
-                  <div key={item.id} className="mb-2 flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 last:mb-0">
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-600"><Bell size={13} /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-bold text-slate-800">{item.title}</span>
-                      <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{item.body}</span>
-                      <span className="mt-1 block text-[10.5px] text-slate-400">{timeAgo(item.timestamp)}</span>
-                    </span>
+            {bellOpen && createPortal(
+              <>
+                {/* transparent backdrop: tapping outside closes the inbox */}
+                <div className="fixed inset-0 z-[9998]" onClick={() => setBellOpen(false)} />
+                <div className="fixed left-4 right-4 top-16 z-[9999] mx-auto max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-slate-800 shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                    <h3 className="text-[15px] font-bold text-slate-900">Inbox</h3>
+                    <button type="button" onClick={() => setBellOpen(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
+                      <X size={16} />
+                    </button>
                   </div>
-                ))}
-              </div>
+
+                  <div className="max-h-[60vh] overflow-y-auto">
+                    {announcementCount === 0 && prayerInbox.length === 0 && (
+                      <div className="px-4 py-8 text-center text-sm text-slate-400">No new notifications yet</div>
+                    )}
+
+                    {announcementCount > 0 && (
+                      <div className="border-b border-slate-100 px-4 py-2">
+                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">Mosque Announcements</div>
+                        {savedMosquesWithAnnouncement.map(m => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => { onOpenMosque(m); setBellOpen(false); }}
+                            className="mb-2 flex w-full items-start gap-2.5 rounded-xl bg-emerald-50 p-3 text-left last:mb-0"
+                          >
+                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><MapPinned size={14} /></span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[13px] font-bold text-slate-800">{m.name}</span>
+                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{m.announcement}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {prayerInbox.length > 0 && (
+                      <div className="px-4 py-2">
+                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Prayer Reminders</div>
+                        {prayerInbox.map(item => (
+                          <div key={item.id} className="mb-2 flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 last:mb-0">
+                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-600"><Bell size={13} /></span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[13px] font-bold text-slate-800">{item.title}</span>
+                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{item.body}</span>
+                              <span className="mt-1 block text-[10.5px] text-slate-400">{timeAgo(item.timestamp)}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>,
+              document.body,
             )}
           </div>
-        </div>
-      </>,
-      document.body
-    )}
-  </div>
-        
 
           <div className="relative flex items-center gap-2">
-            <button type="button" onClick={() => setHeaderMenuOpen(value => !value)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm" aria-label="Account options">
+            <button
+              type="button"
+              onClick={() => setHeaderMenuOpen(open => !open)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm"
+              aria-label="Account options"
+            >
               <Menu size={22} />
             </button>
 
             {headerMenuOpen && (
               <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-white/20 bg-white text-slate-800 shadow-2xl">
-                <button type="button" onClick={() => { setHeaderMenuOpen(false); onNavigate(accountTarget); }} className="flex w-full items-center gap-2 border-b border-slate-100 px-4 py-3 text-left text-xs font-semibold hover:bg-blue-50">
+                <button
+                  type="button"
+                  onClick={() => { setHeaderMenuOpen(false); onNavigate(accountTarget); }}
+                  className="flex w-full items-center gap-2 border-b border-slate-100 px-4 py-3 text-left text-xs font-semibold hover:bg-blue-50"
+                >
                   <User size={15} className="text-blue-700" /> {accountLabel}
                 </button>
-                <button type="button" onClick={() => { setHeaderMenuOpen(false); onNavigate('menu'); }} className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-semibold hover:bg-blue-50">
+                <button
+                  type="button"
+                  onClick={() => { setHeaderMenuOpen(false); onNavigate('menu'); }}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-semibold hover:bg-blue-50"
+                >
                   <SlidersHorizontal size={15} className="text-blue-700" /> App menu
                 </button>
               </div>
@@ -673,7 +766,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
 
-        {/* Date and next prayer summary */}
+        {/* Dates */}
         <div className="relative z-10 mt-10 w-[58%] px-4">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-amber-200 backdrop-blur-sm"><CalendarDays size={22} /></span>
@@ -682,40 +775,44 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <div className="mt-1 text-[12px] font-semibold text-white/90">{gregorianDate}</div>
             </div>
           </div>
-
-
         </div>
 
-        {/* Main prayer glass card */}
-        <div className={`relative z-20 mx-4 mt-14 rounded-[20px] border p-3 shadow-[0_12px_35px_rgba(0,34,110,.28)] backdrop-blur-md ${nextPrayerDetails.isCurrent ? 'border-amber-300/50 bg-amber-500/20' : 'border-white/35 bg-white/12'}`}>
+        {/* Prayer glass card */}
+        <div className={`relative z-20 mx-4 mt-14 rounded-[20px] border p-3 shadow-[0_12px_35px_rgba(0,34,110,.28)] backdrop-blur-md ${nextPrayer.isCurrent ? 'border-amber-300/50 bg-amber-500/20' : 'border-white/35 bg-white/12'}`}>
           <div className="flex items-center gap-3">
-            <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg ${nextPrayerDetails.isCurrent ? 'bg-amber-300 text-amber-900' : 'bg-white text-[#0755bd]'}`}>
+            <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg ${nextPrayer.isCurrent ? 'bg-amber-300 text-amber-900' : 'bg-white text-[#0755bd]'}`}>
               <Sunrise size={27} strokeWidth={1.8} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className={`text-[11px] font-semibold uppercase tracking-wide ${nextPrayerDetails.isCurrent ? 'text-amber-200' : 'text-white/75'}`}>
-                {nextPrayerDetails.isCurrent ? '🕌 Current Prayer' : 'Next Prayer'}
+              <div className={`text-[11px] font-semibold uppercase tracking-wide ${nextPrayer.isCurrent ? 'text-amber-200' : 'text-white/75'}`}>
+                {nextPrayer.isCurrent ? '🕌 Current Prayer' : 'Next Prayer'}
               </div>
               <div className="mt-0.5 flex items-baseline gap-2">
-                <span className="font-urdu text-[22px] font-bold text-white" dir="rtl">{nextPrayerDetails.urdu}</span>
-                <span className="text-[10px] font-semibold text-amber-100">{nextPrayerDetails.label}</span>
+                <span className="font-urdu text-[22px] font-bold text-white" dir="rtl">{nextPrayer.urdu}</span>
+                <span className="text-[10px] font-semibold text-amber-100">{nextPrayer.label}</span>
               </div>
-              <div className={`mt-1 text-[10px] ${nextPrayerDetails.isCurrent ? 'text-amber-200' : 'text-white/75'}`}>
-                {nextPrayerDetails.countdown}
+              <div className={`mt-1 text-[10px] ${nextPrayer.isCurrent ? 'text-amber-200' : 'text-white/75'}`}>
+                {nextPrayer.countdown}
               </div>
             </div>
             <div className="shrink-0 text-right">
-              <div className="text-[27px] font-mono font-bold leading-none tracking-tight text-white">{nextPrayerDetails.time.replace(/\s?(AM|PM)$/i, '')}</div>
-              <div className="mt-1 text-[11px] font-bold text-amber-100">{nextPrayerDetails.time.match(/AM|PM/i)?.[0] || ''}</div>
-              <button type="button" onClick={() => onNavigate('settings')} className="mt-2 flex max-w-[120px] items-center gap-1 rounded-full bg-[#063a93]/70 px-2.5 py-1.5 text-[9px] font-semibold text-white">
-                <MapPin size={11} className="shrink-0" /><span className="truncate">{locationName}</span><ChevronDown size={10} />
+              <div className="text-[27px] font-mono font-bold leading-none tracking-tight text-white">{nextPrayer.time.replace(/\s?(AM|PM)$/i, '')}</div>
+              <div className="mt-1 text-[11px] font-bold text-amber-100">{nextPrayer.time.match(/AM|PM/i)?.[0] || ''}</div>
+              <button
+                type="button"
+                onClick={() => onNavigate('settings')}
+                className="mt-2 flex max-w-[120px] items-center gap-1 rounded-full bg-[#063a93]/70 px-2.5 py-1.5 text-[9px] font-semibold text-white"
+              >
+                <MapPin size={11} className="shrink-0" />
+                <span className="truncate">{locationName}</span>
+                <ChevronDown size={10} />
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Search */}
+      {/* ═══════════ Search ═══════════ */}
       <div className="relative z-30 mx-4 my-4">
         <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-[0_5px_18px_rgba(15,53,111,.10)]">
           <Search size={19} className="shrink-0 text-blue-700" />
@@ -729,16 +826,25 @@ export const HomeView: React.FC<HomeViewProps> = ({
             dir="ltr"
           />
           {searchQuery && (
-            <button type="button" onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"><X size={14} /></button>
+            <button type="button" onClick={clearSearch} className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100" aria-label="Clear search">
+              <X size={14} />
+            </button>
           )}
-
         </div>
 
         {searchResults.length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-1 z-50 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+          <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
             {searchResults.map((result, index) => (
-              <button key={index} type="button" onClick={() => { result.action(); setSearchQuery(''); setSearchResults([]); }} className="flex w-full items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 text-left transition-colors last:border-0 hover:bg-blue-50 active:bg-blue-100">
-                <span className="flex-1 text-left"><span className="block text-[12px] font-bold text-slate-800" dir="auto">{result.title}</span>{result.subtitle && <span className="block text-[10px] text-slate-400" dir="auto">{result.subtitle}</span>}</span>
+              <button
+                key={index}
+                type="button"
+                onClick={() => { result.action(); clearSearch(); }}
+                className="flex w-full items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 text-left transition-colors last:border-0 hover:bg-blue-50 active:bg-blue-100"
+              >
+                <span className="flex-1 text-left">
+                  <span className="block text-[12px] font-bold text-slate-800" dir="auto">{result.title}</span>
+                  {result.subtitle && <span className="block text-[10px] text-slate-400" dir="auto">{result.subtitle}</span>}
+                </span>
                 <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">{result.type}</span>
               </button>
             ))}
@@ -746,129 +852,118 @@ export const HomeView: React.FC<HomeViewProps> = ({
         )}
 
         {isSearching && (
-          <div className="absolute left-0 right-0 top-full mt-1 z-50 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
+          <div className="absolute left-0 right-0 top-full z-50 mt-1 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
             <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-600" />
             <span className="text-[12px] text-slate-500">Searching...</span>
           </div>
         )}
       </div>
 
-      {/* Main content */}
+      {/* ═══════════ Main content ═══════════ */}
       <div className="relative space-y-4 bg-slate-50 pt-1">
+        {isDeviceOffline && (
+          <div className={`mx-4 flex animate-fadeIn items-center gap-2.5 bg-amber-50/70 p-2.5 text-amber-900 ${CARD_SHADOW}`}>
+            <AlertTriangle size={15} className="shrink-0 text-amber-600" />
+            <div className="flex-1 text-left text-[11px] leading-relaxed">
+              Offline mode: Your internet connection is unavailable. Some content may not load.
+            </div>
+          </div>
+        )}
 
-          {isDeviceOffline && (
-            <div className="mx-4 p-2.5 bg-amber-50/70 shadow-[0_2px_10px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.03)] flex items-center gap-2.5 text-amber-900 animate-fadeIn">
-              <AlertTriangle size={15} className="shrink-0 text-amber-600" />
-              <div className="text-[11px] leading-relaxed text-left flex-1">
-                Offline mode: Your internet connection is unavailable. Some content may not load.
-              </div>
+        {/* Nearby mosques */}
+        <div className={`mx-4 space-y-3 rounded-lg bg-white p-4 ${CARD_SHADOW}`}>
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-tight text-slate-800">
+              <Compass size={13} className="shrink-0 text-emerald-600" />
+              Nearby Mosques &amp; Jumu’ah
+            </h3>
+            <div className="flex items-center gap-2">
+              <button type="button" className="text-[10px] font-bold text-emerald-700 hover:underline" onClick={() => onNavigate('mosques')}>
+                View all →
+              </button>
+              <button type="button" className="flex items-center gap-0.5 text-[10px] font-bold text-blue-700 hover:underline" onClick={() => onNavigate('mosque-map')}>
+                <MapPinned size={11} /> On Map
+              </button>
+            </div>
+          </div>
+
+          {!userCoords ? (
+            <div className="space-y-2.5 rounded-lg bg-slate-50 p-4 text-center shadow-[0_1px_6px_rgba(0,0,0,0.05)]">
+              <p className="text-[11px] leading-relaxed text-slate-600">Enable location to see nearby mosques and their congregation times.</p>
+              <button
+                type="button"
+                onClick={() => onNavigate('settings')}
+                className="mx-auto flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
+              >
+                <MapPin size={11} />
+                Enable Location
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {closestMosques.length === 0 ? (
+                isLoading ? (
+                  <div className="flex items-center justify-center py-4"><Spinner /></div>
+                ) : (
+                  <p className="py-2 text-center text-xs text-gray-500">No registered mosque was found nearby.</p>
+                )
+              ) : (
+                closestMosques.map(({ mosque, distance }) => (
+                  <div
+                    key={mosque.id}
+                    onClick={() => onOpenMosque(mosque)}
+                    className="group flex cursor-pointer items-center justify-between bg-slate-50/50 p-3 shadow-[0_1px_5px_rgba(0,0,0,0.05)] transition-all hover:bg-emerald-50/35"
+                  >
+                    <div className="rounded-lg border border-emerald-700 bg-emerald-600 px-2.5 py-1 text-center text-[9px] font-bold text-white transition-colors group-hover:bg-emerald-700">
+                      <div className="text-[8px] opacity-95">Jumu’ah</div>
+                      <div className="mt-0.5 font-mono">{mosque.jumah}</div>
+                    </div>
+                    <div className="flex-1 pr-3 text-right">
+                      <div className="font-urdu text-xs font-bold text-slate-800">{mosque.name}</div>
+                      <div className="mt-0.5 flex items-center justify-end gap-1 font-mono font-urdu text-[9px] text-slate-400">
+                        <span>{distance} km away</span>
+                        <MapPin size={10} className="text-emerald-500" />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
+        </div>
 
-          {/* مسجد کارڈ */}
-          <div className="mx-4 bg-white rounded-lg shadow-[0_2px_10px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.03)] p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-bold text-slate-800 flex items-center gap-1 uppercase tracking-tight">
-                <Compass size={13} className="text-emerald-600 shrink-0" />
-                Nearby Mosques &amp; Jumu’ah
-              </h3>
-              <div className="flex items-center gap-2">
-  <span className="text-[10px] text-emerald-700 font-bold cursor-pointer hover:underline" onClick={() => onNavigate('mosques')}>View all →</span>
-  <span className="text-[10px] text-blue-700 font-bold cursor-pointer hover:underline flex items-center gap-0.5" onClick={() => onNavigate('mosque-map')}><MapPinned size={11} /> On Map</span>
-</div>
-            </div>
-            {!userCoords ? (
-              <div className="p-4 bg-slate-50 rounded-lg text-center space-y-2.5 shadow-[0_1px_6px_rgba(0,0,0,0.05)]">
-                <p className="text-[11px] text-slate-600 leading-relaxed">Enable location to see nearby mosques and their congregation times.</p>
-                <button onClick={() => onNavigate('settings')} className="py-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 mx-auto transition-colors">
-                  <MapPin size={11} />
-                  Enable Location
-                </button>
-              </div>
+        {/* Features + Hadith books */}
+        <div className="mx-3 grid grid-cols-2 gap-3 pb-1">
+          {HOME_CARDS.map(card => (
+            <HomeCard key={`${card.theme}-${card.label}`} config={card} onClick={() => handleCardClick(card)} />
+          ))}
+        </div>
+
+        {/* Verse of the day */}
+        <div className="mx-4">
+          <div className="mb-1.5 text-center text-[9px] font-bold uppercase tracking-widest text-slate-400">✦ Verse of the Day ✦</div>
+          <div className={`space-y-2.5 rounded-lg bg-white p-4 text-center ${CARD_SHADOW}`}>
+            {loadingAyah ? (
+              <div className="flex items-center justify-center py-4"><Spinner /></div>
             ) : (
-              <div className="space-y-2">
-{nearbyMosques.length === 0 ? (
-  isLoading ? (
-    <div className="flex items-center justify-center py-4">
-      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-600"></div>
-    </div>
-  ) : (
-    <p className="text-xs text-center text-gray-500 py-2">
-      No registered mosque was found nearby.
-    </p>
-  )
-) : (
-                
-                  (() => {
-                    const mosquesWithDistance = nearbyMosques.map(mosque => ({ mosque, distance: calculateDistance(userCoords.latitude, userCoords.longitude, mosque.latitude, mosque.longitude) }));
-                    return mosquesWithDistance.sort((a, b) => a.distance - b.distance).slice(0, 3).map(({ mosque, distance }) => (
-                      <div key={mosque.id} onClick={() => onOpenMosque(mosque)} className="p-3 bg-slate-50/50 hover:bg-emerald-50/35 transition-all cursor-pointer shadow-[0_1px_5px_rgba(0,0,0,0.05)] flex items-center justify-between group">
-                        <div className="text-center bg-emerald-600 text-white py-1 px-2.5 rounded-lg text-[9px] font-bold border border-emerald-700 group-hover:bg-emerald-700 transition-colors">
-                          <div className="opacity-95 text-[8px]">Jumu’ah</div>
-                          <div className="font-mono mt-0.5">{mosque.jumah}</div>
-                        </div>
-                        <div className="text-right flex-1 pr-3">
-                          <div className="text-xs font-bold text-slate-800 font-urdu">{mosque.name}</div>
-                          <div className="text-[9px] text-slate-400 font-urdu flex items-center justify-end gap-1 mt-0.5 font-mono">
-                            <span>{distance} km away</span>
-                            <MapPin size={10} className="text-emerald-500" />
-                          </div>
-                        </div>
-                      </div>
-                    ));
-                  })()
-                )}
-              </div>
+              <>
+                <p className="font-amiri text-base leading-loose text-slate-800" dir="rtl">{dailyAyah?.ar}</p>
+                <p className="border-t border-slate-100 pt-2 font-urdu text-xs leading-relaxed text-emerald-800" dir="rtl">{dailyAyah?.ur}</p>
+                <div className="text-left font-mono text-[9px] tracking-tight text-slate-400">{dailyAyah?.ref}</div>
+              </>
             )}
           </div>
+        </div>
 
-          {/* Main features and individual Hadith books — one equal square grid */}
-          <div className="mx-3 grid grid-cols-2 gap-3 pb-1">
-            <HomeCard theme="green"  Icon={BookOpen} urdu="القرآن الکریم"   label="Quran"            onClick={() => onNavigate('quran')} />
-            <HomeCard theme="purple" Icon={User}     urdu="نماز کا طریقہ"  label="Prayer"           onClick={() => onNavigate('namaz')} />
-            <HomeCard theme="pink"   Icon={Heart}    urdu="مسنون دعائیں"   label="Duas"             onClick={() => onNavigate('duas')} />
-            <HomeCard theme="amber"  Icon={CircleDot} urdu="تسبیح کاؤنٹر"  label="Tasbih"           onClick={() => onNavigate('tasbih')} />
-            <HomeCard theme="blue"   Icon={Compass}  urdu="قبلہ رخ سمت"    label="Qibla"            onClick={() => onNavigate('qibla')} />
-            <HomeCard theme="coral"  Icon={BookOpen} urdu="صحیح بخاری"     label="Sahih Bukhari"    onClick={() => openHadithBook('bukhari')} />
-            <HomeCard theme="teal"   Icon={BookOpen} urdu="صحیح مسلم"      label="Sahih Muslim"     onClick={() => openHadithBook('muslim')} />
-            <HomeCard theme="rose"   Icon={Scroll}   urdu="سنن ابو داود"   label="Sunan Abu Dawud"  onClick={() => openHadithBook('abudawud')} />
-            <HomeCard theme="purple" Icon={Scroll}   urdu="جامع ترمذی"     label="Jami at-Tirmidhi" onClick={() => openHadithBook('tirmidhi')} />
-            <HomeCard theme="green"  Icon={BookOpen} urdu="سنن نسائی"      label="Sunan an-Nasai"   onClick={() => openHadithBook('nasai')} />
-            <HomeCard theme="amber"  Icon={BookOpen} urdu="سنن ابن ماجہ"   label="Sunan Ibn Majah"  onClick={() => openHadithBook('ibnmajah')} />
-            <HomeCard theme="blue"   Icon={BookOpen} urdu="موطا امام مالک" label="Muwatta Malik"    onClick={() => openHadithBook('malik')} />
+        {/* Hadith of the day */}
+        <div className="mx-4">
+          <div className="mb-1.5 text-center text-[9px] font-bold uppercase tracking-widest text-slate-400">✦ Hadith of the Day ✦</div>
+          <div className={`space-y-2.5 rounded-lg border-r-4 border-r-emerald-600 bg-white p-4 text-center ${CARD_SHADOW}`}>
+            <p className="text-right font-amiri text-sm font-medium leading-relaxed text-slate-800" dir="rtl">{dailyHadith.ar}</p>
+            <p className="border-t border-slate-100 pt-2 text-right font-urdu text-xs leading-relaxed text-slate-600" dir="rtl">{dailyHadith.ur}</p>
+            <div className="text-left font-mono text-[9px] tracking-tight text-slate-400">{dailyHadith.ref}</div>
           </div>
-          {/* آیتِ روز */}
-          <div className="mx-4">
-            <div className="text-center text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-1.5">✦ Verse of the Day ✦</div>
-            <div className="bg-white rounded-lg shadow-[0_2px_10px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.03)] p-4 text-center space-y-2.5">
-              {loadingAyah ? (
-                <div className="flex items-center justify-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-600"></div></div>
-              ) : (
-                <>
-                  <p className="text-base leading-loose font-amiri text-slate-800" dir="rtl">{dailyAyah?.ar}</p>
-                  <p className="text-xs text-emerald-800 font-urdu leading-relaxed border-t border-slate-100 pt-2" dir="rtl">{dailyAyah?.ur}</p>
-                  <div className="text-[9px] text-slate-400 font-mono text-left tracking-tight">{dailyAyah?.ref}</div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* حدیثِ روز */}
-          <div className="mx-4">
-            <div className="text-center text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-1.5">✦ Hadith of the Day ✦</div>
-            <div className="bg-white rounded-lg shadow-[0_2px_10px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.03)] border-r-4 border-r-emerald-600 p-4 text-center space-y-2.5">
-              {loadingHadith ? (
-                <div className="flex items-center justify-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-600"></div></div>
-              ) : (
-                <>
-                  <p className="text-sm leading-relaxed font-amiri text-slate-800 text-right font-medium" dir="rtl">{dailyHadith?.ar}</p>
-                  <p className="text-xs text-slate-600 font-urdu leading-relaxed border-t border-slate-100 pt-2 text-right" dir="rtl">{dailyHadith?.ur}</p>
-                  <div className="text-[9px] text-slate-400 font-mono text-left tracking-tight">{dailyHadith?.ref}</div>
-                </>
-              )}
-            </div>
-          </div>
-
+        </div>
       </div>
     </div>
   );
