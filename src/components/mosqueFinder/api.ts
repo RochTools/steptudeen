@@ -38,6 +38,7 @@ async function fetchFromEndpoint(endpoint: string, query: string, ctrl: AbortCon
       method: 'POST',
       body: 'data=' + encodeURIComponent(query),
       signal: ctrl.signal,
+      referrerPolicy: 'no-referrer', // a standalone HTML file opened from storage sends no Referer; do the same
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = (await res.json()) as { elements?: OverpassElement[] };
