@@ -30,7 +30,7 @@ const OVERPASS_ENDPOINTS = [
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 
-async function fetchFromEndpoint(endpoint: string, query: string, timeoutMs = 15000): Promise<OverpassElement[]> {
+async function fetchFromEndpoint(endpoint: string, query: string, timeoutMs = 150000): Promise<OverpassElement[]> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
