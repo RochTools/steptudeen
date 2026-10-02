@@ -393,7 +393,7 @@ const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void }> = ({ c
       <CornerOrnament className="bottom-1 right-1 rotate-180" />
       <CornerOrnament className="bottom-1 left-1 -rotate-90" />
 
-      <span dir="rtl" style={{ color }} className="home-card-urdu-title text-[24px]">
+      <span dir="rtl" style={{ color }} className="home-card-urdu-title text-[18px]">
         {urdu}
       </span>
       <span className="mt-0.5 text-[15px] font-medium text-slate-800">{label}</span>
@@ -789,7 +789,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </span>
             <div className="min-w-0 flex-1">
               <div className={`text-[11px] font-semibold uppercase tracking-wide ${nextPrayer.isCurrent ? 'text-amber-200' : 'text-white/75'}`}>
-                {nextPrayer.isCurrent ? '🕌 Current Prayer' : 'Next Prayer'}
+                {nextPrayer.isCurrent ? ' Current Prayer' : 'Next Prayer'}
               </div>
               <div className="mt-0.5 flex items-baseline gap-2">
                 <span className="font-urdu text-[22px] font-bold text-white" dir="rtl">{nextPrayer.urdu}</span>
