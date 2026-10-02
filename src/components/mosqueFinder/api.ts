@@ -74,7 +74,11 @@ export async function fetchMosquesFromAPI(lat: number, lng: number, radius: numb
     }
   }
   console.error('All Overpass mirrors failed:\n' + failures.join('\n'));
-  throw new Error('All Overpass mirrors failed');
+  // Keep this short: it's rendered directly in the on-screen status toast on the phone.
+  // Shows only the LAST (most recent) mirror's reason — full detail for every mirror is
+  // still in console.error above for anyone who does have dev tools open.
+  const lastReason = failures[failures.length - 1] || 'unknown error';
+  throw new Error(`${OVERPASS_ENDPOINTS.length} servers tried, all failed. Last: ${lastReason}`);
 }
 
 /** raw Overpass elements → compact de-duplicated list (small = cache-friendly) */
