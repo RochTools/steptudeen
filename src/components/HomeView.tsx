@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertTriangle, Bell, BookOpen, CalendarDays, ChevronDown, CircleDot, Compass, Heart,
-  MapPin, MapPinned, Menu, Scroll, Search, SlidersHorizontal, Sunrise, User, X,
+  AlertTriangle, Bell, CalendarDays, ChevronDown, Compass,
+  MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X,
 } from 'lucide-react';
 import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
@@ -172,11 +172,8 @@ const CARD_THEMES: Record<string, CardTheme> = {
   rose:   { bg: '#FCE8EC', icon: '#B0294A', title: '#5A0F22', label: '#7E1B36' },
 };
 
-type CardIcon = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-
 interface HomeCardConfig {
   theme: keyof typeof CARD_THEMES;
-  Icon: CardIcon;
   urdu: string;
   label: string;
   /** Either a top-level view to open, or a Hadith book to open inside the Hadith view. */
@@ -185,18 +182,18 @@ interface HomeCardConfig {
 }
 
 const HOME_CARDS: HomeCardConfig[] = [
-  { theme: 'green',  Icon: BookOpen,   urdu: 'القرآن الکریم',   label: 'Quran',            nav: 'quran' },
-  { theme: 'purple', Icon: User,       urdu: 'نماز کا طریقہ',   label: 'Prayer',           nav: 'namaz' },
-  { theme: 'pink',   Icon: Heart,      urdu: 'مسنون دعائیں',    label: 'Duas',             nav: 'duas' },
-  { theme: 'amber',  Icon: CircleDot,  urdu: 'تسبیح کاؤنٹر',   label: 'Tasbih',           nav: 'tasbih' },
-  { theme: 'blue',   Icon: Compass,    urdu: 'قبلہ رخ سمت',     label: 'Qibla',            nav: 'qibla' },
-  { theme: 'coral',  Icon: BookOpen,   urdu: 'صحیح بخاری',      label: 'Sahih Bukhari',    hadithBook: 'bukhari' },
-  { theme: 'teal',   Icon: BookOpen,   urdu: 'صحیح مسلم',       label: 'Sahih Muslim',     hadithBook: 'muslim' },
-  { theme: 'rose',   Icon: Scroll,     urdu: 'سنن ابو داود',    label: 'Sunan Abu Dawud',  hadithBook: 'abudawud' },
-  { theme: 'purple', Icon: Scroll,     urdu: 'جامع ترمذی',      label: 'Jami at-Tirmidhi', hadithBook: 'tirmidhi' },
-  { theme: 'green',  Icon: BookOpen,   urdu: 'سنن نسائی',       label: 'Sunan an-Nasai',   hadithBook: 'nasai' },
-  { theme: 'amber',  Icon: BookOpen,   urdu: 'سنن ابن ماجہ',    label: 'Sunan Ibn Majah',  hadithBook: 'ibnmajah' },
-  { theme: 'blue',   Icon: BookOpen,   urdu: 'موطا امام مالک',  label: 'Muwatta Malik',    hadithBook: 'malik' },
+  { theme: 'green',  urdu: 'القرآن الکریم',   label: 'Quran',            nav: 'quran' },
+  { theme: 'purple', urdu: 'نماز کا طریقہ',   label: 'Prayer',           nav: 'namaz' },
+  { theme: 'pink',   urdu: 'مسنون دعائیں',    label: 'Duas',             nav: 'duas' },
+  { theme: 'amber',  urdu: 'تسبیح کاؤنٹر',   label: 'Tasbih',           nav: 'tasbih' },
+  { theme: 'blue',   urdu: 'قبلہ رخ سمت',     label: 'Qibla',            nav: 'qibla' },
+  { theme: 'coral',  urdu: 'صحیح بخاری',      label: 'Sahih Bukhari',    hadithBook: 'bukhari' },
+  { theme: 'teal',   urdu: 'صحیح مسلم',       label: 'Sahih Muslim',     hadithBook: 'muslim' },
+  { theme: 'rose',   urdu: 'سنن ابو داود',    label: 'Sunan Abu Dawud',  hadithBook: 'abudawud' },
+  { theme: 'purple', urdu: 'جامع ترمذی',      label: 'Jami at-Tirmidhi', hadithBook: 'tirmidhi' },
+  { theme: 'green',  urdu: 'سنن نسائی',       label: 'Sunan an-Nasai',   hadithBook: 'nasai' },
+  { theme: 'amber',  urdu: 'سنن ابن ماجہ',    label: 'Sunan Ibn Majah',  hadithBook: 'ibnmajah' },
+  { theme: 'blue',   urdu: 'موطا امام مالک',  label: 'Muwatta Malik',    hadithBook: 'malik' },
 ];
 
 /* ═══════════════════════════ Helpers ═══════════════════════════ */
@@ -364,36 +361,43 @@ const Spinner: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) =>
   <div className={`animate-spin rounded-full border-b-2 border-emerald-600 ${className}`} />
 );
 
+/** Small Islamic scroll ornament for one card corner (rotate it for the other three). */
+const CornerOrnament: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <svg
+    viewBox="0 0 40 40"
+    className={`pointer-events-none absolute h-9 w-9 text-slate-400/80 ${className}`}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.2"
+    strokeLinecap="round"
+    aria-hidden="true"
+  >
+    <path d="M5 5c0 9 10 9 10 3 0-4-5-4-5 0" />
+    <path d="M19 6c6-2 12 0 16 5-6 1-12 0-16-5Z" />
+    <path d="M6 19c-2 6 0 12 5 16 1-6 0-12-5-16Z" />
+    <circle cx="22" cy="22" r="1.3" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void }> = ({ config, onClick }) => {
-  const { theme, Icon, urdu, label } = config;
-  const t = CARD_THEMES[theme];
+  const { theme, urdu, label } = config;
+  const color = CARD_THEMES[theme].icon;
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{ backgroundColor: t.bg }}
-      className="relative aspect-square overflow-hidden rounded-md p-3 shadow-[0_3px_10px_rgba(0,0,0,0.10)] transition-all active:scale-[0.96] active:shadow-[0_2px_6px_rgba(0,0,0,0.08)] flex flex-col items-center justify-center gap-2 text-center"
+      className="relative flex aspect-[4/3] flex-col items-center justify-center overflow-hidden rounded-md bg-white px-3 text-center shadow-[0_3px_10px_rgba(0,0,0,0.10)] transition-transform active:scale-[0.97]"
     >
-      <span className="pointer-events-none absolute -right-5 -top-5 h-[70px] w-[70px] rounded-full bg-white/40" />
-      <span className="pointer-events-none absolute -bottom-6 -left-5 h-16 w-16 rounded-full bg-white/30" />
+      <CornerOrnament className="left-1 top-1" />
+      <CornerOrnament className="right-1 top-1 rotate-90" />
+      <CornerOrnament className="bottom-1 right-1 rotate-180" />
+      <CornerOrnament className="bottom-1 left-1 -rotate-90" />
 
-      <span
-        style={{ backgroundColor: t.icon }}
-        className="relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl text-white"
-      >
-        <Icon size={25} strokeWidth={2} />
-      </span>
-
-      <span dir="rtl" style={{ color: t.title }} className="home-card-urdu-title relative text-[19px]">
+      <span dir="rtl" style={{ color }} className="home-card-urdu-title text-[24px]">
         {urdu}
       </span>
-
-      <span
-        style={{ color: t.label }}
-        className="relative rounded-full bg-white/85 px-2.5 py-[3px] text-[10px] font-bold uppercase tracking-[0.06em]"
-      >
-        {label}
-      </span>
+      <span className="mt-0.5 text-[15px] font-medium text-slate-800">{label}</span>
+      <span className="mt-2 text-[13px] font-medium text-emerald-700">Open</span>
     </button>
   );
 };
@@ -617,11 +621,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <div className="pb-16 animate-fadeIn bg-slate-50">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@700&display=swap');
         .home-card-urdu-title {
-          font-family: 'Noto Naskh Arabic', 'Noto Nastaliq Urdu', serif;
+          font-family: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif;
           font-weight: 700;
-          line-height: 1.5;
+          line-height: 1.9;
           text-rendering: optimizeLegibility;
           -webkit-font-smoothing: antialiased;
         }
