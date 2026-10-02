@@ -365,7 +365,7 @@ const Spinner: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) =>
 const CornerOrnament: React.FC<{ className?: string }> = ({ className = '' }) => (
   <svg
     viewBox="0 0 40 40"
-    className={`pointer-events-none absolute h-9 w-9 text-slate-400/80 ${className}`}
+    className={`pointer-events-none absolute h-9 w-9 text-slate-500/80 ${className}`}
     fill="none"
     stroke="currentColor"
     strokeWidth="1.2"
