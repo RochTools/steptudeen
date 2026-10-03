@@ -7,6 +7,10 @@ import {
 import { Mosque } from '../types';
 import { firebaseSignIn, firebaseSignUp, firebaseSignOut } from '../firebase';
 import { Auth } from 'firebase/auth';
+import { PrayerSettingsCard } from './imam/PrayerSettingsCard';
+import { CalibrationWizard } from './imam/CalibrationWizard';
+import { DEFAULT_PRAYER_CONFIG, PrayerConfig } from '../lib/prayerEngine';
+import { IqamaSchedule } from '../lib/iqama';
 
 // ── انٹرفیسز ──
 interface ImamDashboardProps {
@@ -186,6 +190,12 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   const [asrOffset, setAsrOffset] = useState<number>(15);
   const [maghribOffset, setMaghribOffset] = useState<number>(5);
   const [ishaOffset, setIshaOffset] = useState<number>(15);
+
+  // ── نیا: اذان کی کیلیبریشن + جماعت کا شیڈول ──
+  const [prayerConfig, setPrayerConfig] = useState<PrayerConfig>(DEFAULT_PRAYER_CONFIG);
+  const [iqamaSchedule, setIqamaSchedule] = useState<IqamaSchedule>({
+    effectiveFrom: new Date().toISOString().slice(0, 10),
+  });
 
   // ── manual اوقات ──
   const [jumah, setJumah] = useState('13:30');
@@ -521,6 +531,19 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     setAsrOffset(mosque.asrOffset ?? 15);
     setMaghribOffset(mosque.maghribOffset ?? 5);
     setIshaOffset(mosque.ishaOffset ?? 15);
+
+    // نئی سیٹنگ لوڈ کریں (نہ ہو تو پرانے offsets کو شیڈول میں ڈھال دیں)
+    setPrayerConfig(mosque.prayerConfig ?? DEFAULT_PRAYER_CONFIG);
+    setIqamaSchedule(mosque.iqamaSchedule ?? {
+      effectiveFrom: new Date().toISOString().slice(0, 10),
+      iqama: {
+        fajr: { delay: mosque.fajrOffset ?? 15 },
+        zuhr: { delay: mosque.zuhrOffset ?? 15 },
+        asr: { delay: mosque.asrOffset ?? 15 },
+        maghrib: { delay: mosque.maghribOffset ?? 5 },
+        isha: { delay: mosque.ishaOffset ?? 15 },
+      },
+    });
   };
 
   // ── پینسل آئیکن پر کلک: مسجد لوڈ کریں اور نام/پتہ کا چھوٹا ماڈل کھولیں ──
@@ -621,6 +644,10 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           asrOffset,
           maghribOffset,
           ishaOffset,
+
+          // ── نیا: امام کی کیلیبریشن → Firebase → تمام صارفین ──
+          prayerConfig,
+          iqamaSchedule,
         });
         setIsSaving(false);
         setSuccessMessage(editId
@@ -909,6 +936,24 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                     <JamaatCard prayerKey="maghrib" offset={maghribOffset} onChange={setMaghribOffset} />
                     <JamaatCard prayerKey="isha" offset={ishaOffset} onChange={setIshaOffset} />
                   </div>
+
+                  {/* ── نیا: اذان کے اوقات کی کیلیبریشن (طریقہ/مشرب/زاویہ/±منٹ) ── */}
+                  <PrayerSettingsCard
+                    config={prayerConfig}
+                    onChange={setPrayerConfig}
+                    latitude={Number(latitude) || 31.5204}
+                    longitude={Number(longitude) || 74.3587}
+                    timeZone="Asia/Karachi"
+                  />
+
+                  {/* ── نیا: مسجد کے اصل اوقات سے خودکار کیلیبریشن ── */}
+                  <CalibrationWizard
+                    latitude={Number(latitude) || 31.5204}
+                    longitude={Number(longitude) || 74.3587}
+                    timeZone="Asia/Karachi"
+                    currentConfig={prayerConfig}
+                    onApply={(cfg) => setPrayerConfig(cfg)}
+                  />
                 </div>
 
                 <div className="space-y-3 pt-3 border-t border-slate-100">

@@ -159,8 +159,12 @@ export default function App() {
 
   // ============ HOOKS ============
   const auth = useAuth();
-  const prayer = usePrayerTimes();
   const mosques = useMosques(realtimeDb, realFirebaseActive);
+  const prayer = usePrayerTimes({
+    mosques: mosques.mosques,
+    savedMosqueIds: mosques.savedPopupMosques,
+    selectedMosque: mosques.selectedMosque,
+  });
   const nav = useNavigation({
     selectedMosque: mosques.selectedMosque,
     setSelectedMosque: mosques.setSelectedMosque,
