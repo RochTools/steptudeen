@@ -511,8 +511,8 @@
 .mfv-ring {
   position: relative;
   flex: none;
-  width: 92px;
-  height: 92px;
+  width: 100px;
+  height: 100px;
   filter: drop-shadow(0 0 6px var(--mfv-glow));
 }
 
@@ -549,9 +549,10 @@
 .mfv-ring-count {
   direction: ltr;
   font-family: var(--font-digital, 'Orbitron'), 'Share Tech Mono', ui-monospace, monospace;
-  font-size: 13.5px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
+  white-space: nowrap;
   color: var(--mfv-text);
   font-variant-numeric: tabular-nums;
 }
@@ -562,36 +563,33 @@
 }
 
 /* ── نمازوں کی پٹی ────────────────────────────────────────────────────── */
-.mfv-strip {
+.mfv-times {
   display: flex;
+  flex-direction: column;
   gap: 10px;
-  margin: 0 -16px;
-  padding: 14px 16px 16px;   /* اوپر/نیچے جگہ تاکہ چمک کٹ نہ جائے */
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
 }
 
-.mfv-strip::-webkit-scrollbar {
-  display: none;
+/* پانچوں نمازیں برابر چوڑائی کے خانوں میں — سکرول نہیں، سب ایک نظر میں */
+.mfv-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  padding-top: 12px;         /* «ابھی» کا بیج اور چمک کٹ نہ جائے */
 }
 
 .mfv-chip {
   position: relative;
-  flex: none;
-  min-width: 78px;
-  padding: 11px 8px 10px;
-  border-radius: 20px;
+  min-width: 0;
+  padding: 9px 2px 8px;
+  border-radius: 16px;
   text-align: center;
   background: var(--mfv-chip);
-  scroll-snap-align: center;
   transition: transform 0.2s ease, background 0.2s ease;
 }
 
 .mfv-chip-name {
   display: block;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.6;
   color: var(--mfv-text);
@@ -600,7 +598,7 @@
 .mfv-chip-time {
   direction: ltr;
   display: block;
-  font-size: 19px;
+  font-size: 15.5px;
   font-weight: 800;
   line-height: 1.25;
   white-space: nowrap;
@@ -611,7 +609,7 @@
 .mfv-chip-ampm {
   direction: ltr;
   display: block;
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1.5;
   color: var(--mfv-muted);
@@ -629,12 +627,12 @@
 
 .mfv-chip-badge {
   position: absolute;
-  top: -9px;
+  top: -10px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 0 9px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
   line-height: 1.7;
   color: #fff;
@@ -643,14 +641,24 @@
   white-space: nowrap;
 }
 
-.mfv-chip[data-kind='jumuah'] {
+/* جمعہ: پانچ نمازوں کے نیچے الگ جامنی پٹی */
+.mfv-jumuah-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 16px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--mfv-jumuah-text);
   background: linear-gradient(160deg, var(--mfv-jumuah-from), var(--mfv-jumuah-to));
 }
 
-.mfv-chip[data-kind='jumuah'] .mfv-chip-name,
-.mfv-chip[data-kind='jumuah'] .mfv-chip-time,
-.mfv-chip[data-kind='jumuah'] .mfv-chip-ampm {
-  color: var(--mfv-jumuah-text);
+.mfv-jumuah-pill b {
+  direction: ltr;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── جمعہ کا حصہ ──────────────────────────────────────────────────────── */
@@ -688,20 +696,17 @@
 }
 
 /* ── خاص اوقات ───────────────────────────────────────────────────────── */
+/* دو چوڑے چھوٹے کارڈ، ہر ایک میں دو وقت برابر برابر — کوئی لفظ ٹوٹتا نہیں */
 .mfv-special {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
 .mfv-special-card {
-  padding: 12px 14px;
+  padding: 12px 16px;
   border-radius: 20px;
   font-size: 13.5px;
-}
-
-.mfv-special-card:only-child {
-  grid-column: 1 / -1;
 }
 
 .mfv-special-card[data-kind='ramadan'] {
@@ -720,19 +725,28 @@
   font-weight: 800;
 }
 
-.mfv-special-row {
-  display: flex;
-  flex-wrap: wrap;           /* جگہ کم ہو تو وقت نیچے چلا جائے، AM/PM الگ نہ ہو */
-  align-items: baseline;
-  justify-content: space-between;
-  column-gap: 8px;
-  font-size: 13px;
+.mfv-special-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.mfv-special-row b {
+.mfv-special-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.6;
+}
+
+.mfv-special-item span {
+  font-size: 12.5px;
+  opacity: 0.85;
+}
+
+.mfv-special-item b {
   direction: ltr;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }

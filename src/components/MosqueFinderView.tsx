@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
+import React, { useState, useEffect, useContext, createContext } from 'react';
 import {
   Search,
   MapPin,
@@ -182,7 +182,11 @@ const LivePanel: React.FC<{ secs: (number | null)[]; raws: string[] }> = ({ secs
   const next = PRAYERS[live.nextIdx];
   const curTime = split12(raws[live.curIdx]);
   const rem = live.remaining;
-  const countdown = `${pad2(Math.floor(rem / 3600))}:${pad2(Math.floor((rem % 3600) / 60))}:${pad2(rem % 60)}`;
+  // ایک گھنٹے سے کم باقی ہو تو MM:SS (چھوٹا، رنگ کے اندر آرام سے آئے)، ورنہ H:MM:SS
+  const hrs = Math.floor(rem / 3600);
+  const countdown = hrs > 0
+    ? `${hrs}:${pad2(Math.floor((rem % 3600) / 60))}:${pad2(rem % 60)}`
+    : `${pad2(Math.floor(rem / 60))}:${pad2(rem % 60)}`;
 
   return (
     <div className="mfv-live">
@@ -238,42 +242,46 @@ interface StripItem {
   prayerIdx: number; // جمعہ کے لیے -1
 }
 
-/** چھ نمازوں کی افقی پٹی؛ موجودہ نماز چمکتی ہے اور خود بیچ میں آ جاتی ہے */
+/**
+ * پانچ نمازیں ایک ہی قطار میں (سکرول کے بغیر، سب نظر آئیں)؛ موجودہ نماز چمکتی ہے۔
+ * جمعہ اس کے نیچے الگ چوڑی پٹی میں۔
+ */
 const PrayerStrip: React.FC<{ items: StripItem[]; secs: (number | null)[] }> = ({ items, secs }) => {
   const now = useContext(NowContext);
   const live = computeLive(secs, secondsOfDay(now));
   const curIdx = live ? live.curIdx : -1;
-  const ref = useRef<HTMLDivElement>(null);
 
-  // موجودہ نماز کو پٹی کے بیچ میں لائیں (صفحہ خود نہیں ہلتا، صرف پٹی)
-  useEffect(() => {
-    const box = ref.current;
-    const chip = box?.querySelector<HTMLElement>('[data-current="true"]');
-    if (!box || !chip) return;
-    const b = box.getBoundingClientRect();
-    const c = chip.getBoundingClientRect();
-    box.scrollLeft += (c.left + c.width / 2) - (b.left + b.width / 2);
-  }, [curIdx]);
+  const prayers = items.filter((i) => i.kind === 'prayer');
+  const jumuah = items.find((i) => i.kind === 'jumuah');
+  const jumuahTime = jumuah ? split12(jumuah.raw) : null;
 
   return (
-    <div className="mfv-strip" ref={ref}>
-      {items.map((item) => {
-        const isCurrent = item.kind === 'prayer' && item.prayerIdx === curIdx;
-        const t = split12(item.raw);
-        return (
-          <div
-            key={item.key}
-            className="mfv-chip"
-            data-kind={item.kind}
-            data-current={isCurrent ? 'true' : 'false'}
-          >
-            {isCurrent && <span className="mfv-chip-badge">ابھی</span>}
-            <span className="mfv-chip-name">{item.label}</span>
-            <span className="mfv-chip-time">{t ? t.time : item.raw || '—'}</span>
-            {t && <span className="mfv-chip-ampm">{t.suffix}</span>}
-          </div>
-        );
-      })}
+    <div className="mfv-times">
+      <div className="mfv-strip">
+        {prayers.map((item) => {
+          const isCurrent = item.prayerIdx === curIdx;
+          const t = split12(item.raw);
+          return (
+            <div
+              key={item.key}
+              className="mfv-chip"
+              data-current={isCurrent ? 'true' : 'false'}
+            >
+              {isCurrent && <span className="mfv-chip-badge">ابھی</span>}
+              <span className="mfv-chip-name">{item.label}</span>
+              <span className="mfv-chip-time">{t ? t.time : item.raw || '—'}</span>
+              {t && <span className="mfv-chip-ampm">{t.suffix}</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      {jumuah && (
+        <div className="mfv-jumuah-pill">
+          <span>🕌 {jumuah.label}</span>
+          <b>{jumuahTime ? `${jumuahTime.time} ${jumuahTime.suffix}` : jumuah.raw}</b>
+        </div>
+      )}
     </div>
   );
 };
@@ -400,29 +408,33 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
         {(mosque.sehri || mosque.iftar) && (
           <section className="mfv-special-card" data-kind="ramadan">
             <h5 className="mfv-special-title">🌙 رمضان</h5>
-            {mosque.sehri && (
-              <div className="mfv-special-row">
-                <span>سحری</span>
-                <b>{format12(mosque.sehri, '04:30')}</b>
-              </div>
-            )}
-            {mosque.iftar && (
-              <div className="mfv-special-row">
-                <span>افطار</span>
-                <b>{format12(mosque.iftar, '18:30')}</b>
-              </div>
-            )}
+            <div className="mfv-special-items">
+              {mosque.sehri && (
+                <div className="mfv-special-item">
+                  <span>سحری</span>
+                  <b>{format12(mosque.sehri, '04:30')}</b>
+                </div>
+              )}
+              {mosque.iftar && (
+                <div className="mfv-special-item">
+                  <span>افطار</span>
+                  <b>{format12(mosque.iftar, '18:30')}</b>
+                </div>
+              )}
+            </div>
           </section>
         )}
         <section className="mfv-special-card" data-kind="eid">
           <h5 className="mfv-special-title">✨ عیدین</h5>
-          <div className="mfv-special-row">
-            <span>عیدالفطر</span>
-            <b>{format12(mosque.eidFitr, '07:00')}</b>
-          </div>
-          <div className="mfv-special-row">
-            <span>عیدالاضحیٰ</span>
-            <b>{format12(mosque.eidAdha, '07:15')}</b>
+          <div className="mfv-special-items">
+            <div className="mfv-special-item">
+              <span>عیدالفطر</span>
+              <b>{format12(mosque.eidFitr, '07:00')}</b>
+            </div>
+            <div className="mfv-special-item">
+              <span>عیدالاضحیٰ</span>
+              <b>{format12(mosque.eidAdha, '07:15')}</b>
+            </div>
           </div>
         </section>
       </div>
