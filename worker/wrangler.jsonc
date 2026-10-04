@@ -1,0 +1,21 @@
+{
+  
+  "name": "steptudeen-notify",
+  "main": "index.ts",
+  "compatibility_date": "2026-06-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // ہر منٹ چلے
+  "triggers": { "crons": ["* * * * *"] },
+
+  // مساجد کی فہرست اور FCM ٹوکن کا عارضی کیش (wrangler پہلی بار خود بنا دیتا ہے)
+  "kv_namespaces": [{ "binding": "STATE" }],
+
+  "vars": {
+    "FIREBASE_PROJECT_ID": "steptodeen"
+  }
+  // خفیہ چیزیں (Secrets) یہاں نہیں لکھنیں — Cloudflare ڈیش بورڈ میں:
+  //   FCM_SERVICE_ACCOUNT  ← Firebase کی سروس اکاؤنٹ JSON (پوری)
+  //   ADMIN_KEY            ← (اختیاری) ٹیسٹ پش کے لیے اپنا کوئی خفیہ لفظ
+}
