@@ -1,24 +1,493 @@
-import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Compass, Bell, Clock, RefreshCw, AlertCircle, Info, Heart } from 'lucide-react';
+import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
+import {
+  Search,
+  MapPin,
+  Compass,
+  Bell,
+  BellRing,
+  Heart,
+  Plus,
+  Minus,
+  RefreshCw,
+  AlertCircle,
+  Info,
+  Navigation,
+} from 'lucide-react';
 import { Mosque } from '../types';
-import { useJamaatTimesForMany } from '../hooks/useJamaatTimes';
+import { useJamaatTimesForMany, mosqueJumuah } from '../hooks/useJamaatTimes';
+import type { PrayerKey } from '../hooks/useJamaatTimes';
+import './MosqueFinderView.css';
 
-// ── 12 گھنٹے فارمیٹ ──
-const formatTo12Hour = (timeStr?: string, defaultVal = '') => {
-  const target = timeStr || defaultVal;
-  if (!target) return '';
-  if (target.toLowerCase().includes('am') || target.toLowerCase().includes('pm')) return target;
-  const parts = target.split(':');
-  if (parts.length < 2) return target;
-  const h = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10);
-  if (isNaN(h) || isNaN(m)) return target;
-  const suffix = h >= 12 ? 'PM' : 'AM';
-  let h12 = h % 12;
-  if (h12 === 0) h12 = 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${suffix}`;
+// ═══════════════════════════════════════════════════════════════════════════
+// مستقل چیزیں
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** اوقات اتنے دن سے اپڈیٹ نہ ہوئے ہوں تو «پرانے» کی وارننگ دکھائیں */
+const STALE_DAYS = 60;
+
+const PRAYERS: { key: PrayerKey; label: string }[] = [
+  { key: 'fajr', label: 'فجر' },
+  { key: 'zuhr', label: 'ظہر' },
+  { key: 'asr', label: 'عصر' },
+  { key: 'maghrib', label: 'مغرب' },
+  { key: 'isha', label: 'عشاء' },
+];
+
+const WEEKDAYS = ['اتوار', 'پیر', 'منگل', 'بدھ', 'جمعرات', 'جمعہ', 'ہفتہ'];
+const MONTHS = [
+  'جنوری', 'فروری', 'مارچ', 'اپریل', 'مئی', 'جون',
+  'جولائی', 'اگست', 'ستمبر', 'اکتوبر', 'نومبر', 'دسمبر',
+];
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+// ── وقت کے ہیلپرز ────────────────────────────────────────────────────────────
+
+/** "18:19" یا "6:19 PM" → دن کے سیکنڈ؛ سمجھ نہ آئے تو null */
+const parseToSeconds = (raw?: string): number | null => {
+  if (!raw) return null;
+  const m = raw.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([aApP][mM])?$/);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (min > 59 || h > 24) return null;
+  if (m[3]) {
+    const pm = m[3].toLowerCase() === 'pm';
+    if (h === 12) h = pm ? 12 : 0;
+    else if (pm) h += 12;
+  }
+  return h * 3600 + min * 60;
 };
 
+/** وقت کو بڑے عدد + چھوٹے AM/PM میں توڑیں (تاکہ لائن نہ ٹوٹے) */
+const split12 = (raw?: string): { time: string; suffix: string } | null => {
+  const s = parseToSeconds(raw);
+  if (s === null) return null;
+  const h24 = Math.floor(s / 3600) % 24;
+  const m = Math.floor((s % 3600) / 60);
+  return { time: `${h24 % 12 || 12}:${pad2(m)}`, suffix: h24 >= 12 ? 'PM' : 'AM' };
+};
+
+/** "6:19 PM" جیسی ایک ہی سٹرنگ (جملوں کے اندر کے لیے) */
+const format12 = (raw?: string, fallback = ''): string => {
+  const parts = split12(raw || fallback);
+  if (parts) return `${parts.time} ${parts.suffix}`;
+  return raw || fallback;
+};
+
+const secondsOfDay = (ms: number): number => {
+  const d = new Date(ms);
+  return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
+};
+
+interface LiveState {
+  curIdx: number;       // اب جس نماز کا دور ہے
+  nextIdx: number;      // اگلی نماز
+  remaining: number;    // اگلی نماز تک سیکنڈ
+  progress: number;     // موجودہ اور اگلی کے درمیان کتنا وقت گزر چکا (0..1)
+}
+
+/** پانچوں جماعت کے اوقات (دن کے سیکنڈ) سے «اب کون سی نماز» اور «کتنا باقی» */
+const computeLive = (secs: (number | null)[], nowSec: number): LiveState | null => {
+  if (secs.length !== 5) return null;
+  const s: number[] = [];
+  for (const v of secs) {
+    if (v === null) return null;
+    s.push(v);
+  }
+  for (let i = 1; i < 5; i++) if (s[i] <= s[i - 1]) return null; // بے ترتیب ڈیٹا ہو تو نہ دکھائیں
+
+  let cur = -1;
+  for (let i = 0; i < 5; i++) if (s[i] <= nowSec) cur = i;
+
+  const start = cur === -1 ? s[4] - 86400 : s[cur];
+  const end = cur === 4 ? s[0] + 86400 : cur === -1 ? s[0] : s[cur + 1];
+  const span = end - start;
+  return {
+    curIdx: cur === -1 ? 4 : cur,
+    nextIdx: (cur + 1) % 5,
+    remaining: Math.max(0, end - nowSec),
+    progress: span > 0 ? Math.min(1, Math.max(0, (nowSec - start) / span)) : 0,
+  };
+};
+
+const formatUpdated = (iso: string): { date: string; clock: string; ageDays: number } | null => {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  const d = new Date(t);
+  return {
+    date: `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
+    clock: format12(`${d.getHours()}:${pad2(d.getMinutes())}`),
+    ageDays: (Date.now() - t) / 86400000,
+  };
+};
+
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return parseFloat((R * c).toFixed(1));
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// «اب» کا وقت: ایک ہی ٹکر پوری فہرست کے لیے (ہر کارڈ کا الگ timer نہیں)
+// ═══════════════════════════════════════════════════════════════════════════
+const NowContext = createContext<number>(Date.now());
+
+const NowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return <NowContext.Provider value={now}>{children}</NowContext.Provider>;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// چھوٹے حصے
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** ڈیجیٹل گھڑی + تاریخ */
+const DigitalClock: React.FC = () => {
+  const now = useContext(NowContext);
+  const d = new Date(now);
+  const h = d.getHours();
+  return (
+    <div className="mfv-clock" aria-label="موجودہ وقت">
+      <div className="mfv-clock-time">
+        <span>{`${pad2(h % 12 || 12)}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`}</span>
+        <span className="mfv-clock-ampm">{h >= 12 ? 'PM' : 'AM'}</span>
+      </div>
+      <div className="mfv-clock-date">
+        {WEEKDAYS[d.getDay()]}، {d.getDate()} {MONTHS[d.getMonth()]}
+      </div>
+    </div>
+  );
+};
+
+/** لائیو نماز: «اب فلاں کا وقت ہے» + اگلی نماز + گول کاؤنٹ ڈاؤن */
+const RING_R = 38;
+const RING_C = 2 * Math.PI * RING_R;
+
+const LivePanel: React.FC<{ secs: (number | null)[]; raws: string[] }> = ({ secs, raws }) => {
+  const now = useContext(NowContext);
+  const live = computeLive(secs, secondsOfDay(now));
+  if (!live) return null;
+
+  const cur = PRAYERS[live.curIdx];
+  const next = PRAYERS[live.nextIdx];
+  const curTime = split12(raws[live.curIdx]);
+  const rem = live.remaining;
+  const countdown = `${pad2(Math.floor(rem / 3600))}:${pad2(Math.floor((rem % 3600) / 60))}:${pad2(rem % 60)}`;
+
+  return (
+    <div className="mfv-live">
+      <div className="mfv-live-text">
+        <span className="mfv-live-now">
+          <i className="mfv-live-dot" />
+          اب {cur.label} کا وقت ہے
+        </span>
+        {curTime && (
+          <span className="mfv-live-time">
+            {curTime.time}
+            <small>{curTime.suffix}</small>
+          </span>
+        )}
+        <span className="mfv-live-next">
+          اگلی نماز: <b>{next.label}</b> <span dir="ltr">{format12(raws[live.nextIdx])}</span>
+        </span>
+      </div>
+
+      <div className="mfv-ring" role="timer" aria-label={`اگلی نماز میں ${countdown} باقی`}>
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <defs>
+            <linearGradient id="mfv-ring-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#34d399" />
+              <stop offset="100%" stopColor="#047857" />
+            </linearGradient>
+          </defs>
+          <circle className="mfv-ring-track" cx="50" cy="50" r={RING_R} />
+          <circle
+            className="mfv-ring-bar"
+            cx="50"
+            cy="50"
+            r={RING_R}
+            stroke="url(#mfv-ring-grad)"
+            strokeDasharray={RING_C}
+            strokeDashoffset={RING_C * live.progress}
+          />
+        </svg>
+        <div className="mfv-ring-center">
+          <span className="mfv-ring-count">{countdown}</span>
+          <span className="mfv-ring-label">باقی وقت</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface StripItem {
+  key: string;
+  label: string;
+  raw: string;
+  kind: 'prayer' | 'jumuah';
+  prayerIdx: number; // جمعہ کے لیے -1
+}
+
+/** چھ نمازوں کی افقی پٹی؛ موجودہ نماز چمکتی ہے اور خود بیچ میں آ جاتی ہے */
+const PrayerStrip: React.FC<{ items: StripItem[]; secs: (number | null)[] }> = ({ items, secs }) => {
+  const now = useContext(NowContext);
+  const live = computeLive(secs, secondsOfDay(now));
+  const curIdx = live ? live.curIdx : -1;
+  const ref = useRef<HTMLDivElement>(null);
+
+  // موجودہ نماز کو پٹی کے بیچ میں لائیں (صفحہ خود نہیں ہلتا، صرف پٹی)
+  useEffect(() => {
+    const box = ref.current;
+    const chip = box?.querySelector<HTMLElement>('[data-current="true"]');
+    if (!box || !chip) return;
+    const b = box.getBoundingClientRect();
+    const c = chip.getBoundingClientRect();
+    box.scrollLeft += (c.left + c.width / 2) - (b.left + b.width / 2);
+  }, [curIdx]);
+
+  return (
+    <div className="mfv-strip" ref={ref}>
+      {items.map((item) => {
+        const isCurrent = item.kind === 'prayer' && item.prayerIdx === curIdx;
+        const t = split12(item.raw);
+        return (
+          <div
+            key={item.key}
+            className="mfv-chip"
+            data-kind={item.kind}
+            data-current={isCurrent ? 'true' : 'false'}
+          >
+            {isCurrent && <span className="mfv-chip-badge">ابھی</span>}
+            <span className="mfv-chip-name">{item.label}</span>
+            <span className="mfv-chip-time">{t ? t.time : item.raw || '—'}</span>
+            {t && <span className="mfv-chip-ampm">{t.suffix}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// مسجد کا کارڈ
+// ═══════════════════════════════════════════════════════════════════════════
+type MosqueWithDistance = Mosque & { distance: number | null };
+
+interface MosqueCardProps {
+  mosque: MosqueWithDistance;
+  showDistance: boolean;
+  hasSubscribed: boolean;
+  isSaved: boolean;
+  isApiLoading: boolean;
+  getJamaat: (mosque: Mosque, prayer: PrayerKey) => string;
+  onOpen: () => void;
+  onToggleNotification: (e: React.MouseEvent) => void;
+  onToggleSave: (e: React.MouseEvent) => void;
+}
+
+const MosqueCard: React.FC<MosqueCardProps> = ({
+  mosque,
+  showDistance,
+  hasSubscribed,
+  isSaved,
+  isApiLoading,
+  getJamaat,
+  onOpen,
+  onToggleNotification,
+  onToggleSave,
+}) => {
+  const [infoOpen, setInfoOpen] = useState(false);
+
+  // ── پانچوں نمازوں کے جماعت اوقات (حساب وہی پرانا، صرف دکھانے کا انداز نیا) ──
+  const raws = PRAYERS.map((p) => getJamaat(mosque, p.key));
+  const secs = raws.map((r) => parseToSeconds(r));
+
+  const stripItems: StripItem[] = PRAYERS.map((p, i) => ({
+    key: p.key,
+    label: p.label,
+    raw: raws[i],
+    kind: 'prayer',
+    prayerIdx: i,
+  }));
+  if (mosque.jumah) {
+    stripItems.push({ key: 'jumuah', label: 'جمعہ', raw: mosque.jumah, kind: 'jumuah', prayerIdx: -1 });
+  }
+
+  const jumuahSlots = mosqueJumuah(mosque);
+  const updated = formatUpdated(mosque.updatedAt);
+  const isStale = !!updated && updated.ageDays > STALE_DAYS;
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
+  const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${mosque.latitude},${mosque.longitude}`;
+
+  return (
+    <article className="mfv-card" onClick={onOpen}>
+      {/* نام، پتہ، فاصلہ + بٹن */}
+      <header className="mfv-card-head">
+        <div className="mfv-card-title-wrap">
+          <h4 className="mfv-card-name">{mosque.name}</h4>
+          <p className="mfv-card-address">{mosque.address}</p>
+          {showDistance && mosque.distance !== null && (
+            <span className="mfv-distance">
+              <MapPin size={13} />
+              {mosque.distance} کلومیٹر دور
+            </span>
+          )}
+        </div>
+        <div className="mfv-card-actions">
+          <button
+            type="button"
+            className="mfv-icon-btn mfv-bell"
+            data-on={hasSubscribed}
+            onClick={onToggleNotification}
+            aria-label={hasSubscribed ? 'نوٹیفکیشن بند کریں' : 'نوٹیفکیشن آن کریں'}
+            aria-pressed={hasSubscribed}
+          >
+            {hasSubscribed ? <BellRing size={17} /> : <Bell size={17} />}
+          </button>
+          <button
+            type="button"
+            className="mfv-icon-btn mfv-heart"
+            data-on={isSaved}
+            onClick={onToggleSave}
+            aria-label={isSaved ? 'محفوظ شدہ سے ہٹائیں' : 'مسجد محفوظ کریں'}
+            aria-pressed={isSaved}
+          >
+            <Heart size={17} fill={isSaved ? 'currentColor' : 'none'} />
+          </button>
+        </div>
+      </header>
+
+      {/* امام کا اعلان */}
+      {mosque.announcement && (
+        <div className="mfv-note">
+          <Info size={15} />
+          <span>{mosque.announcement}</span>
+        </div>
+      )}
+
+      {/* لائیو نماز + گول کاؤنٹ ڈاؤن */}
+      <LivePanel secs={secs} raws={raws} />
+
+      {/* چھ نمازوں کی پٹی */}
+      <PrayerStrip items={stripItems} secs={secs} />
+
+      {/* جمعہ: ایک سے زیادہ جماعتیں ہوں تو الگ حصہ */}
+      {jumuahSlots.length > 1 && (
+        <section className="mfv-jumuah">
+          <h5 className="mfv-jumuah-title">🕌 جمعہ کی نماز</h5>
+          {jumuahSlots.map((slot, i) => (
+            <div className="mfv-jumuah-row" key={`${slot.label}-${i}`}>
+              <span>{slot.label}</span>
+              <b>{format12(slot.time)}</b>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* خاص اوقات: رمضان + عیدین */}
+      <div className="mfv-special">
+        {(mosque.sehri || mosque.iftar) && (
+          <section className="mfv-special-card" data-kind="ramadan">
+            <h5 className="mfv-special-title">🌙 رمضان</h5>
+            {mosque.sehri && (
+              <div className="mfv-special-row">
+                <span>سحری</span>
+                <b>{format12(mosque.sehri, '04:30')}</b>
+              </div>
+            )}
+            {mosque.iftar && (
+              <div className="mfv-special-row">
+                <span>افطار</span>
+                <b>{format12(mosque.iftar, '18:30')}</b>
+              </div>
+            )}
+          </section>
+        )}
+        <section className="mfv-special-card" data-kind="eid">
+          <h5 className="mfv-special-title">✨ عیدین</h5>
+          <div className="mfv-special-row">
+            <span>عیدالفطر</span>
+            <b>{format12(mosque.eidFitr, '07:00')}</b>
+          </div>
+          <div className="mfv-special-row">
+            <span>عیدالاضحیٰ</span>
+            <b>{format12(mosque.eidAdha, '07:15')}</b>
+          </div>
+        </section>
+      </div>
+
+      {/* مسجد کی معلومات (کھلنے والا حصہ) */}
+      <button
+        type="button"
+        className="mfv-info-toggle"
+        aria-expanded={infoOpen}
+        onClick={(e) => {
+          stop(e);
+          setInfoOpen((v) => !v);
+        }}
+      >
+        <span>مسجد کی معلومات</span>
+        {infoOpen ? <Minus size={18} /> : <Plus size={18} />}
+      </button>
+      {infoOpen && (
+        <div className="mfv-info" onClick={stop}>
+          <div className="mfv-info-row">
+            <span>مکمل پتہ</span>
+            <strong>{mosque.address}</strong>
+          </div>
+          {mosque.imamName && (
+            <div className="mfv-info-row">
+              <span>امام</span>
+              <strong>{mosque.imamName}</strong>
+            </div>
+          )}
+          <a className="mfv-nav-link" href={navUrl} target="_blank" rel="noopener noreferrer">
+            <Navigation size={15} />
+            گوگل میپس میں راستہ دیکھیں
+          </a>
+        </div>
+      )}
+
+      {/* اپڈیٹ کی حالت */}
+      <footer className="mfv-footer">
+        <span className="mfv-updated">
+          <RefreshCw size={13} data-spin={isApiLoading} />
+          {isApiLoading
+            ? 'اوقات اپڈیٹ ہو رہے ہیں…'
+            : updated
+              ? <>آخری اپڈیٹ: {updated.date}، <span dir="ltr">{updated.clock}</span></>
+              : 'آخری اپڈیٹ معلوم نہیں'}
+        </span>
+        {updated && (
+          <span className="mfv-badge" data-stale={isStale}>
+            {isStale ? 'پرانا' : 'Live'}
+          </span>
+        )}
+        {isStale && (
+          <span className="mfv-stale">
+            <AlertCircle size={14} />
+            اوقات کافی عرصے سے اپڈیٹ نہیں ہوئے
+          </span>
+        )}
+      </footer>
+    </article>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// اسکرین
+// ═══════════════════════════════════════════════════════════════════════════
 interface MosqueFinderViewProps {
   nearbyMosques: Mosque[];
   userCoords: { latitude: number; longitude: number } | null;
@@ -45,7 +514,7 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
     } catch { return {}; }
   });
 
-  // ── جماعت کا وقت = آج کا API وقت + امام کا offset (روز خود اپڈیٹ) ──
+  // ── جماعت کا وقت: مسجد کی اپنی سیٹنگ (آف لائن) یا پرانا API + امام کا offset ──
   const { get: getJamaat, loadingIds: apiLoadingIds } = useJamaatTimesForMany(nearbyMosques);
 
   const handleToggleSave = (mosque: Mosque, e: React.MouseEvent) => {
@@ -63,17 +532,6 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
       }
       localStorage.setItem('user_saved_mosques', JSON.stringify(newList));
     } catch {}
-  };
-
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return parseFloat((R * c).toFixed(1));
   };
 
   const handleToggleNotification = (mosque: Mosque, e: React.MouseEvent) => {
@@ -100,7 +558,7 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
     }
   };
 
-  const processedMosques = nearbyMosques
+  const processedMosques: MosqueWithDistance[] = nearbyMosques
     .map((m) => ({
       ...m,
       distance: userCoords
@@ -112,188 +570,96 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
       return a.distance - b.distance;
     });
 
+  const q = searchQuery.trim().toLowerCase();
   const filteredMosques = processedMosques.filter(
     (m) =>
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.address.toLowerCase().includes(searchQuery.toLowerCase())
+      m.name.toLowerCase().includes(q) ||
+      m.address.toLowerCase().includes(q)
   );
 
   return (
-    <div className="space-y-4 p-4 pb-20 animate-fadeIn">
+    <NowProvider>
+      <div className="mfv-root" dir="rtl">
 
-      {/* Header */}
-      <div className="bg-emerald-50 text-emerald-950 p-3.5 rounded-2xl border border-emerald-100 text-right space-y-1.5 shadow-sm">
-        <h3 className="text-xs font-bold text-emerald-800 font-urdu flex items-center gap-1.5 justify-end uppercase tracking-tight">
-          <Compass size={16} className="text-emerald-750" />
-          قریبی مساجد کے اوقاتِ جمعہ و جماعت
-        </h3>
-        <p className="text-[11px] text-slate-700 leading-relaxed font-urdu">
-          مسجد کے امام حضرات کی طرف سے ریئل ٹائم اپڈیٹ کیے گئے نماز اور جمعہ کے درست اوقات لائیو حاصل کریں۔
-        </p>
-      </div>
-
-      {/* Search */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 px-3 flex items-center gap-3.5">
-        <input
-          type="text"
-          placeholder="مسجد کا نام یا پتہ تلاش کریں..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 border-0 bg-transparent text-xs text-right focus:outline-none font-urdu py-1"
-          dir="rtl"
-        />
-        <Search size={15} className="text-slate-400" />
-      </div>
-
-      {/* Location request */}
-      {!userCoords && (
-        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-2.5">
-          <p className="text-[11px] text-slate-600 font-urdu leading-relaxed">
-            اپنے مقام کے مطابق قریبی ترین مساجد اور ان کا فاصلہ دیکھنے کے لیے موبائل لوکیشن (GPS) تلاش کریں۔
-          </p>
-          <button
-            onClick={requestLocation}
-            className="py-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-urdu font-bold shadow-sm flex items-center gap-1.5 mx-auto transition-colors"
-          >
-            <MapPin size={11} />
-            لوکیشن آن کریں
-          </button>
-        </div>
-      )}
-
-      {/* Mosques list */}
-      <div className="space-y-3">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs text-slate-400 font-urdu">مساجد لوڈ ہو رہی ہیں...</p>
+        {/* ہیڈر */}
+        <section className="mfv-hero">
+          <svg className="mfv-hero-mosque" viewBox="0 0 120 64" fill="currentColor" aria-hidden="true">
+            <path d="M32 64V40Q32 20 60 20Q88 20 88 40V64Z" />
+            <rect x="57" y="8" width="6" height="14" />
+            <path d="M60 0L64 8H56Z" />
+            <rect x="12" y="26" width="10" height="38" />
+            <path d="M17 14L24 26H10Z" />
+            <rect x="98" y="26" width="10" height="38" />
+            <path d="M103 14L110 26H96Z" />
+          </svg>
+          <div className="mfv-hero-top">
+            <span className="mfv-hero-icon"><Compass size={22} /></span>
+            <div>
+              <h3 className="mfv-hero-title">قریبی مساجد کے اوقات</h3>
+              <p className="mfv-hero-sub">اپنے قریب مساجد کے نماز، جمعہ اور جماعت کے اوقات دیکھیں۔</p>
+            </div>
           </div>
-        ) : filteredMosques.length === 0 ? (
-          <div className="text-center text-slate-400 font-urdu py-8 text-xs">
-            کوئی مسجد نہیں ملی۔ امام پینل سے نئی مسجد رجسٹر کریں۔
+          <DigitalClock />
+        </section>
+
+        {/* سرچ */}
+        <label className="mfv-search">
+          <Search size={18} />
+          <input
+            type="text"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            placeholder="مسجد کا نام یا پتہ تلاش کریں..."
+            aria-label="مسجد تلاش کریں"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            dir="rtl"
+          />
+        </label>
+
+        {/* لوکیشن مانگنا */}
+        {!userCoords && (
+          <div className="mfv-locate">
+            <p>
+              اپنے مقام کے مطابق قریبی ترین مساجد اور ان کا فاصلہ دیکھنے کے لیے موبائل لوکیشن (GPS) تلاش کریں۔
+            </p>
+            <button type="button" className="mfv-btn-primary" onClick={requestLocation}>
+              <MapPin size={15} />
+              لوکیشن آن کریں
+            </button>
           </div>
-        ) : (
-          filteredMosques.map((mosque) => {
-            const hasSubscribed = !!notifPreferences[mosque.id];
-            const isApiLoading = apiLoadingIds.has(mosque.id);
-
-            // ── پانچوں نمازوں کے فائنل اوقات ──
-            const prayers = [
-              { label: 'فجر',  val: getJamaat(mosque, 'fajr') },
-              { label: 'ظہر',  val: getJamaat(mosque, 'zuhr') },
-              { label: 'عصر',  val: getJamaat(mosque, 'asr') },
-              { label: 'مغرب', val: getJamaat(mosque, 'maghrib') },
-              { label: 'عشاء', val: getJamaat(mosque, 'isha') },
-              { label: 'جمعہ', val: mosque.jumah },
-            ];
-
-            return (
-              <div
-                key={mosque.id}
-                onClick={() => onOpenMosque(mosque)}
-                className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-sm hover:border-emerald-300 transition-all cursor-pointer space-y-3"
-              >
-                {/* Mosque header */}
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      onClick={(e) => handleToggleNotification(mosque, e)}
-                      className={`p-1.5 rounded-lg border transition-all ${
-                        hasSubscribed
-                          ? 'bg-emerald-600 border-emerald-600 text-white'
-                          : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-emerald-700'
-                      }`}
-                    >
-                      <Bell size={13} className={hasSubscribed ? 'animate-bounce' : ''} />
-                    </button>
-                    <button
-                      onClick={(e) => handleToggleSave(mosque, e)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
-                        savedMosques[mosque.id]
-                          ? 'bg-red-50 border-red-200 text-red-500'
-                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-400'
-                      }`}
-                    >
-                      {savedMosques[mosque.id] ? '✓ Saved' : 'Save'}
-                    </button>
-                  </div>
-
-                  <div className="text-right flex-1 pr-3">
-                    <h4 className="text-xs font-bold text-slate-800 font-urdu">{mosque.name}</h4>
-                    <p className="text-[9px] text-slate-400 font-urdu mt-0.5">{mosque.address}</p>
-                    {userCoords && mosque.distance !== null && (
-                      <div className="flex items-center justify-end gap-0.5 mt-1 text-[9px] text-emerald-700 font-bold">
-                        <span>{mosque.distance} کلومیٹر دور</span>
-                        <MapPin size={10} className="text-rose-500 shrink-0" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Announcement */}
-                {mosque.announcement && (
-                  <div className="p-2.5 bg-amber-50/75 border border-amber-200 rounded-xl text-right text-[10px] text-amber-900 font-urdu flex items-start gap-2 justify-end">
-                    <span className="flex-1 leading-relaxed">{mosque.announcement}</span>
-                    <Info size={11} className="text-amber-600 shrink-0 mt-0.5" />
-                  </div>
-                )}
-
-                {/* Prayer times grid */}
-                <div className="grid grid-cols-6 gap-1 bg-slate-50 p-1.5 rounded-xl text-center border border-slate-150 relative">
-                  {/* API loading indicator */}
-                  {isApiLoading && (
-                    <div className="absolute top-1 left-1">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" title="اوقات اپڈیٹ ہو رہے ہیں" />
-                    </div>
-                  )}
-                  {prayers.map((item, idx) => (
-                    <div key={idx} className="space-y-0.5 border-r border-slate-200/50 last:border-0">
-                      <div className="text-[8px] text-slate-500 font-urdu font-medium">{item.label}</div>
-                      <div className="text-[11px] font-mono font-bold text-slate-800">
-                        {formatTo12Hour(item.val)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Eid timings */}
-                <div className="flex justify-between items-center text-[9px] px-2.5 text-purple-800 font-bold font-urdu bg-purple-50/50 p-1.5 rounded-xl border border-purple-100">
-                  <span className="text-[8px] px-1 bg-purple-200 text-purple-900 rounded select-none scale-90">عیدین اوقات</span>
-                  <div className="flex gap-3">
-                    <div>عید الفطر: <span className="font-mono text-[10px]">{formatTo12Hour(mosque.eidFitr, '07:00')}</span></div>
-                    <div className="border-r border-purple-200 h-3"></div>
-                    <div>عید الاضحی: <span className="font-mono text-[10px]">{formatTo12Hour(mosque.eidAdha, '07:15')}</span></div>
-                  </div>
-                </div>
-
-                {/* Ramadan timings */}
-                {(mosque.sehri || mosque.iftar) && (
-                  <div className="flex justify-between items-center text-[9px] px-2.5 text-teal-800 font-bold font-urdu bg-teal-50/50 p-1.5 rounded-xl border border-teal-100">
-                    <span className="text-[8px] px-1 bg-teal-200 text-teal-900 rounded select-none scale-90">رمضان اوقات</span>
-                    <div className="flex gap-3">
-                      {mosque.sehri && <div>سحری: <span className="font-mono text-[10px]">{formatTo12Hour(mosque.sehri, '04:30')}</span></div>}
-                      {mosque.sehri && mosque.iftar && <div className="border-r border-teal-200 h-3"></div>}
-                      {mosque.iftar && <div>افطاری: <span className="font-mono text-[10px]">{formatTo12Hour(mosque.iftar, '18:30')}</span></div>}
-                    </div>
-                  </div>
-                )}
-
-                {/* Last updated */}
-                <div className="flex items-center justify-between text-[9px] text-slate-400 border-t border-slate-100 pt-2 pb-0.5">
-                  <div className="font-mono text-slate-500 font-semibold">
-                    {new Date(mosque.updatedAt).toLocaleDateString()}{' '}
-                    {new Date(mosque.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}
-                  </div>
-                  <div className="font-urdu flex items-center gap-1 text-slate-500 font-bold">
-                    <span>آخری اپڈیٹ (کلاؤڈ سنک)</span>
-                    <RefreshCw size={8} className="text-emerald-600 animate-spin" />
-                  </div>
-                </div>
-              </div>
-            );
-          })
         )}
+
+        {/* مساجد کی فہرست */}
+        <div className="mfv-list">
+          {isLoading ? (
+            <div className="mfv-state">
+              <div className="mfv-spinner" />
+              <p>مساجد لوڈ ہو رہی ہیں...</p>
+            </div>
+          ) : filteredMosques.length === 0 ? (
+            <div className="mfv-state">
+              کوئی مسجد نہیں ملی۔ امام پینل سے نئی مسجد رجسٹر کریں۔
+            </div>
+          ) : (
+            filteredMosques.map((mosque) => (
+              <MosqueCard
+                key={mosque.id}
+                mosque={mosque}
+                showDistance={!!userCoords}
+                hasSubscribed={!!notifPreferences[mosque.id]}
+                isSaved={!!savedMosques[mosque.id]}
+                isApiLoading={apiLoadingIds.has(mosque.id)}
+                getJamaat={getJamaat}
+                onOpen={() => onOpenMosque(mosque)}
+                onToggleNotification={(e) => handleToggleNotification(mosque, e)}
+                onToggleSave={(e) => handleToggleSave(mosque, e)}
+              />
+            ))
+          )}
+        </div>
       </div>
-    </div>
+    </NowProvider>
   );
 };
