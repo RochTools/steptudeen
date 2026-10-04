@@ -1,44 +1,113 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  firestore.rules — steptudeen
+//
+//  کیا بدلا:
+//    1) مسجد کی دستاویز میں نئے فیلڈز شامل ہوئے:
+//         prayerConfig   — طریقہ / مشرب / زاویے / فی نماز ±منٹ
+//         iqamaSchedule  — جماعت کا شیڈول (اذان+منٹ یا مقررہ گھڑی، رمضان، جمعہ)
+//         iqamaHistory   — آئندہ/پرانی ترتیبیں
+//         jumuah         — ایک سے زیادہ جمعہ
+//         calibration    — آخری کیلیبریشن کی جانچ
+//    2) یہ سب پہلے rules سے مسترد ہو رہے تھے (whitelist نہ تھا) — اب اجازت ہے،
+//       مگر صرف متعین keys، متعین لمبائی اور متعین اقسام کے ساتھ۔
+//
+//  ⚠️ Firebase کی حد: فی ریکوئسٹ 1000 expressions۔ اس لیے ہر فیلڈ کی گہری
+//     جانچ ممکن نہیں۔ یہاں جو جانچی جاتی ہے:
+//       • متعین keys کے سوا کچھ نہیں (hasOnly) — junk injection بند
+//       • لمبائی کی حد: iqamaHistory ≤ 24، daily ≤ 70، jumuah ≤ 6 …
+//       • طریقہ/مشرب/بلند عرض بلد کی اقدار محدود
+//       • فجر و عشاء کے زاویے 0–30°
+//       • offsets: فجر و عشاء −60…+60 منٹ
+//       • جماعت: فجر و عشاء کے اصول (وقت کی شکل یا وقفے کی حد)
+//       • جمعہ کا پہلا سلاٹ، اور رمضان کا افطار وقفہ
+//     باقی سب کچھ ایپ (امام کارڈ + prayerEngine) خود جانچتا ہے۔
+//     مکمل سرور سائیڈ جانچ چاہیں تو Cloud Function لگائیں۔
+//
+//  ⚠️ نوٹ: create/update پر auth کی شرط نہیں (پہلے بھی نہیں تھی) — تاکہ موجودہ
+//     امام پینل نہ ٹوٹے۔ سخت نسخہ فائل کے آخر میں کمنٹ میں موجود ہے۔
+// ═══════════════════════════════════════════════════════════════════════════
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Catch-all default deny
-    match /{document=**} {
-      allow read, write: if false;
+    match /{document=**} { allow read, write: if false; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function isNum(v) { return v is number || v is int; }
+    function okNum(v, lo, hi) { return isNum(v) && v >= lo && v <= hi; }
+    function okTime(v) { return v is string && v.matches('^[0-2][0-9]:[0-5][0-9]$'); }
+    function okStr(v, max) { return v is string && v.size() <= max; }
+    function okStr1(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
+    // اذان کے ±منٹ: صرف یہی چھ keys، اور حد میں
+    function okOffsets(o) { return o is map && o.size() <= 6 && o.keys().hasOnly(['fajr','sunrise','zuhr','asr','maghrib','isha']) && okNum(o.get('fajr',0),-60,60) && okNum(o.get('isha',0),-60,60); }
+    // امام کی کیلیبریشن: طریقہ، مشرب، زاویے
+    function okPrayerConfig(c) {
+      return c is map && c.size() <= 13
+        && c.keys().hasOnly(['method','madhab','highLatitudeRule','fajrAngle','ishaAngle','ishaInterval','offsets','timeZone','calibratedAt'])
+        && okStr(c.get('method',''), 40)
+        && (c.get('madhab','hanafi') in ['hanafi','shafi'])
+        && (c.get('highLatitudeRule','SeventhOfTheNight') in ['SeventhOfTheNight','MiddleOfTheNight','TwilightAngle'])
+        && okNum(c.get('fajrAngle',18), 0, 30)
+        && okNum(c.get('ishaAngle',18), 0, 30)
+        && okStr(c.get('timeZone',''), 40)
+        && okOffsets(c.get('offsets', {}));
     }
-
-    // Helper to validate path document IDs to prevent injection of trash/junk strings
-    function isValidId(id) { 
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    // جماعت کا ایک اصول: { delay: 20 } یا { time: '13:30' }
+    function okIqamaRule(r) {
+      return r is map && r.size() <= 2 && r.keys().hasOnly(['delay','time'])
+        && (r.keys().hasAny(['time']) ? okTime(r.get('time','')) : okNum(r.get('delay',15), 0, 240));
     }
-    
-    // Helper for incoming document data
-    function incoming() { 
-      return request.resource.data; 
+    function okIqamaMap(m) { return m is map && m.size() <= 5 && m.keys().hasOnly(['fajr','zuhr','asr','maghrib','isha']) && (m.keys().hasAny(['fajr']) ? okIqamaRule(m.fajr) : true) && (m.keys().hasAny(['isha']) ? okIqamaRule(m.isha) : true); }
+    function okJumuahList(j) { return j is list && j.size() <= 6 && (j.size() < 1 || (j[0] is map && j[0].keys().hasAny(['time']) && okTime(j[0].get('time','')))); }
+    function okRamadan(r) { return r is map && r.size() <= 6 && r.keys().hasOnly(['fajrDelay','iftarDelay','ishaDelay','taraweeh','sehri','note']) && okNum(r.get('iftarDelay',0),0,240); }
+    // شیڈول: مؤثر تاریخ + جماعت + خاص دن + جمعہ + رمضان
+    function okSchedule(s) {
+      return s is map && s.size() <= 8
+        && s.keys().hasOnly(['effectiveFrom','effectiveTo','iqama','daily','jumuah','ramadan','note'])
+        && okStr1(s.get('effectiveFrom',''), 10)
+        && okIqamaMap(s.get('iqama', {}))
+        && (s.get('daily', {}) is map && s.get('daily', {}).size() <= 70)
+        && okJumuahList(s.get('jumuah', []))
+        && okRamadan(s.get('ramadan', {}));
     }
-
-    // Strict validator to protect against update-gaps, injection, and denial of wallet attacks
+    function okScheduleList(l) { return l is list && l.size() <= 24 ; }
     function isValidMosque(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
-        && data.address is string && data.address.size() > 0 && data.address.size() <= 200
-        && data.latitude is number
-        && data.longitude is number
-        && data.fajr is string && data.fajr.size() > 0 && data.fajr.size() <= 10
-        && data.zuhr is string && data.zuhr.size() > 0 && data.zuhr.size() <= 10
-        && data.asr is string && data.asr.size() > 0 && data.asr.size() <= 10
-        && data.maghrib is string && data.maghrib.size() > 0 && data.maghrib.size() <= 10
-        && data.isha is string && data.isha.size() > 0 && data.isha.size() <= 10
-        && data.jumah is string && data.jumah.size() > 0 && data.jumah.size() <= 10
-        && data.imamUid is string && data.imamUid.size() > 0 && data.imamUid.size() <= 128
-        && (!data.keys().contains('imamName') || (data.imamName is string && data.imamName.size() <= 100))
-        && (!data.keys().contains('imamEmail') || (data.imamEmail is string && data.imamEmail.size() <= 100))
-        && (!data.keys().contains('announcement') || (data.announcement is string && data.announcement.size() <= 500))
-        && (!data.keys().contains('updatedAt') || (data.updatedAt is string && data.updatedAt.size() <= 50));
+      return data.size() <= 35
+        && okStr1(data.get('name',''), 100) && okStr1(data.get('address',''), 200)
+        && isNum(data.get('latitude',0)) && isNum(data.get('longitude',0))
+        && okStr1(data.get('fajr',''),10) && okStr1(data.get('zuhr',''),10) && okStr1(data.get('asr',''),10)
+        && okStr1(data.get('maghrib',''),10) && okStr1(data.get('isha',''),10) && okStr1(data.get('jumah',''),10)
+        && okStr1(data.get('imamUid',''),128)
+        && okStr(data.get('imamName',''),100) && okStr(data.get('imamEmail',''),100)
+        && okStr(data.get('announcement',''),500) && okStr(data.get('updatedAt',''),50)
+        && okPrayerConfig(data.get('prayerConfig', {}))
+        && okSchedule(data.get('iqamaSchedule', {'effectiveFrom':'1970-01-01'}))
+        && okScheduleList(data.get('iqamaHistory', []))
+        && okJumuahList(data.get('jumuah', []))
+        && (data.get('calibration', {}) is map && data.get('calibration', {}).size() <= 8)
+        ;
     }
-
     match /mosques/{mosqueId} {
       allow read: if true;
+      // ماضی کی طرح: صرف شکل کی جانچ (auth نہیں) — نیچے سخت نسخہ دیکھیں
       allow create, update: if isValidId(mosqueId) && isValidMosque(incoming());
       allow delete: if isValidId(mosqueId);
+    /* ── سخت نسخہ (اختیاری — ٹیسٹ کے بعد لگائیں) ──────────────────────────
+       صرف اُس صورت میں جب امام Firebase Auth سے لاگ اِن ہو اور دستاویز میں
+       imamUid یا ownerId موجود ہو۔ ورنہ امام اپنی ہی مسجد اپ ڈیٹ نہ کر سکے گا۔
+       (نیچے resource = موجودہ محفوظ دستاویز، incoming() = نئی آنے والی)
+
+      allow create: if isValidId(mosqueId) && isValidMosque(incoming())
+        && request.auth != null
+        && (incoming().imamUid == request.auth.uid
+            || (incoming().keys().hasAny(['ownerId']) && incoming().ownerId == request.auth.uid));
+
+      allow update, delete: if isValidId(mosqueId) && isValidMosque(incoming())
+        && request.auth != null
+        && (resource.data.imamUid == request.auth.uid
+            || (resource.data.keys().hasAny(['ownerId']) && resource.data.ownerId == request.auth.uid));
+    ─────────────────────────────────────────────────────────────────── */
+
     }
   }
 }

@@ -1,3 +1,6 @@
+import type { PrayerConfig } from './lib/prayerEngine';
+import type { IqamaSchedule, JumuahSlot } from './lib/iqama';
+
 export interface PrayerTimes {
   fajr: string;
   zuhr: string;
@@ -38,6 +41,20 @@ export interface Mosque {
   asrOffset?: number;
   maghribOffset?: number;
   ishaOffset?: number;
+
+  // ── نیا: اذان کے اوقات کی سیٹنگ (امام ایک بار سیٹ کرے) ──
+  prayerConfig?: PrayerConfig;        // طریقہ + مشرب + زاویے + فی نماز ±منٹ
+  iqamaSchedule?: IqamaSchedule;      // جماعت: اذان+منٹ یا مقررہ گھڑی، رمضان، جمعہ
+  iqamaHistory?: IqamaSchedule[];     // آئندہ/پرانی ترتیبیں
+  jumuah?: JumuahSlot[];              // ایک سے زیادہ جمعے
+  calibration?: {                     // آخری کیلیبریشن کی جانچ
+    at: string;
+    samples: number;
+    worstError: number;
+    rmse: number;
+    method: string;
+    madhab: 'hanafi' | 'shafi';
+  };
 }
 
 export interface Surah {

@@ -1,14 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Mosque } from '../types';
+import { computeDay, toDateKey } from '../lib/prayerEngine';
+import { getHijriMath } from '../constants/hijri';
+import { IqamaSchedule, pickSchedule, resolveIqama } from '../lib/iqama';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// useJamaatTimes — ہر مسجد کا جماعت وقت = (آج کا Aladhan وقت) + (امام کا offset)
+// useJamaatTimes — ہر مسجد کا جماعت وقت
 //
-// اصول:
-//   • Firestore میں صرف امام کا offset (±منٹ) محفوظ ہوتا ہے
-//   • حتمی وقت ہر روز یہاں حساب ہوتا ہے، اس لیے کبھی پرانا نہیں ہوتا
-//   • App.tsx کا پاپ اپ اور MosqueFinderView کا کارڈ دونوں یہی استعمال کریں،
-//     تاکہ دونوں جگہ ایک ہی وقت دکھے
+// نیا اصول (پرانے کے مقابلے میں):
+//   • مسجد کے پاس `prayerConfig` ہو → اوقات ایپ خود adhan-js سے حساب کرے گی
+//     (انٹرنیٹ کے بغیر بھی درست)، اور جماعت `iqamaSchedule` سے آئے گی:
+//     یا «اذان + منٹ» یا «مقررہ گھڑی»۔
+//   • `prayerConfig` نہ ہو (پرانی مساجد) → بالکل پرانا راستہ: AlAdhan + امام کا offset۔
+//
+// اہم: باہر کا API وہی رہتا ہے (get, loading, apiTimes, useJamaatTimesForMany…)
+// اس لیے App.tsx (MosquePrayerGrid) اور MosqueFinderView میں کوئی تبدیلی نہیں چاہیے۔
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type PrayerKey = 'fajr' | 'zuhr' | 'asr' | 'maghrib' | 'isha';
@@ -26,14 +32,15 @@ const DEFAULT_OFFSETS: Record<PrayerKey, number> = {
 };
 
 const CACHE_PREFIX = 'jamaat_api_';
+const ENGINE_CACHE_PREFIX = 'jamaat_engine_';
 
 // ── وقت کے ہیلپرز ────────────────────────────────────────────────────────────
-const toMinutes = (t: string): number => {
+export const toMinutes = (t: string): number => {
   const [h, m] = t.split(':').map(Number);
   return (h || 0) * 60 + (m || 0);
 };
 
-const toHHMM = (mins: number): string => {
+export const toHHMM = (mins: number): string => {
   const total = ((mins % 1440) + 1440) % 1440;
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 };
@@ -145,14 +152,70 @@ export const getApiTimes = async (lat: number, lng: number): Promise<ApiTimes | 
   return p;
 };
 
-// ── امام کا offset: ہمیشہ عدد لوٹاتا ہے ─────────────────────────────────────
+// ── امام کا پرانا offset: ہمیشہ عدد لوٹاتا ہے ───────────────────────────────
 // undefined ہو تو ڈیفالٹ لگتا ہے (نئی مسجد کے لیے وہی جو امام ڈیش بورڈ دکھاتا ہے)
 export const getOffset = (mosque: Mosque, prayer: PrayerKey): number => {
   const v = (mosque as any)[`${prayer}Offset`];
   return typeof v === 'number' && Number.isFinite(v) ? v : DEFAULT_OFFSETS[prayer];
 };
 
-// ── اصل حساب ────────────────────────────────────────────────────────────────
+// پرانے offsets کو نئے شیڈول کی شکل میں ڈھالیں (دونوں کا مطلب ایک ہی: اذان کے بعد منٹ)
+export const legacySchedule = (mosque: Mosque): IqamaSchedule => ({
+  effectiveFrom: '1970-01-01',
+  iqama: {
+    fajr: { delay: getOffset(mosque, 'fajr') },
+    zuhr: { delay: getOffset(mosque, 'zuhr') },
+    asr: { delay: getOffset(mosque, 'asr') },
+    maghrib: { delay: getOffset(mosque, 'maghrib') },
+    isha: { delay: getOffset(mosque, 'isha') },
+  },
+});
+
+// ── مسجد کی سیٹنگ سے دن کے اوقات (آف لائن، ہر مسجد کا اپنا پروفائل) ─────────
+const engineDayCache = new Map<string, Record<PrayerKey, string>>();
+
+const hasEngineConfig = (mosque: Mosque): boolean =>
+  !!mosque?.prayerConfig && Object.keys(mosque.prayerConfig).length > 0;
+
+/** فی مسجد، فی دن: پہلے اذان (engine)، پھر جماعت (شیڈول) */
+export const mosqueDayJamaat = (mosque: Mosque): Record<PrayerKey, string> | null => {
+  if (!hasEngineConfig(mosque)) return null;
+
+  const dateKey = toDateKey(new Date());
+  const cacheKey = `${mosque.id}|${dateKey}|${JSON.stringify(mosque.prayerConfig)}|${JSON.stringify(mosque.iqamaSchedule ?? null)}|${mosque.iqamaHistory?.length ?? 0}`;
+  const hit = engineDayCache.get(cacheKey);
+  if (hit) return hit;
+
+  try {
+    const adhan = computeDay(
+      mosque.latitude,
+      mosque.longitude,
+      new Date(),
+      { ...mosque.prayerConfig!, timeZone: mosque.prayerConfig?.timeZone }
+    );
+
+    const schedules: IqamaSchedule[] = [
+      ...(mosque.iqamaHistory ?? []),
+      ...(mosque.iqamaSchedule ? [mosque.iqamaSchedule] : []),
+    ];
+    const schedule = pickSchedule(schedules, dateKey) ?? legacySchedule(mosque);
+
+    // رمضان کا پتہ: اپنی ہی ریپو کا ہجری ہیلپر (نیٹ کے بغیر) — رمضان = مہینہ 9
+    const isRamadan = getHijriMath(new Date()).hMonth === 9;
+
+    const iqamaAll = resolveIqama(schedule, dateKey, adhan, { isRamadan });
+    const out = {} as Record<PrayerKey, string>;
+    for (const p of PRAYER_KEYS) {
+      out[p] = iqamaAll[p] ?? adhan[p];
+    }
+    engineDayCache.set(cacheKey, out);
+    return out;
+  } catch {
+    return null;
+  }
+};
+
+// ── اصل حساب (پرانا API والا راستہ) ──────────────────────────────────────────
 // API وقت آ گیا ہو تو: API + offset
 // API نہ آئی ہو (پہلی بار آف لائن) تو: Firestore میں جو پرانا وقت پڑا ہے وہ (آخری سہارا)
 export const computeJamaatTime = (
@@ -166,12 +229,20 @@ export const computeJamaatTime = (
   return (mosque as any)[prayer] || '';
 };
 
+/** ایک نماز کا حتمی جماعت وقت (نئی سیٹنگ پہلے، پرانا راستہ بعد میں) */
+const jamaatFor = (mosque: Mosque, prayer: PrayerKey, apiTimes: ApiTimes | null): string => {
+  const engine = mosqueDayJamaat(mosque);
+  if (engine?.[prayer]) return engine[prayer];
+  return computeJamaatTime(mosque, prayer, apiTimes);
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Hook: ایک مسجد کے لیے
 // ═══════════════════════════════════════════════════════════════════════════
 export const useJamaatTimes = (mosque: Mosque | null) => {
   const lat = mosque?.latitude;
   const lng = mosque?.longitude;
+  const engineReady = !!mosque && hasEngineConfig(mosque);
 
   const [apiTimes, setApiTimes] = useState<ApiTimes | null>(() =>
     typeof lat === 'number' && typeof lng === 'number'
@@ -181,6 +252,11 @@ export const useJamaatTimes = (mosque: Mosque | null) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // مسجد کے پاس نئی سیٹنگ ہے → کچھ مانگنا ہی نہیں، آف لائن حساب
+    if (!mosque || engineReady) {
+      setLoading(false);
+      return;
+    }
     if (typeof lat !== 'number' || typeof lng !== 'number') {
       setApiTimes(null);
       return;
@@ -205,10 +281,11 @@ export const useJamaatTimes = (mosque: Mosque | null) => {
     return () => {
       cancelled = true;
     };
-  }, [lat, lng]);
+    // mosque.prayerConfig بدلے تو دوبارہ چلے (امام نے اپ ڈیٹ کیا)
+  }, [lat, lng, engineReady, mosque?.prayerConfig, mosque?.iqamaSchedule, mosque?.iqamaHistory?.length]);
 
   const get = (prayer: PrayerKey): string =>
-    mosque ? computeJamaatTime(mosque, prayer, apiTimes) : '';
+    mosque ? jamaatFor(mosque, prayer, apiTimes) : '';
 
   return { apiTimes, loading, get };
 };
@@ -220,9 +297,9 @@ export const useJamaatTimesForMany = (mosques: Mosque[]) => {
   const [byMosque, setByMosque] = useState<Record<string, ApiTimes | null>>({});
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
 
-  // فہرست کی شناخت: صرف id + coords بدلیں تو دوبارہ چلے
+  // فہرست کی شناخت: id + coords + نئی سیٹنگ (امام اپ ڈیٹ کرے تو دوبارہ چلے)
   const signature = mosques
-    .map((m) => `${m.id}:${m.latitude}:${m.longitude}`)
+    .map((m) => `${m.id}:${m.latitude}:${m.longitude}:${hasEngineConfig(m) ? JSON.stringify(m.prayerConfig) + JSON.stringify(m.iqamaSchedule ?? '') : 'legacy'}`)
     .join('|');
 
   useEffect(() => {
@@ -232,6 +309,7 @@ export const useJamaatTimesForMany = (mosques: Mosque[]) => {
     const initial: Record<string, ApiTimes | null> = {};
     const needFetch: Mosque[] = [];
     for (const m of mosques) {
+      if (hasEngineConfig(m)) continue; // ان کے لیے نیٹ بالکل نہیں چاہیے
       if (typeof m.latitude !== 'number' || typeof m.longitude !== 'number') continue;
       const key = coordKey(m.latitude, m.longitude);
       const fresh = readCache(key);
@@ -240,7 +318,10 @@ export const useJamaatTimesForMany = (mosques: Mosque[]) => {
     }
     setByMosque((prev) => ({ ...prev, ...initial }));
 
-    if (needFetch.length === 0) return;
+    if (needFetch.length === 0) {
+      setLoadingIds(new Set());
+      return;
+    }
 
     setLoadingIds(new Set(needFetch.map((m) => m.id)));
 
@@ -262,8 +343,49 @@ export const useJamaatTimesForMany = (mosques: Mosque[]) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
 
-  const get = (mosque: Mosque, prayer: PrayerKey): string =>
-    computeJamaatTime(mosque, prayer, byMosque[mosque.id] ?? null);
+  // engine والی مساجد کے اوقات ہر رینڈر پر ہلکے memo سے
+  const engineTimes = useMemo(() => {
+    const map: Record<string, Record<PrayerKey, string> | null> = {};
+    for (const m of mosques) {
+      if (hasEngineConfig(m)) map[m.id] = mosqueDayJamaat(m);
+    }
+    return map;
+  }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const get = (mosque: Mosque, prayer: PrayerKey): string => {
+    const engine = engineTimes[mosque.id];
+    if (engine?.[prayer]) return engine[prayer];
+    return computeJamaatTime(mosque, prayer, byMosque[mosque.id] ?? null);
+  };
 
   return { get, loadingIds };
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// اضافی مددگار (ہوم کارڈ / جمعہ کے لیے)
+// ═══════════════════════════════════════════════════════════════════════════
+/** مسجد کے جمعہ کے سلاٹ (نئے `jumuah` یا پرانے `jumah/jumah2`) */
+export const mosqueJumuah = (mosque: Mosque): { label: string; time: string }[] => {
+  const dateKey = toDateKey(new Date());
+  const schedules: IqamaSchedule[] = [
+    ...(mosque.iqamaHistory ?? []),
+    ...(mosque.iqamaSchedule ? [mosque.iqamaSchedule] : []),
+  ];
+  const schedule = pickSchedule(schedules, dateKey);
+  if (schedule?.jumuah?.length) return schedule.jumuah;
+  const list: { label: string; time: string }[] = [];
+  if (mosque.jumah) list.push({ label: 'جمعہ', time: mosque.jumah });
+  if (mosque.jumah2) list.push({ label: 'دوسری جمعہ', time: mosque.jumah2 });
+  return list;
+};
+
+/** رمضان کا خصوصی وقت (افطار/تراویح) اگر سیٹ ہو */
+export const mosqueRamadanInfo = (mosque: Mosque) => {
+  const dateKey = toDateKey(new Date());
+  const schedules: IqamaSchedule[] = [
+    ...(mosque.iqamaHistory ?? []),
+    ...(mosque.iqamaSchedule ? [mosque.iqamaSchedule] : []),
+  ];
+  const schedule = pickSchedule(schedules, dateKey);
+  return schedule?.ramadan ?? null;
 };
