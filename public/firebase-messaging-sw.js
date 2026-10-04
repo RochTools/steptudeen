@@ -18,8 +18,9 @@ const messaging = firebase.messaging();
 
 // ── Firebase سے background push آئے تو ─────────────────────────
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || 'StepTuDeen';
-  const body  = payload.notification?.body  || 'namaz ka waqt ho gaya hai';
+  // سرور data-only پیغام بھیجتا ہے (title/body data میں)؛ پرانے پیغام notification میں
+  const title = payload.data?.title || payload.notification?.title || 'StepTuDeen';
+  const body  = payload.data?.body  || payload.notification?.body  || 'namaz ka waqt ho gaya hai';
   const icon  = payload.notification?.icon  || '/icon-192.png';
 
   self.registration.showNotification(title, {
@@ -29,7 +30,7 @@ messaging.onBackgroundMessage((payload) => {
     dir: 'rtl',
     lang: 'ur',
     vibrate: [200, 100, 200],
-    tag: 'prayer-notification',
+    tag: payload.data?.tag || 'prayer-notification',   // ہر مسجد/نماز کا اپنا tag، تاکہ ایک دوسرے کو نہ مٹائیں
     renotify: true,
     data: payload.data || {}
   });
