@@ -300,7 +300,7 @@ export function UserDashboard({
             {savedMosques.length === 0 ? <div className="ud-empty"><Heart size={27}/><strong>No mosques saved yet</strong><p className="ud-muted">Tap the heart icon next to a mosque to save it.</p></div> : <div className="ud-list">
               {savedMosques.map(mosque => <article className="ud-item" key={mosque.id}>
                 <div className="ud-row ud-spread"><div><h3 style={{fontSize:15,fontWeight:700}}>{mosque.name}</h3>{mosque.address && <p className="ud-muted" style={{marginTop:5}}>{mosque.address}</p>}</div><button className="ud-btn ud-icon-btn" aria-label={`Remove ${mosque.name} from saved mosques`} onClick={() => handleRemoveMosque(mosque.id)}><X size={15}/></button></div>
-                <button className="ud-btn ud-full" onClick={() => { onOpenMosque(mosque); onClose(); }}><MapPin size={15}/> View Prayer Times <ArrowUpRight size={15}/></button>
+                <button className="ud-btn ud-full" onClick={() => onOpenMosque(mosque)}><MapPin size={15}/> View Prayer Times <ArrowUpRight size={15}/></button>
               </article>)}
             </div>}
           </section>
