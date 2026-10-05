@@ -13,16 +13,39 @@ export const useNavigation = ({
   setSelectedSurahNum
 }: UseNavigationProps) => {
 
-  const getInitialView = useCallback(() => {
-    return 'home';
-  }, []);
+  // ریفریش (اوپر سے نیچے کھینچنا) پر انہی اسکرینوں پر واپس آئیں جہاں تھے۔
+  // صرف محفوظ اسکرینیں؛ لاگ ان اسکرین/نقشہ وغیرہ کبھی بحال نہیں ہوتے۔
+  const RESTORABLE_VIEWS = [
+    'quran', 'hadith', 'namaz', 'duas', 'tasbih', 'qibla',
+    'mosques', 'user-dashboard', 'imam-login',
+  ];
+  const VIEW_KEY = 'steptudeen_last_view';
 
-  const navRef = useRef<string[]>([getInitialView()]);
+  const getInitialHistory = (): string[] => {
+    try {
+      const saved = sessionStorage.getItem(VIEW_KEY);
+      if (saved && RESTORABLE_VIEWS.includes(saved)) return ['home', saved];
+    } catch { /* سٹوریج نہ ملے تو ہوم */ }
+    return ['home'];
+  };
+
+  const getInitialView = useCallback(() => 'home', []);
+
+  const navRef = useRef<string[]>(getInitialHistory());
   const [navigationHistory, setNavigationHistory] = useState<string[]>(
-    () => [getInitialView()]
+    () => [...navRef.current]
   );
 
   const currentView = navigationHistory[navigationHistory.length - 1];
+
+  // موجودہ اسکرین یاد رکھیں (ٹیب بند ہونے پر خود مٹ جاتی ہے)
+  useEffect(() => {
+    try {
+      if (RESTORABLE_VIEWS.includes(currentView)) sessionStorage.setItem(VIEW_KEY, currentView);
+      else sessionStorage.removeItem(VIEW_KEY);
+    } catch { /* نظر انداز */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView]);
 
   const navigateTo = useCallback((newView: string) => {
     if (navRef.current[navRef.current.length - 1] === newView) return;
