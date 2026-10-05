@@ -227,14 +227,16 @@ export function buildMessage(m: MosqueLite, prayer: PrayerName, time: string) {
   };
 }
 
-async function sendFcm(env: Env, body: unknown): Promise<void> {
+async function sendFcm(env: Env, body: unknown): Promise<{ status: number; body: string }> {
   const token = await getAccessToken(env);
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) console.error('fcm send failed', res.status, (await res.text()).slice(0, 300));
+  const text = (await res.text()).slice(0, 400);
+  if (!res.ok) console.error('fcm send failed', res.status, text);
+  return { status: res.status, body: text };
 }
 
 // ── cron: ہر منٹ ──────────────────────────────────────────────────────────────
@@ -305,8 +307,8 @@ async function handle(req: Request, env: Env): Promise<Response> {
     const list = await getMosques(env, true);
     const m = list.find((x) => x.id === url.searchParams.get('mosque'));
     if (!m) return reply({ error: 'unknown mosque' }, 404);
-    await sendFcm(env, buildMessage(m, 'maghrib', jamaatToday(m, new Date()).times.maghrib));
-    return reply({ ok: true, sentTo: topicOf(m.id) });
+    const fcm = await sendFcm(env, buildMessage(m, 'maghrib', jamaatToday(m, new Date()).times.maghrib));
+    return reply({ ok: fcm.status === 200, sentTo: topicOf(m.id), fcm });
   }
 
   if (req.method !== 'POST') return reply({ error: 'not found' }, 404);
@@ -328,8 +330,8 @@ async function handle(req: Request, env: Env): Promise<Response> {
     const list = await getMosques(env, true);
     const m = list.find((x) => x.id === body.mosqueId);
     if (!m) return reply({ error: 'unknown mosque' }, 404);
-    await sendFcm(env, buildMessage(m, 'maghrib', jamaatToday(m, new Date()).times.maghrib));
-    return reply({ ok: true, sentTo: topicOf(m.id) });
+    const fcm = await sendFcm(env, buildMessage(m, 'maghrib', jamaatToday(m, new Date()).times.maghrib));
+    return reply({ ok: fcm.status === 200, sentTo: topicOf(m.id), fcm });
   }
   return reply({ error: 'not found' }, 404);
 }
