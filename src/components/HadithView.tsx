@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   BookOpen,
+  Bookmark,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -64,6 +65,31 @@ const BASE = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions';
 const HOME_BOOK_TARGET_KEY = 'steptudeen_app_hadith_book_target';
 const LANGUAGE_KEY = 'steptudeen_hadith_language';
 const PER_PAGE = 10;
+const SAVED_HADITHS_KEY = 'user_saved_hadiths';
+
+type SavedHadith = {
+  book: string;
+  bookName: string;
+  num: number | string;
+  chapterKey: string;
+  chapterName: string;
+  from: number;
+  to: number;
+  ar: string;
+  ur: string;
+  translation?: string;
+  translationLanguage?: string;
+  savedAt: number;
+};
+
+function readSavedHadiths(): SavedHadith[] {
+  if (typeof window === 'undefined') return [];
+  const value: unknown = JSON.parse(localStorage.getItem(SAVED_HADITHS_KEY) || '[]');
+  if (!Array.isArray(value) || value.some(item => !item || typeof item.book !== 'string' || !['number', 'string'].includes(typeof item.num))) {
+    throw new Error('Invalid saved hadith data');
+  }
+  return value as SavedHadith[];
+}
 
 const BOOKS: Book[] = [
   { key: 'bukhari', name: 'Sahih Bukhari', total: 7563 },
@@ -174,6 +200,60 @@ export const HadithView: React.FC<HadithViewProps> = ({
     if (typeof window === 'undefined') return 'urd';
     return localStorage.getItem(LANGUAGE_KEY) || 'urd';
   });
+
+  const [savedHadiths, setSavedHadiths] = useState<SavedHadith[]>(() => {
+    try { return readSavedHadiths(); } catch { return []; }
+  });
+  const [saveMessage, setSaveMessage] = useState('');
+
+  useEffect(() => {
+    const syncSaved = (event: StorageEvent) => {
+      if (event.key === SAVED_HADITHS_KEY || event.key === null) {
+        try { setSavedHadiths(readSavedHadiths()); }
+        catch { setSaveMessage('Could not read saved hadiths. Please check browser storage.'); }
+      }
+    };
+    window.addEventListener('storage', syncSaved);
+    return () => window.removeEventListener('storage', syncSaved);
+  }, []);
+
+  useEffect(() => {
+    if (!saveMessage) return;
+    const timer = window.setTimeout(() => setSaveMessage(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [saveMessage]);
+
+  const toggleSaveHadith = (hadith: Hadith) => {
+    if (!selectedBook || !selectedChapter) return;
+    try {
+      // Read the latest list so changes from other views/tabs are retained.
+      const current = readSavedHadiths();
+      const matches = (item: SavedHadith) => item.book === selectedBook.key && String(item.num) === String(hadith.num);
+      const alreadySaved = current.some(matches);
+      const updated: SavedHadith[] = alreadySaved
+        ? current.filter(item => !matches(item))
+        : [...current, {
+            book: selectedBook.key,
+            bookName: selectedBook.name,
+            num: hadith.num,
+            chapterKey: selectedChapter.key,
+            chapterName: selectedChapter.name,
+            from: selectedChapter.from,
+            to: selectedChapter.to,
+            ar: hadith.arabic,
+            // The dashboard's `ur` field must contain Urdu only.
+            ur: language === 'urd' ? hadith.translation : '',
+            translation: hadith.translation,
+            translationLanguage: language,
+            savedAt: Date.now(),
+          }];
+      localStorage.setItem(SAVED_HADITHS_KEY, JSON.stringify(updated));
+      setSavedHadiths(updated);
+      setSaveMessage(alreadySaved ? 'Hadith removed from saved list.' : 'Hadith saved. Find it in your dashboard.');
+    } catch {
+      setSaveMessage('Could not update saved hadiths. Browser storage may be full, blocked or unreadable.');
+    }
+  };
 
   const pendingScrollRef = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -564,6 +644,7 @@ export const HadithView: React.FC<HadithViewProps> = ({
             <>
               {visibleHadiths.map((hadith) => {
                 const grade = gradeInfo(hadith.grades);
+                const isSaved = savedHadiths.some(item => item.book === selectedBook.key && String(item.num) === String(hadith.num));
                 return (
                   <article key={String(hadith.num)} id={`hadith-${hadith.num}`} className="mb-3 overflow-hidden rounded-xl border border-[#d8e4da] bg-white shadow-[0_2px_8px_rgba(0,0,0,.08)] transition">
                     <div className="flex items-center justify-between gap-2 bg-[#f0f7f1] px-3 py-2">
@@ -574,6 +655,18 @@ export const HadithView: React.FC<HadithViewProps> = ({
                     <div className="p-4 text-right">
                       <div className="hadith-arabic whitespace-pre-wrap text-right text-slate-950" dir="rtl" style={{ fontSize: `${21 * fontScale}px` }}>{hadith.arabic}</div>
                       {!!hadith.translation && <div className="hadith-translation mt-3 whitespace-pre-wrap border-t border-slate-100 pt-3 text-slate-800" data-lang={language} dir={currentLanguage.dir} style={{ fontSize: `${17 * fontScale}px` }}>{hadith.translation}</div>}
+                    </div>
+                    <div className="flex justify-end border-t border-slate-100 bg-white px-4 py-3" dir="ltr">
+                      <button
+                        type="button"
+                        onClick={() => toggleSaveHadith(hadith)}
+                        aria-pressed={isSaved}
+                        aria-label={`${isSaved ? 'Remove saved' : 'Save'} hadith ${hadith.num} from ${selectedBook.name}`}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black shadow-sm transition hover:bg-[#96c7ff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                      >
+                        <Bookmark size={16} fill={isSaved ? 'currentColor' : 'none'} />
+                        {isSaved ? 'Saved' : 'Save Hadith'}
+                      </button>
                     </div>
                   </article>
                 );
@@ -589,6 +682,12 @@ export const HadithView: React.FC<HadithViewProps> = ({
             </>
           )}
         </>
+      )}
+
+      {saveMessage && (
+        <div role="status" aria-live="polite" className="fixed bottom-28 left-1/2 z-[80] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm text-black shadow-xl">
+          {saveMessage}
+        </div>
       )}
 
       {languagePickerOpen && selectedBook && (
