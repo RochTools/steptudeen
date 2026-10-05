@@ -36,10 +36,15 @@ export const useMosques = (
 
   const [mosques, setMosquesState] = useState<Mosque[]>(cachedMosques);
   const [isLoading, setIsLoading] = useState(cachedMosques.length === 0); // cache ہو تو loading نہیں
-  const [selectedMosque, setSelectedMosque] = useState<Mosque | null>(null);
+  const [selectedMosqueSnapshot, setSelectedMosque] = useState<Mosque | null>(null);
   const [savedPopupMosques, setSavedPopupMosques] = useState<string[]>(
     () => parseSavedMosques(localStorage.getItem('user_saved_mosques'))
   );
+
+  // A saved bookmark contains an old snapshot; prefer the live mosque by ID.
+  const selectedMosque = selectedMosqueSnapshot
+    ? mosques.find(m => m.id === selectedMosqueSnapshot.id) ?? selectedMosqueSnapshot
+    : null;
 
   // ── setMosques wrapper جو cache بھی save کرے ──
   const setMosquesAndStopLoading = useCallback((list: Mosque[]) => {

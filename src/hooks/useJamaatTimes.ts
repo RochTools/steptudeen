@@ -1,8 +1,8 @@
+import { calculateMosqueTimes, mosqueDate } from '../lib/mosqueTimes';
 import { useEffect, useMemo, useState } from 'react';
 import { Mosque } from '../types';
-import { computeDay, toDateKey } from '../lib/prayerEngine';
-import { getHijriMath } from '../constants/hijri';
-import { IqamaSchedule, pickSchedule, resolveIqama } from '../lib/iqama';
+import { toDateKey } from '../lib/prayerEngine';
+import { IqamaSchedule, pickSchedule } from '../lib/iqama';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // useJamaatTimes — ہر مسجد کا جماعت وقت
@@ -32,7 +32,7 @@ const DEFAULT_OFFSETS: Record<PrayerKey, number> = {
 };
 
 const CACHE_PREFIX = 'jamaat_api_';
-const ENGINE_CACHE_PREFIX = 'jamaat_engine_';
+
 
 // ── وقت کے ہیلپرز ────────────────────────────────────────────────────────────
 export const toMinutes = (t: string): number => {
@@ -172,8 +172,6 @@ export const legacySchedule = (mosque: Mosque): IqamaSchedule => ({
 });
 
 // ── مسجد کی سیٹنگ سے دن کے اوقات (آف لائن، ہر مسجد کا اپنا پروفائل) ─────────
-const engineDayCache = new Map<string, Record<PrayerKey, string>>();
-
 const hasEngineConfig = (mosque: Mosque): boolean =>
   !!mosque?.prayerConfig && Object.keys(mosque.prayerConfig).length > 0;
 
@@ -181,34 +179,12 @@ const hasEngineConfig = (mosque: Mosque): boolean =>
 export const mosqueDayJamaat = (mosque: Mosque): Record<PrayerKey, string> | null => {
   if (!hasEngineConfig(mosque)) return null;
 
-  const dateKey = toDateKey(new Date());
-  const cacheKey = `${mosque.id}|${dateKey}|${JSON.stringify(mosque.prayerConfig)}|${JSON.stringify(mosque.iqamaSchedule ?? null)}|${mosque.iqamaHistory?.length ?? 0}`;
-  const hit = engineDayCache.get(cacheKey);
-  if (hit) return hit;
-
   try {
-    const adhan = computeDay(
-      mosque.latitude,
-      mosque.longitude,
-      new Date(),
-      { ...mosque.prayerConfig!, timeZone: mosque.prayerConfig?.timeZone }
-    );
-
-    const schedules: IqamaSchedule[] = [
-      ...(mosque.iqamaHistory ?? []),
-      ...(mosque.iqamaSchedule ? [mosque.iqamaSchedule] : []),
-    ];
-    const schedule = pickSchedule(schedules, dateKey) ?? legacySchedule(mosque);
-
-    // رمضان کا پتہ: اپنی ہی ریپو کا ہجری ہیلپر (نیٹ کے بغیر) — رمضان = مہینہ 9
-    const isRamadan = getHijriMath(new Date()).hMonth === 9;
-
-    const iqamaAll = resolveIqama(schedule, dateKey, adhan, { isRamadan });
+    // No partial cache key: coordinates, delay edits and full schedule changes
+    // must immediately affect both the preview and the public cards.
+    const { jamaat } = calculateMosqueTimes(mosque);
     const out = {} as Record<PrayerKey, string>;
-    for (const p of PRAYER_KEYS) {
-      out[p] = iqamaAll[p] ?? adhan[p];
-    }
-    engineDayCache.set(cacheKey, out);
+    for (const prayer of PRAYER_KEYS) out[prayer] = jamaat[prayer] || '';
     return out;
   } catch {
     return null;
@@ -239,7 +215,17 @@ const jamaatFor = (mosque: Mosque, prayer: PrayerKey, apiTimes: ApiTimes | null)
 // ═══════════════════════════════════════════════════════════════════════════
 // Hook: ایک مسجد کے لیے
 // ═══════════════════════════════════════════════════════════════════════════
+function useTimeRefresh() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
+}
+
 export const useJamaatTimes = (mosque: Mosque | null) => {
+  useTimeRefresh();
   const lat = mosque?.latitude;
   const lng = mosque?.longitude;
   const engineReady = !!mosque && hasEngineConfig(mosque);
@@ -294,12 +280,15 @@ export const useJamaatTimes = (mosque: Mosque | null) => {
 // Hook: مساجد کی فہرست کے لیے (MosqueFinderView)
 // ═══════════════════════════════════════════════════════════════════════════
 export const useJamaatTimesForMany = (mosques: Mosque[]) => {
+  const now = useTimeRefresh();
   const [byMosque, setByMosque] = useState<Record<string, ApiTimes | null>>({});
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
 
   // فہرست کی شناخت: id + coords + نئی سیٹنگ (امام اپ ڈیٹ کرے تو دوبارہ چلے)
   const signature = mosques
-    .map((m) => `${m.id}:${m.latitude}:${m.longitude}:${hasEngineConfig(m) ? JSON.stringify(m.prayerConfig) + JSON.stringify(m.iqamaSchedule ?? '') : 'legacy'}`)
+    .map((m) => JSON.stringify([m.id, m.latitude, m.longitude, m.prayerConfig,
+      m.iqamaSchedule, m.iqamaHistory, PRAYER_KEYS.map(p => getOffset(m, p)),
+      mosqueDate(now, m.prayerConfig?.timeZone || 'Asia/Karachi').dateKey]))
     .join('|');
 
   useEffect(() => {
