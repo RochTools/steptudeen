@@ -78,8 +78,7 @@ export function listenForegroundMessages() {
 // ═══════════════════════════════════════════════════════════════════════════
 // Cloudflare Worker بن جانے کے بعد اس کا پتہ یہاں لکھیں، مثلاً:
 //   'https://steptudeen-notify.آپ-کا-نام.workers.dev'
-export const NOTIFY_URL = 'PASTE_WORKER_URL_HERE';
-
+export const NOTIFY_URL = 'https://steptudeen-notify.islamorg.workers.dev';
 const FOLLOW_KEY = 'steptudeen_followed_mosques';
 
 export function getFollowedMosques(): Record<string, boolean> {
