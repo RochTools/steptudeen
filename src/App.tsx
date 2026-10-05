@@ -400,8 +400,9 @@ export default function App() {
                   isGuest={!auth.isAnyUser && !auth.isAuthenticated}
                   onClose={() => nav.goBack()}
                   onOpenMosque={(mosque) => {
+                    // Open the shared mosque modal without leaving the dashboard.
+                    // goHome() clears selectedMosque, which would close it immediately.
                     mosques.setSelectedMosque(mosque);
-                    nav.goHome();
                   }}
                   onLogout={() => {
                     auth.handleLogoutAll();
