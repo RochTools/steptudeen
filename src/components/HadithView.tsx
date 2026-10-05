@@ -3,7 +3,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   BookOpen,
-  Bookmark,
+  Heart,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -157,10 +157,10 @@ function gradeInfo(grades: Array<{ grade?: string }>) {
   if (!grades?.length) return null;
   const original = String(grades[0]?.grade || '');
   const grade = original.toLowerCase();
-  if (grade.includes('sahih') || grade.includes('صحيح')) return { className: 'bg-green-100 text-green-700', label: 'Sahih' };
-  if (grade.includes('hasan') || grade.includes('حسن')) return { className: 'bg-blue-100 text-blue-700', label: 'Hasan' };
-  if (grade.includes('daif') || grade.includes("da'if") || grade.includes('weak') || grade.includes('ضعيف')) return { className: 'bg-rose-100 text-rose-700', label: 'Daif' };
-  return { className: 'bg-slate-100 text-slate-600', label: original };
+  if (grade.includes('sahih') || grade.includes('صحيح')) return { className: 'bg-blue-100 text-black', label: 'Sahih' };
+  if (grade.includes('hasan') || grade.includes('حسن')) return { className: 'bg-blue-100 text-black', label: 'Hasan' };
+  if (grade.includes('daif') || grade.includes("da'if") || grade.includes('weak') || grade.includes('ضعيف')) return { className: 'bg-blue-100 text-black', label: 'Daif' };
+  return { className: 'bg-[#75b5ff] text-slate-600', label: original };
 }
 
 const BrandLoader = () => (
@@ -536,7 +536,7 @@ export const HadithView: React.FC<HadithViewProps> = ({
   };
 
   return (
-    <div dir="ltr" className="mx-auto w-full max-w-[900px] bg-white px-2 pb-20 text-left text-slate-900">
+    <div dir="ltr" className="hadith-view mx-auto w-full max-w-[900px] bg-white px-2 pb-20 text-left text-black">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;600;700&family=Scheherazade+New:wght@400;700&family=Noto+Sans+Bengali:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&display=swap');
         .hadith-arabic{font-family:'Scheherazade New','Noto Naskh Arabic',serif;font-weight:700;line-height:1.9;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
@@ -544,9 +544,12 @@ export const HadithView: React.FC<HadithViewProps> = ({
         .hadith-translation[dir='rtl']{font-family:'Scheherazade New','Noto Naskh Arabic',serif;font-weight:700;line-height:2;text-align:right}
         .hadith-translation[data-lang='ben']{font-family:'Noto Sans Bengali',sans-serif}
         .hadith-translation[data-lang='tam']{font-family:'Noto Sans Tamil',sans-serif}
-        .hadith-brand span{display:inline-block;animation:hadith-bounce 1.1s ease-in-out infinite;background:linear-gradient(180deg,#b8860b,#14532d);-webkit-background-clip:text;background-clip:text;color:transparent}
+        .hadith-brand span{display:inline-block;animation:hadith-bounce 1.1s ease-in-out infinite;background:linear-gradient(180deg,#75b5ff,#080808);-webkit-background-clip:text;background-clip:text;color:transparent}
+        .hadith-view button:focus-visible{outline:2px solid #1680ef;outline-offset:3px}
+        .hadith-view button:disabled{cursor:not-allowed}
+        @media(prefers-reduced-motion:reduce){.hadith-view .hadith-brand span{animation:none}.hadith-view *{scroll-behavior:auto!important;transition:none!important}}
         @keyframes hadith-bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}}
-        .hadith-target-highlight{box-shadow:0 0 0 3px rgba(184,134,11,.72),0 0 24px rgba(20,83,45,.28)!important;background:#f0f7f1!important}
+        .hadith-target-highlight{box-shadow:0 0 0 3px rgba(117,181,255,.85),0 0 24px rgba(0,0,0,.10)!important;background:#fff!important}
       `}</style>
 
       {screen === 'books' && (
@@ -557,40 +560,40 @@ export const HadithView: React.FC<HadithViewProps> = ({
                 key={book.key}
                 type="button"
                 onClick={() => openBook(book)}
-                className={`flex min-h-[142px] flex-col items-center justify-center rounded-lg bg-white p-3 text-center shadow-[0_3px_10px_rgba(0,0,0,.12)] transition active:scale-[.97] ${index === BOOKS.length - 1 ? 'col-span-2 sm:col-span-1' : ''}`}
+                className={`flex min-h-[142px] flex-col items-center justify-center rounded-2xl border border-black/10 bg-white p-3 text-center shadow-[0_3px_10px_rgba(0,0,0,.12)] transition active:scale-[.97] ${index === BOOKS.length - 1 ? 'col-span-2 sm:col-span-1' : ''}`}
               >
-                <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#f0f7f1] text-[#14532d]"><BookOpen size={19} /></span>
-                <strong className="text-sm text-slate-900">{book.name}</strong>
-                <small className="mt-2 rounded-full bg-[#f0f7f1] px-2.5 py-1 text-[10px] font-semibold text-slate-500">{book.total.toLocaleString('en-US')} Hadith</small>
+                <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#75b5ff] text-black"><BookOpen size={19} /></span>
+                <strong className="text-sm text-black">{book.name}</strong>
+                <small className="mt-2 rounded-full bg-[#75b5ff] px-2.5 py-1 text-[10px] font-semibold text-slate-500">{book.total.toLocaleString('en-US')} Hadith</small>
               </button>
             ))}
           </div>
-          <button onClick={onBack} className="mx-auto mt-5 flex items-center gap-2 rounded-full bg-[#f0f7f1] px-4 py-2 text-xs font-bold text-[#14532d]"><ArrowLeft size={14} /> Back</button>
+          <button onClick={onBack} className="mx-auto mt-5 flex items-center gap-2 rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black"><ArrowLeft size={14} /> Back</button>
         </>
       )}
 
       {screen === 'chapters' && selectedBook && (
         <>
-          <div className="sticky top-0 z-30 mb-3 flex items-center justify-between gap-2 rounded-xl border border-[#d8e4da] bg-white p-3 shadow-sm">
-            <button onClick={goToBooks} className="flex items-center gap-1 rounded-full bg-[#f0f7f1] px-3 py-2 text-[11px] font-bold text-[#14532d]"><ArrowLeft size={13} /> Books</button>
-            <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-[#14532d]">{selectedBook.name} · {currentLanguage.name}</div>
-            <button onClick={() => setLanguagePickerOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[#14532d]" aria-label="Select language"><Languages size={15} /></button>
+          <div className="sticky top-0 z-30 mb-3 flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm">
+            <button onClick={goToBooks} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Books</button>
+            <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-black">{selectedBook.name} · {currentLanguage.name}</div>
+            <button onClick={() => setLanguagePickerOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black" aria-label="Select language"><Languages size={15} /></button>
           </div>
 
           {loading && <BrandLoader />}
           {error && (
             <div className="flex flex-col items-center gap-3 py-14 text-center">
-              <AlertTriangle size={30} className="text-rose-600" />
+              <AlertTriangle size={30} className="text-black" />
               <p className="max-w-sm text-sm text-slate-500">{error}</p>
-              <div className="flex gap-2"><button onClick={retry} className="flex items-center gap-2 rounded-full bg-[#14532d] px-4 py-2 text-xs font-bold text-white"><RefreshCw size={13} /> Retry</button><button onClick={goToBooks} className="rounded-full bg-slate-100 px-4 py-2 text-xs font-bold text-slate-600">All books</button></div>
+              <div className="flex gap-2"><button onClick={retry} className="flex items-center gap-2 rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black"><RefreshCw size={13} /> Retry</button><button onClick={goToBooks} className="rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-slate-600">All books</button></div>
             </div>
           )}
 
           {!loading && !error && (
             <div className="space-y-2">
               {chapters.map((chapter, index) => (
-                <button key={chapter.key} onClick={() => openChapter(chapter)} className="flex w-full items-center gap-3 rounded-lg bg-white p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,.08)]">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f0f7f1] text-[10px] font-bold text-[#14532d]">{index + 1}</span>
+                <button key={chapter.key} onClick={() => openChapter(chapter)} className="flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,.08)]">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-[10px] font-bold text-black">{index + 1}</span>
                   <span className="min-w-0 flex-1"><strong className="block truncate text-[13px]">{chapter.name}</strong>{chapter.from > 0 && chapter.to > 0 && <small className="mt-1 block text-[10px] text-slate-500">Hadith {chapter.from}–{chapter.to}</small>}</span>
                   <ChevronRight size={15} className="text-slate-400" />
                 </button>
@@ -602,41 +605,41 @@ export const HadithView: React.FC<HadithViewProps> = ({
 
       {screen === 'reader' && selectedBook && selectedChapter && (
         <>
-          <div className="sticky top-0 z-30 mb-3 flex items-center justify-between gap-2 rounded-xl border border-[#d8e4da] bg-white p-3 shadow-sm" ref={menuRef}>
-            <button onClick={goToChapters} className="flex items-center gap-1 rounded-full bg-[#f0f7f1] px-3 py-2 text-[11px] font-bold text-[#14532d]"><ArrowLeft size={13} /> Chapters</button>
-            <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-[#14532d]">{selectedChapter.name}</div>
+          <div className="sticky top-0 z-30 mb-3 flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm" ref={menuRef}>
+            <button onClick={goToChapters} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Chapters</button>
+            <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-black">{selectedChapter.name}</div>
             <div className="relative">
-              <button onClick={() => setMenuOpen((value) => !value)} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100" aria-label="More options"><MoreVertical size={15} /></button>
+              <button onClick={() => setMenuOpen((value) => !value)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff]" aria-label="More options"><MoreVertical size={15} /></button>
               {menuOpen && (
-                <div className="absolute right-0 top-10 z-50 w-48 overflow-hidden rounded-xl border border-[#d8e4da] bg-white shadow-2xl">
-                  <button onClick={() => { setLanguagePickerOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#f0f7f1]"><Languages size={14} /> Translation: {currentLanguage.name}</button>
-                  <button onClick={goToChapters} className="w-full border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#f0f7f1]">Back to chapters</button>
-                  <button onClick={goToBooks} className="w-full border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#f0f7f1]">All books</button>
-                  <button onClick={() => { setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full px-3 py-3 text-left text-xs hover:bg-[#f0f7f1]">Scroll to top</button>
+                <div className="absolute right-0 top-10 z-50 w-48 overflow-hidden rounded-xl border border-black/10 bg-white shadow-2xl">
+                  <button onClick={() => { setLanguagePickerOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#75b5ff]"><Languages size={14} /> Translation: {currentLanguage.name}</button>
+                  <button onClick={goToChapters} className="w-full border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#75b5ff]">Back to chapters</button>
+                  <button onClick={goToBooks} className="w-full border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#75b5ff]">All books</button>
+                  <button onClick={() => { setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full px-3 py-3 text-left text-xs hover:bg-[#75b5ff]">Scroll to top</button>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="fixed bottom-16 left-3 z-40 flex items-center rounded-full bg-[#14532d] p-1 shadow-xl">
-            <button onClick={() => setFontScale((value) => Math.max(.8, Math.round((value - .1) * 10) / 10))} className="flex h-8 w-8 items-center justify-center rounded-full text-white"><Minus size={14} /></button>
-            <span className="min-w-10 text-center text-[10px] font-bold text-white">{Math.round(fontScale * 100)}%</span>
-            <button onClick={() => setFontScale((value) => Math.min(1.6, Math.round((value + .1) * 10) / 10))} className="flex h-8 w-8 items-center justify-center rounded-full text-white"><Plus size={14} /></button>
+          <div className="fixed bottom-16 left-3 z-40 flex items-center rounded-full bg-[#75b5ff] p-1 shadow-xl">
+            <button onClick={() => setFontScale((value) => Math.max(.8, Math.round((value - .1) * 10) / 10))} className="flex h-8 w-8 items-center justify-center rounded-full text-black"><Minus size={14} /></button>
+            <span className="min-w-10 text-center text-[10px] font-bold text-black">{Math.round(fontScale * 100)}%</span>
+            <button onClick={() => setFontScale((value) => Math.min(1.6, Math.round((value + .1) * 10) / 10))} className="flex h-8 w-8 items-center justify-center rounded-full text-black"><Plus size={14} /></button>
           </div>
 
-          <div className="mb-3 flex items-center gap-2 rounded-xl border border-[#d8e4da] bg-white p-2">
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-black/10 bg-white p-2">
             <Search size={16} className="ml-1 text-slate-400" />
             <input value={search} onChange={(event) => { setSearch(event.target.value); setSearchMessage(''); }} onKeyDown={(event) => { if (event.key === 'Enter') runSearch(); }} type="number" placeholder="Enter Hadith number..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
-            <button onClick={runSearch} className="rounded-full bg-[#14532d] px-4 py-2 text-xs font-bold text-white">Search</button>
+            <button onClick={runSearch} className="rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black">Search</button>
           </div>
-          {searchMessage && <div className={`mb-3 rounded-lg px-3 py-2 text-center text-xs ${searchError ? 'bg-rose-50 text-rose-700' : 'bg-[#f0f7f1] text-[#14532d]'}`}>{searchMessage}</div>}
+          {searchMessage && <div className={`mb-3 rounded-lg px-3 py-2 text-center text-xs ${searchError ? 'bg-blue-100 text-black' : 'bg-[#75b5ff] text-black'}`}>{searchMessage}</div>}
 
           {loading && <BrandLoader />}
           {error && (
             <div className="flex flex-col items-center gap-3 py-14 text-center">
-              <AlertTriangle size={30} className="text-rose-600" />
+              <AlertTriangle size={30} className="text-black" />
               <p className="max-w-sm text-sm text-slate-500">{error}</p>
-              <div className="flex gap-2"><button onClick={retry} className="flex items-center gap-2 rounded-full bg-[#14532d] px-4 py-2 text-xs font-bold text-white"><RefreshCw size={13} /> Retry</button><button onClick={goToBooks} className="rounded-full bg-slate-100 px-4 py-2 text-xs font-bold text-slate-600">All books</button></div>
+              <div className="flex gap-2"><button onClick={retry} className="flex items-center gap-2 rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black"><RefreshCw size={13} /> Retry</button><button onClick={goToBooks} className="rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-slate-600">All books</button></div>
             </div>
           )}
 
@@ -646,37 +649,37 @@ export const HadithView: React.FC<HadithViewProps> = ({
                 const grade = gradeInfo(hadith.grades);
                 const isSaved = savedHadiths.some(item => item.book === selectedBook.key && String(item.num) === String(hadith.num));
                 return (
-                  <article key={String(hadith.num)} id={`hadith-${hadith.num}`} className="mb-3 overflow-hidden rounded-xl border border-[#d8e4da] bg-white shadow-[0_2px_8px_rgba(0,0,0,.08)] transition">
-                    <div className="flex items-center justify-between gap-2 bg-[#f0f7f1] px-3 py-2">
-                      <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-[#14532d]">#{hadith.num}</span>
+                  <article key={String(hadith.num)} id={`hadith-${hadith.num}`} className="mb-3 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_28px_rgba(0,0,0,.07),0_3px_7px_rgba(0,0,0,.04)] transition">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-white px-3 py-2">
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-black">#{hadith.num}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleSaveHadith(hadith)}
+                          aria-pressed={isSaved}
+                          aria-label={`${isSaved ? 'Remove saved' : 'Save'} hadith ${hadith.num} from ${selectedBook.name}`}
+                          title={isSaved ? 'Remove from saved hadiths' : 'Save hadith'}
+                          className={`hadith-heart inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${isSaved ? 'text-red-600' : 'text-black'}`}
+                        >
+                          <Heart size={19} fill={isSaved ? 'currentColor' : 'none'} aria-hidden="true" />
+                        </button>
+                      </div>
                       {grade && <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${grade.className}`}>{grade.label}</span>}
-                      <span className="text-[10px] font-bold text-[#14532d]">{selectedBook.name}</span>
+                      <span className="text-[10px] font-bold text-black">{selectedBook.name}</span>
                     </div>
                     <div className="p-4 text-right">
-                      <div className="hadith-arabic whitespace-pre-wrap text-right text-slate-950" dir="rtl" style={{ fontSize: `${21 * fontScale}px` }}>{hadith.arabic}</div>
-                      {!!hadith.translation && <div className="hadith-translation mt-3 whitespace-pre-wrap border-t border-slate-100 pt-3 text-slate-800" data-lang={language} dir={currentLanguage.dir} style={{ fontSize: `${17 * fontScale}px` }}>{hadith.translation}</div>}
-                    </div>
-                    <div className="flex justify-end border-t border-slate-100 bg-white px-4 py-3" dir="ltr">
-                      <button
-                        type="button"
-                        onClick={() => toggleSaveHadith(hadith)}
-                        aria-pressed={isSaved}
-                        aria-label={`${isSaved ? 'Remove saved' : 'Save'} hadith ${hadith.num} from ${selectedBook.name}`}
-                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black shadow-sm transition hover:bg-[#96c7ff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                      >
-                        <Bookmark size={16} fill={isSaved ? 'currentColor' : 'none'} />
-                        {isSaved ? 'Saved' : 'Save Hadith'}
-                      </button>
+                      <div className="hadith-arabic whitespace-pre-wrap text-right text-black" dir="rtl" style={{ fontSize: `${21 * fontScale}px` }}>{hadith.arabic}</div>
+                      {!!hadith.translation && <div className="hadith-translation mt-3 whitespace-pre-wrap border-t border-slate-100 pt-3 text-black" data-lang={language} dir={currentLanguage.dir} style={{ fontSize: `${17 * fontScale}px` }}>{hadith.translation}</div>}
                     </div>
                   </article>
                 );
               })}
 
               {totalPages > 1 && (
-                <div className="mt-3 flex items-center justify-between rounded-xl border border-[#d8e4da] bg-white p-3">
-                  <button disabled={page <= 1} onClick={() => { setPage((value) => value - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-1 rounded-full bg-[#f0f7f1] px-3 py-2 text-xs font-bold text-[#14532d] disabled:opacity-30"><ChevronLeft size={13} /> Previous</button>
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-black/10 bg-white p-3">
+                  <button disabled={page <= 1} onClick={() => { setPage((value) => value - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-xs font-bold text-black disabled:opacity-30"><ChevronLeft size={13} /> Previous</button>
                   <span className="text-[10px] text-slate-500">{page} / {totalPages}</span>
-                  <button disabled={page >= totalPages} onClick={() => { setPage((value) => value + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-1 rounded-full bg-[#f0f7f1] px-3 py-2 text-xs font-bold text-[#14532d] disabled:opacity-30">Next <ChevronRight size={13} /></button>
+                  <button disabled={page >= totalPages} onClick={() => { setPage((value) => value + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-xs font-bold text-black disabled:opacity-30">Next <ChevronRight size={13} /></button>
                 </div>
               )}
             </>
@@ -693,10 +696,10 @@ export const HadithView: React.FC<HadithViewProps> = ({
       {languagePickerOpen && selectedBook && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setLanguagePickerOpen(false); }}>
           <div className="max-h-[82vh] w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><strong className="text-sm text-[#14532d]">Select Translation Language</strong><button onClick={() => setLanguagePickerOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100"><X size={15} /></button></div>
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><strong className="text-sm text-black">Select Translation Language</strong><button onClick={() => setLanguagePickerOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff]"><X size={15} /></button></div>
             <div className="max-h-[65vh] overflow-y-auto p-2">
               {LANGUAGES.filter((item) => isLanguageAvailable(selectedBook.key, item.code)).map((item) => (
-                <button key={item.code} onClick={() => chooseLanguage(item.code)} className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left ${item.code === language ? 'bg-[#f0f7f1] text-[#14532d]' : 'hover:bg-slate-50'}`}>
+                <button key={item.code} onClick={() => chooseLanguage(item.code)} className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left ${item.code === language ? 'bg-[#75b5ff] text-black' : 'hover:bg-blue-100'}`}>
                   <span><strong className="block text-sm">{item.name}</strong><small className="mt-1 block text-[10px] text-slate-500">Available for {selectedBook.name}</small></span>
                   {item.code === language && <Check size={16} />}
                 </button>
