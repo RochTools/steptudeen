@@ -281,8 +281,22 @@ async function handle(req: Request, env: Env): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
 
   if (url.pathname === '/health') {
+    // /health?check=1&key=ADMIN_KEY : ابھی مساجد پڑھ کر دکھاؤ، ناکامی ہو تو اصل وجہ بتاؤ
+    if (url.searchParams.get('check') && env.ADMIN_KEY && url.searchParams.get('key') === env.ADMIN_KEY) {
+      try {
+        const list = await getMosques(env, true);
+        let sample: string[] = [];
+        try {
+          const now = new Date();
+          sample = list.slice(0, 5).map((m) => { const j = jamaatToday(m, now).times; return `${m.name}: ${j.fajr} ${j.zuhr} ${j.asr} ${j.maghrib} ${j.isha}`; });
+        } catch (e) { sample = ['حساب میں ایرر: ' + String((e as Error)?.message ?? e).slice(0, 200)]; }
+        return reply({ ok: true, mosques: list.length, sample });
+      } catch (e) {
+        return reply({ ok: false, hasKey: !!env.FCM_SERVICE_ACCOUNT, error: String((e as Error)?.message ?? e).slice(0, 400) });
+      }
+    }
     const c = await env.STATE.get('mosques', 'json');
-    return reply({ ok: true, mosques: c?.list?.length ?? 0, refreshedAt: c?.at ? new Date(c.at).toISOString() : null });
+    return reply({ ok: true, hasKey: !!env.FCM_SERVICE_ACCOUNT, mosques: c?.list?.length ?? 0, refreshedAt: c?.at ? new Date(c.at).toISOString() : null });
   }
 
   if (req.method !== 'POST') return reply({ error: 'not found' }, 404);
