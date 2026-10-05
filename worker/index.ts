@@ -288,7 +288,7 @@ async function handle(req: Request, env: Env): Promise<Response> {
         let sample: string[] = [];
         try {
           const now = new Date();
-          sample = list.slice(0, 5).map((m) => { const j = jamaatToday(m, now).times; return `${m.name}: ${j.fajr} ${j.zuhr} ${j.asr} ${j.maghrib} ${j.isha}`; });
+          sample = list.slice(0, 5).map((m) => { const j = jamaatToday(m, now).times; return `${m.name} [id: ${m.id}]: ${j.fajr} ${j.zuhr} ${j.asr} ${j.maghrib} ${j.isha}`; });
         } catch (e) { sample = ['حساب میں ایرر: ' + String((e as Error)?.message ?? e).slice(0, 200)]; }
         return reply({ ok: true, mosques: list.length, sample });
       } catch (e) {
@@ -297,6 +297,16 @@ async function handle(req: Request, env: Env): Promise<Response> {
     }
     const c = await env.STATE.get('mosques', 'json');
     return reply({ ok: true, hasKey: !!env.FCM_SERVICE_ACCOUNT, mosques: c?.list?.length ?? 0, refreshedAt: c?.at ? new Date(c.at).toISOString() : null });
+  }
+
+  // /test براؤزر سے بھی: /test?key=ADMIN_KEY&mosque=ID
+  if (url.pathname === '/test' && req.method === 'GET') {
+    if (!env.ADMIN_KEY || url.searchParams.get('key') !== env.ADMIN_KEY) return reply({ error: 'forbidden' }, 403);
+    const list = await getMosques(env, true);
+    const m = list.find((x) => x.id === url.searchParams.get('mosque'));
+    if (!m) return reply({ error: 'unknown mosque' }, 404);
+    await sendFcm(env, buildMessage(m, 'maghrib', jamaatToday(m, new Date()).times.maghrib));
+    return reply({ ok: true, sentTo: topicOf(m.id) });
   }
 
   if (req.method !== 'POST') return reply({ error: 'not found' }, 404);
