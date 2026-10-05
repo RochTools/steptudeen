@@ -1,6 +1,6 @@
 import React, { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { initializeFirebaseAtRuntime, subscribeToAuthState } from './firebase';
-import { onSnapshot, collection, doc, getDoc } from 'firebase/firestore';
+import { onSnapshot, collection, doc, getDoc, setDoc } from 'firebase/firestore';
 import { initFCM, listenForegroundMessages } from './utils/fcm';
 import { requestNotificationPermission, scheduleAllPrayerNotifications } from './utils/notifications';
 
@@ -235,13 +235,23 @@ export default function App() {
               auth.setAuthUid(user.uid);
 
               try {
+                // ریفریش سے پہلے یہ ڈیوائس امام کے طور پر لاگ ان تھی؟
+                const wasImam = localStorage.getItem('imam_authenticated') === 'true';
                 const userDocSnap = await getDoc(doc(loadedDb, 'users', user.uid));
-                const role = userDocSnap.exists() ? userDocSnap.data()?.role : 'user';
+                const role = userDocSnap.exists() ? userDocSnap.data()?.role : undefined;
                 if (isMounted.current) {
                   if (role === 'imam') {
                     auth.setIsAuthenticated(true);
                     auth.setIsUserAuthenticated(false);
                     auth.setIsOTPAuthenticated(false);
+                  } else if (wasImam) {
+                    // ✅ امام کی حالت برقرار رکھو (ریفریش پر یوزر نہ بن جائے)،
+                    //    اور Firestore میں role بھی درست کر دو تاکہ اگلی بار مسئلہ نہ ہو
+                    auth.setIsAuthenticated(true);
+                    auth.setIsUserAuthenticated(false);
+                    auth.setIsOTPAuthenticated(false);
+                    setDoc(doc(loadedDb, 'users', user.uid), { role: 'imam' }, { merge: true })
+                      .catch((e) => console.warn('Could not repair imam role:', e));
                   } else {
                     auth.setIsAuthenticated(false);
                     auth.setIsUserAuthenticated(true);
