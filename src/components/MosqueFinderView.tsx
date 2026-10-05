@@ -16,6 +16,7 @@ import {
 import { Mosque } from '../types';
 import { useJamaatTimesForMany, mosqueJumuah } from '../hooks/useJamaatTimes';
 import type { PrayerKey } from '../hooks/useJamaatTimes';
+import { setMosqueFollow, getFollowedMosques } from '../utils/fcm';
 import './MosqueFinderView.css';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -516,7 +517,7 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
   isLoading = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [notifPreferences, setNotifPreferences] = useState<{ [key: string]: boolean }>({});
+  const [notifPreferences, setNotifPreferences] = useState<{ [key: string]: boolean }>(() => getFollowedMosques());
   const [savedMosques, setSavedMosques] = useState<{ [key: string]: boolean }>(() => {
     try {
       const saved = localStorage.getItem('user_saved_mosques');
@@ -546,27 +547,16 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
     } catch {}
   };
 
-  const handleToggleNotification = (mosque: Mosque, e: React.MouseEvent) => {
+  const handleToggleNotification = async (mosque: Mosque, e: React.MouseEvent) => {
     e.stopPropagation();
-    const isSubscribed = !!notifPreferences[mosque.id];
-    if (!isSubscribed) {
-      if ('Notification' in window) {
-        Notification.requestPermission().then((permission) => {
-          if (permission === 'granted') {
-            setNotifPreferences((prev) => ({ ...prev, [mosque.id]: true }));
-            new Notification("StepToDeen الرٹ", {
-              body: `${mosque.name} کے اوقات کی تبدیلی کی لائیو الرٹس آن کر دی گئی ہیں۔`,
-              dir: 'rtl'
-            });
-          } else {
-            setNotifPreferences((prev) => ({ ...prev, [mosque.id]: true }));
-          }
-        });
-      } else {
-        setNotifPreferences((prev) => ({ ...prev, [mosque.id]: true }));
-      }
-    } else {
-      setNotifPreferences((prev) => ({ ...prev, [mosque.id]: false }));
+    const want = !notifPreferences[mosque.id];
+    setNotifPreferences((prev) => ({ ...prev, [mosque.id]: want }));   // فوراً دکھائیں
+    const res = await setMosqueFollow(mosque.id, want);
+    if (!res.ok) {
+      setNotifPreferences((prev) => ({ ...prev, [mosque.id]: !want })); // ناکام: واپس
+      alert(res.message || 'کچھ گڑبڑ ہو گئی، دوبارہ کوشش کریں۔');
+    } else if (want) {
+      alert(`✅ ${mosque.name} کی جماعت کے نوٹیفکیشن آن ہو گئے۔`);
     }
   };
 
