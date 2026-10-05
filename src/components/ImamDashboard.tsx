@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { 
-  LogIn, Key, UserPlus, Info, Save, RotateCcw, MapPin, 
+import {
+  LogIn, Key, UserPlus, Info, Save, RotateCcw, MapPin,
   CheckCircle, Trash, PlusCircle, AlertCircle, RefreshCw, Clock,
-  Lock, Sunrise, Sunset, Moon, Pencil
+  Lock, Sunrise, Sunset, Moon, Pencil, Building2, LayoutDashboard
 } from 'lucide-react';
 import { Mosque } from '../types';
 import { firebaseSignIn, firebaseSignUp, firebaseSignOut } from '../firebase';
@@ -66,7 +66,7 @@ const compressImage = (file: File, maxWidth = 200, quality = 0.7): Promise<strin
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        
+
         if (width > height) {
           if (width > maxWidth) {
             height = (maxWidth / width) * height;
@@ -78,7 +78,7 @@ const compressImage = (file: File, maxWidth = 200, quality = 0.7): Promise<strin
             height = maxWidth;
           }
         }
-        
+
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
@@ -94,33 +94,35 @@ const compressImage = (file: File, maxWidth = 200, quality = 0.7): Promise<strin
 };
 
 // ── MosqueCard کمپوننٹ (پرفارمنس کے لیے) ──
-const MosqueCard = React.memo(({ 
-  mosque, 
-  onEdit, 
-  onDelete 
-}: { 
-  mosque: Mosque; 
-  onEdit: (mosque: Mosque) => void; 
+const MosqueCard = React.memo(({
+  mosque,
+  onEdit,
+  onDelete
+}: {
+  mosque: Mosque;
+  onEdit: (mosque: Mosque) => void;
   onDelete: (id: string) => void;
 }) => {
   return (
-    <div className="flex items-center justify-between gap-2 py-3 px-3.5 bg-white rounded-2xl border border-slate-200">
+    <div className="imam-card flex items-center justify-between gap-2 py-4 px-4 bg-white rounded-2xl border border-slate-200">
       <div className="text-right flex-1 min-w-0">
         <p className="text-sm font-bold text-slate-800 font-urdu truncate">{mosque.name}</p>
         <p className="text-xs text-slate-400 font-urdu truncate">{mosque.address}</p>
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
-        <button 
-          type="button" 
-          onClick={() => onEdit(mosque)} 
-          className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 text-slate-500 hover:text-emerald-700 transition-all cursor-pointer"
+        <button
+          type="button"
+          aria-label="مسجد میں ترمیم کریں"
+          onClick={() => onEdit(mosque)}
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white hover:bg-blue-50 border border-slate-200 text-slate-500 hover:text-black transition-all cursor-pointer"
         >
           <Pencil size={14} />
         </button>
-        <button 
-          type="button" 
-          onClick={() => onDelete(mosque.id)} 
-          className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 text-slate-500 hover:text-rose-600 transition-all cursor-pointer"
+        <button
+          type="button"
+          aria-label="مسجد حذف کریں"
+          onClick={() => onDelete(mosque.id)}
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white hover:bg-blue-50 border border-slate-200 text-slate-500 hover:text-black transition-all cursor-pointer"
         >
           <Trash size={14} />
         </button>
@@ -569,7 +571,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   // ── فارم جمع کروائیں ──
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // ✅ چیک کریں کہ null نہ ہوں
     if (!name || !address || latitude === null || longitude === null) {
       setErrorMessage('براہ کرم سرخ نشان والی تمام معلومات پُر کریں۔');
@@ -579,16 +581,16 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
       setErrorMessage('جماعت کے اوقات API سے ابھی تک نہیں آئے۔ تھوڑا انتظار کریں یا انٹرنیٹ چیک کریں۔');
       return;
     }
-    
+
     setIsSaving(true);
     setSavingStep(3);
-    
+
     // ✅ پہلے سے چل رہا انٹروال کلئیر کریں
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
     }
-    
+
     // ✅ نیا انٹروال شروع کریں
     countdownIntervalRef.current = setInterval(() => {
       setSavingStep((prev) => {
@@ -672,11 +674,11 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
 
   // ── تھیمز (اب ایک ہی متفقہ، صاف رنگ سکیم) ──
   const PRAYER_THEMES: Record<string, { bg: string; border: string; text: string; btn: string; solidBg: string }> = {
-    fajr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-emerald-700', solidBg: 'bg-emerald-700' },
-    zuhr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-emerald-700', solidBg: 'bg-emerald-700' },
-    asr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-emerald-700', solidBg: 'bg-emerald-700' },
-    maghrib: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-emerald-700', solidBg: 'bg-emerald-700' },
-    isha: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-emerald-700', solidBg: 'bg-emerald-700' },
+    fajr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
+    zuhr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
+    asr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
+    maghrib: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
+    isha: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
   };
 
   const PRAYER_LABELS: Record<string, string> = {
@@ -702,7 +704,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     };
 
     return (
-      <div className={`flex flex-col items-center gap-1.5 ${theme.bg} border ${theme.border} rounded-2xl p-3`}>
+      <div className={`imam-prayer-card flex flex-col items-center gap-1.5 ${theme.bg} border ${theme.border} rounded-2xl p-3`}>
         <span className={`text-sm font-bold font-urdu ${theme.text}`}>{PRAYER_LABELS[prayerKey]}</span>
 
         <div className="text-[10px] font-mono text-slate-400 leading-tight text-center">
@@ -713,7 +715,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           <button
             type="button"
             onClick={handleDecrement}
-            className={`w-7 h-7 rounded-lg bg-slate-50 border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0 ${offset === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+            className={`w-7 h-7 rounded-lg bg-white border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0 ${offset === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
             disabled={offset === 0}
           >−</button>
           <span className={`w-9 text-center font-mono font-bold text-xs ${theme.text}`}>
@@ -722,12 +724,12 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           <button
             type="button"
             onClick={() => onChange(offset + 1)}
-            className={`w-7 h-7 rounded-lg bg-slate-50 border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0`}
+            className={`w-7 h-7 rounded-lg bg-white border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0`}
           >+</button>
         </div>
         <span className="text-[9px] text-slate-400 font-mono -mt-1">منٹ</span>
 
-        <div className={`w-full text-sm font-mono font-bold text-white ${theme.solidBg} rounded-lg px-1.5 py-1.5 text-center leading-tight`}>
+        <div className={`w-full text-sm font-mono font-bold text-black ${theme.solidBg} rounded-lg px-1.5 py-1.5 text-center leading-tight`}>
           {jamaatVal ? to12Hour(jamaatVal) : '—:—'}
         </div>
         <span className="text-[9px] text-slate-400 font-urdu">جماعت کا وقت</span>
@@ -737,11 +739,47 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
 
   // ── رینڈر ──
   return (
-    <>
-      <div className="space-y-4 pb-20 animate-fadeIn">
+    <div className="imam-dashboard">
+      <style>{`
+        .imam-dashboard{--imam-blue:#75b5ff;background:#fff;color:#080808;min-height:100vh;padding:20px 0 0}
+        .imam-dashboard .imam-shell{max-width:960px;margin:0 auto}
+        .imam-dashboard .imam-card,.imam-dashboard .imam-prayer-card{background:#fff;border:1px solid #0000000d;box-shadow:0 12px 30px #00000008,0 3px 7px #00000006}
+        .imam-dashboard .imam-profile{border-top:3px solid var(--imam-blue);border-radius:24px;margin:0 16px 24px;padding:24px 22px}
+        .imam-dashboard .imam-form>div{background:#fff;border:1px solid #0000000d;border-radius:20px;padding:20px;box-shadow:0 8px 24px #00000007}
+        .imam-dashboard .imam-prayer-card{border-radius:18px;padding:16px 10px;border-top:3px solid var(--imam-blue)}
+        .imam-dashboard button{color:#080808;transition:background .18s,box-shadow .18s,transform .18s}
+        .imam-dashboard button[class*="bg-white"],.imam-dashboard button[class*="bg-slate"],.imam-dashboard button[class*="bg-blue-50"]{background:#cfe5ff;color:#000}
+        .imam-dashboard button[class*="bg-[#75b5ff]"]{background:#75b5ff;color:#000;box-shadow:0 3px 0 #00000010}
+        .imam-dashboard button:not(:disabled):hover{box-shadow:0 5px 12px #00000012}
+        .imam-dashboard button:disabled{opacity:.45;cursor:not-allowed}
+        .imam-dashboard button:focus-visible,.imam-dashboard input:focus-visible,.imam-dashboard select:focus-visible,.imam-dashboard textarea:focus-visible{outline:2px solid #1680ef;outline-offset:3px}
+        .imam-dashboard input:not([type="range"]):not([type="file"]),.imam-dashboard textarea,.imam-dashboard select{background:#fff;color:#080808;border-color:#00000020;box-shadow:inset 0 2px 4px #00000003}
+        .imam-dashboard input[type="range"]{accent-color:#1680ef}
+        .imam-dashboard .imam-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 16px 24px}
+        .imam-dashboard .imam-summary>div{padding:18px 12px;border-radius:18px;text-align:center}
+        .imam-dashboard .imam-summary strong{display:block;font-size:21px;margin-bottom:6px;line-height:1.7}
+        .imam-dashboard .imam-summary span{font-size:11px;color:#0009}
+        .imam-dashboard .imam-title{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 20px 22px}
+        .imam-dashboard .imam-title h1{font-size:23px;font-weight:800;line-height:1.8;margin:0}
+        .imam-dashboard .imam-title p{font-size:12px;color:#0009;margin:4px 0 0}
+        .imam-dashboard .imam-title-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:#75b5ff;flex-shrink:0}
+        /* Scope the existing prayer-settings and calibration child components to this dashboard. */
+        .imam-dashboard [class*="text-emerald-"],.imam-dashboard [class*="text-violet-"],.imam-dashboard [class*="text-rose-"],.imam-dashboard [class*="text-amber-"]{color:#080808!important}
+        .imam-dashboard [class*="bg-emerald-"],.imam-dashboard [class*="bg-violet-"]{background-color:#fff!important}
+        .imam-dashboard [class*="border-emerald-"],.imam-dashboard [class*="border-violet-"]{border-color:#bfdbfe!important}
+        .imam-dashboard button[class*="bg-emerald-"],.imam-dashboard button[class*="bg-violet-"]{background:#75b5ff!important;color:#000!important;border-color:#1680ef!important;box-shadow:0 3px 0 #00000010}
+        .imam-dashboard .imam-form [dir="rtl"][class*="rounded-2xl"]{box-shadow:0 6px 20px #00000006}
+        @media(max-width:480px){.imam-dashboard .imam-form>div{padding:15px 12px}.imam-dashboard .imam-profile{padding:20px 16px}.imam-dashboard .imam-prayer-card{padding:12px 5px}.imam-dashboard .imam-summary{gap:8px}.imam-dashboard .imam-summary strong{font-size:17px}}
+        @media(prefers-reduced-motion:reduce){.imam-dashboard *{animation:none!important;transition:none!important}}
+      `}</style>
+      <div className="imam-shell space-y-4 pb-20 animate-fadeIn">
+        <header className="imam-title" dir="rtl">
+          <div><h1 className="font-urdu">امام ڈش بورڈ</h1><p className="font-urdu">آپ کی مسجد، اوقات اور اعلانات — ایک جگہ</p></div>
+          <span className="imam-title-icon"><LayoutDashboard size={22} /></span>
+        </header>
 
         {!isAuthenticated ? (
-          <div className="mx-4 mt-8 bg-slate-50 rounded-2xl border border-slate-200 p-8 text-center space-y-3">
+          <div className="mx-4 mt-8 bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
             <div className="w-14 h-14 mx-auto rounded-full bg-white border border-slate-200 flex items-center justify-center">
               <Lock size={22} className="text-slate-400" />
             </div>
@@ -751,31 +789,31 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           <div className="space-y-3">
 
             <div className="animate-fadeIn">
-              <div className="bg-white pt-5 pb-4 px-4 text-center">
+              <div className="imam-card imam-profile bg-white pt-5 pb-4 px-4 text-center">
                 <div className="flex items-center justify-between mb-4">
                   <button
                     type="button"
                     onClick={() => setShowLogoutConfirm(true)}
-                    className="text-xs font-urdu text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1 rounded-full border border-rose-100 transition-all cursor-pointer"
+                    className="text-xs font-urdu text-black hover:text-black bg-blue-50 hover:bg-blue-50 px-3 py-1 rounded-full border border-blue-200 transition-all cursor-pointer"
                   >لاگ آؤٹ</button>
-                  <span className="text-[11px] font-urdu flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                  <span className="text-[11px] font-urdu flex items-center gap-1 text-black bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
+                    <span className="w-1.5 h-1.5 bg-[#75b5ff] rounded-full animate-pulse"></span>
                     {isRealFirebase ? 'لائیو' : 'آف لائن'}
                   </span>
                 </div>
                 <div className="flex justify-center -mt-2 mb-2">
                   <div className="relative">
-                    <div className="w-28 h-28 rounded-full border-4 border-emerald-100 shadow-lg overflow-hidden bg-emerald-50 flex items-center justify-center">
-                      {mosqueImage ? <img src={mosqueImage} alt="مسجد" className="w-full h-full object-cover" /> : <span className="text-4xl">🕌</span>}
+                    <div className="w-28 h-28 rounded-full border-4 border-blue-200 shadow-lg overflow-hidden bg-blue-50 flex items-center justify-center">
+                      {mosqueImage ? <img src={mosqueImage} alt="مسجد" className="w-full h-full object-cover" /> : <Building2 size={42} className="text-black" aria-label="مسجد" />}
                     </div>
-                    <label className="absolute bottom-0.5 right-0.5 w-6 h-6 bg-emerald-600 hover:bg-emerald-700 rounded-full flex items-center justify-center cursor-pointer border-2 border-white shadow-md transition-all">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <label className="absolute bottom-0.5 right-0.5 w-6 h-6 bg-[#75b5ff] hover:bg-[#96c7ff] rounded-full flex items-center justify-center cursor-pointer border-2 border-white shadow-md transition-all">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                       </svg>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
@@ -797,23 +835,29 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                             setErrorMessage('تصویر کمپریس کرنے میں مسئلہ ہوا');
                             setTimeout(() => setErrorMessage(''), 3000);
                           }
-                        }} 
+                        }}
                       />
                     </label>
                   </div>
                 </div>
                 <h2 className="text-xl font-bold text-slate-900 font-urdu leading-snug">{imamName || authName || 'امام صاحب'}</h2>
-                <p className="text-base text-emerald-700 font-bold font-urdu mt-0.5">{name || myMosques[0]?.name || 'مسجد کا نام'}</p>
+                <p className="text-base text-black font-bold font-urdu mt-0.5">{name || myMosques[0]?.name || 'مسجد کا نام'}</p>
                 <p className="text-xs text-slate-400 font-mono mt-1">{authEmail}</p>
               </div>
+            </div>
+
+            <div className="imam-summary font-urdu" dir="rtl">
+              <div className="imam-card"><strong>{myMosques.length}</strong><span>رجسٹر مساجد</span></div>
+              <div className="imam-card"><strong>{editId ? 'ترمیم' : 'نیا ریکارڈ'}</strong><span>موجودہ فارم</span></div>
+              <div className="imam-card"><strong>{isRealFirebase ? 'کلاؤڈ' : 'مقامی'}</strong><span>ڈیٹا کنکشن</span></div>
             </div>
 
             {myMosques.length > 0 && (
               <div className="px-4 space-y-2 animate-fadeIn">
                 <div className="flex items-center justify-between px-1 mb-1">
-                  <span className="text-xs text-emerald-700 font-urdu font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">{myMosques.length} مسجد</span>
+                  <span className="text-xs text-black font-urdu font-bold bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">{myMosques.length} مسجد</span>
                   <span className="text-xs font-bold text-slate-500 font-urdu flex items-center gap-1">
-                    <MapPin size={13} className="text-emerald-600" /> رجسٹر مساجد
+                    <MapPin size={13} className="text-black" /> رجسٹر مساجد
                   </span>
                 </div>
                 {myMosques.map((mosque) => (
@@ -829,22 +873,22 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
 
             <div className="space-y-4 animate-fadeIn px-4">
               <div className="flex items-center justify-end">
-                <span className="text-xs text-amber-700 font-urdu font-bold bg-amber-50 px-2.5 py-1 rounded-full border border-amber-100">
+                <span className="text-xs text-black font-urdu font-bold bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
                   {editId ? 'پبلک اوقات ترمیم' : 'نیا ریکارڈ'}
                 </span>
               </div>
 
-              <form onSubmit={handleFormSubmit} className="space-y-4 text-right">
+              <form onSubmit={handleFormSubmit} className="imam-form space-y-5 text-right">
                 {!editId && (
                   <>
                     <div className="space-y-1.5">
                       <label className="text-sm text-slate-700 font-bold font-urdu block">مسجد کا نام *</label>
-                      <input type="text" required placeholder="مثال: جامع مسجد مدینہ" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:border-emerald-400 transition-all text-right font-urdu" dir="rtl" />
+                      <input type="text" required placeholder="مثال: جامع مسجد مدینہ" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white focus:border-blue-200 transition-all text-right font-urdu" dir="rtl" />
                     </div>
 
                     <div className="space-y-1.5">
                       <label className="text-sm text-slate-700 font-bold font-urdu block">پتہ / ریجن / سیکٹر *</label>
-                      <input type="text" required placeholder="مثال: سیکٹر ایف ٹین، اسلام آباد" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:border-emerald-400 transition-all text-right font-urdu" dir="rtl" />
+                      <input type="text" required placeholder="مثال: سیکٹر ایف ٹین، اسلام آباد" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white focus:border-blue-200 transition-all text-right font-urdu" dir="rtl" />
                     </div>
                   </>
                 )}
@@ -855,7 +899,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                       type="button"
                       onClick={handleAutoGrabLocation}
                       disabled={isGrabbingLocation}
-                      className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all font-urdu flex items-center gap-1.5 cursor-pointer ${isGrabbingLocation ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 active:scale-95 border-emerald-100'}`}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all font-urdu flex items-center gap-1.5 cursor-pointer ${isGrabbingLocation ? 'bg-white border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-50 hover:bg-[#96c7ff] hover:text-black text-black active:scale-95 border-blue-200'}`}
                     >
                       {isGrabbingLocation ? (
                         <>
@@ -869,38 +913,38 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                     </button>
                     <label className="text-sm text-slate-700 font-bold font-urdu block">نقشہ کے کوآرڈینیٹس (GPS) *</label>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                  <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-2xl border border-slate-200">
                     <div className="space-y-1">
                       <div className="text-[10px] text-slate-400 font-mono font-bold uppercase tracking-wider text-left">Longitude</div>
-                      <input 
-                        type="text" 
-                        inputMode="decimal" 
+                      <input
+                        type="text"
+                        inputMode="decimal"
                         pattern="[0-9.]*"
-                        required 
-                        placeholder="72.9984" 
-                        value={longitude ?? ''} 
+                        required
+                        placeholder="72.9984"
+                        value={longitude ?? ''}
                         onChange={(e) => {
                           // ✅ صرف نمبر اور ڈیسیمل پوائنٹ
                           const value = e.target.value.replace(/[^0-9.]/g, '');
                           setLongitude(value === '' ? null : Number(value));
-                        }} 
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-400 transition-all text-left font-mono" 
+                        }}
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-400 focus:border-blue-200 transition-all text-left font-mono"
                       />
                     </div>
                     <div className="space-y-1">
                       <div className="text-[10px] text-slate-400 font-mono font-bold uppercase tracking-wider text-left">Latitude</div>
-                      <input 
-                        type="text" 
-                        inputMode="decimal" 
+                      <input
+                        type="text"
+                        inputMode="decimal"
                         pattern="[0-9.]*"
-                        required 
-                        placeholder="33.6675" 
-                        value={latitude ?? ''} 
+                        required
+                        placeholder="33.6675"
+                        value={latitude ?? ''}
                         onChange={(e) => {
                           const value = e.target.value.replace(/[^0-9.]/g, '');
                           setLatitude(value === '' ? null : Number(value));
-                        }} 
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-400 transition-all text-left font-mono" 
+                        }}
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-400 focus:border-blue-200 transition-all text-left font-mono"
                       />
                     </div>
                   </div>
@@ -914,14 +958,14 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                   </div>
 
                   {latitude === null || longitude === null ? (
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-right">
+                    <div className="bg-white border border-slate-200 rounded-xl p-3 text-right">
                       <p className="text-xs text-slate-500 font-urdu leading-relaxed">
                         پہلے اوپر GPS کوآرڈینیٹس درج کریں، تب اذان کا لائیو وقت یہاں نظر آئے گا۔
                       </p>
                     </div>
                   ) : apiError ? (
-                    <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 text-right">
-                      <p className="text-xs text-rose-700 font-urdu leading-relaxed">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-right">
+                      <p className="text-xs text-black font-urdu leading-relaxed">
                         اذان کا وقت لانے میں مسئلہ ہوا۔ انٹرنیٹ چیک کریں۔
                       </p>
                     </div>
@@ -961,25 +1005,25 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                     <span className="text-sm font-bold font-urdu text-slate-700">جمعہ، عیدین اور رمضان کے اوقات</span>
                   </div>
 
-                  <div className="bg-emerald-700 rounded-2xl p-3.5 flex items-center justify-between gap-2">
-                    <button type="button" onClick={() => openCustomTimePicker('jumah', 'نمازِ جمعہ', jumah)} className="py-2 px-3 bg-white/15 hover:bg-white/25 active:scale-95 rounded-xl text-xs text-center font-mono font-bold text-white flex items-center gap-1.5 transition-all cursor-pointer">
+                  <div className="bg-[#75b5ff] rounded-2xl p-3.5 flex items-center justify-between gap-2">
+                    <button type="button" onClick={() => openCustomTimePicker('jumah', 'نمازِ جمعہ', jumah)} className="py-2 px-3 bg-[#75b5ff] hover:bg-[#96c7ff] active:scale-95 rounded-xl text-xs text-center font-mono font-bold text-black flex items-center gap-1.5 transition-all cursor-pointer">
                       <Clock size={13} className="shrink-0" /><span>{formatTo12HourString(jumah)}</span>
                     </button>
-                    <span className="text-sm text-white font-bold font-urdu">نمازِ جمعہ</span>
+                    <span className="text-sm text-black font-bold font-urdu">نمازِ جمعہ</span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="space-y-1.5">
                         <span className="text-xs text-slate-600 font-bold font-urdu block text-right">عید الفطر جماعت</span>
-                        <button type="button" onClick={() => openCustomTimePicker('eidFitr', 'عید الفطر جماعت', eidFitr)} className="w-full py-2 bg-slate-50 hover:bg-emerald-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
-                          <Clock size={13} className="text-emerald-600 shrink-0" /><span>{formatTo12HourString(eidFitr)}</span>
+                        <button type="button" onClick={() => openCustomTimePicker('eidFitr', 'عید الفطر جماعت', eidFitr)} className="w-full py-2 bg-white hover:bg-blue-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                          <Clock size={13} className="text-black shrink-0" /><span>{formatTo12HourString(eidFitr)}</span>
                         </button>
                       </div>
                       <div className="space-y-1.5">
                         <span className="text-xs text-slate-600 font-bold font-urdu block text-right">عید الاضحی جماعت</span>
-                        <button type="button" onClick={() => openCustomTimePicker('eidAdha', 'عید الاضحی جماعت', eidAdha)} className="w-full py-2 bg-slate-50 hover:bg-emerald-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
-                          <Clock size={13} className="text-emerald-600 shrink-0" /><span>{formatTo12HourString(eidAdha)}</span>
+                        <button type="button" onClick={() => openCustomTimePicker('eidAdha', 'عید الاضحی جماعت', eidAdha)} className="w-full py-2 bg-white hover:bg-blue-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                          <Clock size={13} className="text-black shrink-0" /><span>{formatTo12HourString(eidAdha)}</span>
                         </button>
                       </div>
                     </div>
@@ -988,15 +1032,15 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                   <div className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="space-y-1.5">
-                        <span className="text-xs text-slate-600 font-bold font-urdu flex items-center justify-end gap-1"><Moon size={12} className="text-emerald-600" /> سحری کا وقت</span>
-                        <button type="button" onClick={() => openCustomTimePicker('sehri', 'سحری کا وقت', sehri)} className="w-full py-2 bg-slate-50 hover:bg-emerald-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
-                          <Clock size={13} className="text-emerald-600 shrink-0" /><span>{formatTo12HourString(sehri)}</span>
+                        <span className="text-xs text-slate-600 font-bold font-urdu flex items-center justify-end gap-1"><Moon size={12} className="text-black" /> سحری کا وقت</span>
+                        <button type="button" onClick={() => openCustomTimePicker('sehri', 'سحری کا وقت', sehri)} className="w-full py-2 bg-white hover:bg-blue-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                          <Clock size={13} className="text-black shrink-0" /><span>{formatTo12HourString(sehri)}</span>
                         </button>
                       </div>
                       <div className="space-y-1.5">
-                        <span className="text-xs text-slate-600 font-bold font-urdu flex items-center justify-end gap-1"><Sunrise size={12} className="text-emerald-600" /> افطاری کا وقت</span>
-                        <button type="button" onClick={() => openCustomTimePicker('iftar', 'افطاری کا وقت', iftar)} className="w-full py-2 bg-slate-50 hover:bg-emerald-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
-                          <Clock size={13} className="text-emerald-600 shrink-0" /><span>{formatTo12HourString(iftar)}</span>
+                        <span className="text-xs text-slate-600 font-bold font-urdu flex items-center justify-end gap-1"><Sunrise size={12} className="text-black" /> افطاری کا وقت</span>
+                        <button type="button" onClick={() => openCustomTimePicker('iftar', 'افطاری کا وقت', iftar)} className="w-full py-2 bg-white hover:bg-blue-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                          <Clock size={13} className="text-black shrink-0" /><span>{formatTo12HourString(iftar)}</span>
                         </button>
                       </div>
                     </div>
@@ -1005,11 +1049,11 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
 
                 <div className="space-y-1.5 border-t border-slate-100 pt-3">
                   <label className="text-sm text-slate-700 font-bold font-urdu block">اہم اعلان یا وقتی تبدیلی (اختیاری)</label>
-                  <textarea placeholder="مثال: کل انشاء اللہ فجر کی نماز نئے وقت پر ادا کی جائے گی۔" value={announcement} onChange={(e) => setAnnouncement(e.target.value)} className="w-full p-3 h-16 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:border-emerald-400 transition-all text-right font-urdu" dir="rtl" />
+                  <textarea placeholder="مثال: کل انشاء اللہ فجر کی نماز نئے وقت پر ادا کی جائے گی۔" value={announcement} onChange={(e) => setAnnouncement(e.target.value)} className="w-full p-3 h-16 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white focus:border-blue-200 transition-all text-right font-urdu" dir="rtl" />
                 </div>
 
                 <div className="pt-3 border-t border-slate-100">
-                  <button type="submit" className="w-full py-3.5 bg-emerald-700 text-white rounded-xl text-sm font-urdu font-bold hover:bg-emerald-800 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                  <button type="submit" className="w-full py-3.5 bg-[#75b5ff] text-black rounded-xl text-sm font-urdu font-bold hover:bg-[#96c7ff] active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                     <Save size={15} />
                     {editId ? 'ترمیم کلاؤڈ پر محفوظ کریں' : 'مسجد ریکارڈ کلاؤڈ پر رجسٹر کریں'}
                   </button>
@@ -1018,7 +1062,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
             </div>
 
             <div className="pt-1 pb-2 select-none px-4">
-              <button type="button" onClick={() => setShowLogoutConfirm(true)} className="w-full py-2.5 bg-white hover:bg-rose-50 text-rose-600 font-urdu font-bold text-sm rounded-xl border border-slate-200 hover:border-rose-100 transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <button type="button" onClick={() => setShowLogoutConfirm(true)} className="w-full py-2.5 bg-white hover:bg-blue-50 text-black font-urdu font-bold text-sm rounded-xl border border-slate-200 hover:border-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer">
                 لاگ آؤٹ کریں
               </button>
             </div>
@@ -1030,10 +1074,10 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
       {activePicker && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-3 sm:p-4 touch-none overscroll-none select-none">
           <div className="bg-white rounded-3xl w-full max-w-[340px] shadow-xl overflow-hidden border border-slate-200 flex flex-col animate-fadeIn">
-            <div className="bg-emerald-700 text-white p-4 text-center space-y-0.5">
-              <div className="text-[10px] text-emerald-100 font-bold uppercase tracking-wider font-urdu">وقت تبدیل کریں</div>
-              <h3 className="text-sm font-bold font-urdu text-amber-300">{activePicker.label} کا وقت</h3>
-              <div className="text-xl font-mono font-extrabold tracking-widest mt-1 bg-emerald-800 py-1 px-3 rounded-lg inline-block">
+            <div className="bg-[#75b5ff] text-black p-4 text-center space-y-0.5">
+              <div className="text-[10px] text-black font-bold uppercase tracking-wider font-urdu">وقت تبدیل کریں</div>
+              <h3 className="text-sm font-bold font-urdu text-black">{activePicker.label} کا وقت</h3>
+              <div className="text-xl font-mono font-extrabold tracking-widest mt-1 bg-[#75b5ff] py-1 px-3 rounded-lg inline-block">
                 {String(activePicker.hour).padStart(2, '0')}:{String(activePicker.minute).padStart(2, '0')}{' '}
                 <span className="text-xs">{activePicker.isPm ? 'PM' : 'AM'}</span>
               </div>
@@ -1045,21 +1089,21 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                   <div className="grid grid-cols-3 gap-1">
                     {[12,1,2,3,4,5,6,7,8,9,10,11].map((h) => (
                       <button key={h} type="button" onClick={() => setActivePicker({ ...activePicker, hour: h })}
-                        className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${activePicker.hour === h ? 'bg-emerald-700 text-white' : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                        className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${activePicker.hour === h ? 'bg-[#75b5ff] text-black' : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'}`}>
                         {String(h).padStart(2, '0')}
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center justify-between gap-1 pt-1 bg-slate-50 rounded-lg p-1 border border-slate-100">
+                  <div className="flex items-center justify-between gap-1 pt-1 bg-white rounded-lg p-1 border border-slate-100">
                     <button type="button" onClick={() => { let h = activePicker.hour - 1; if (h < 1) h = 12; setActivePicker({ ...activePicker, hour: h }); }} className="w-6 h-6 bg-white hover:bg-slate-100 text-slate-700 rounded-md font-bold flex items-center justify-center text-xs border border-slate-200 cursor-pointer">-</button>
                     <span className="text-xs font-mono font-bold text-slate-700">{String(activePicker.hour).padStart(2, '0')}</span>
                     <button type="button" onClick={() => { let h = activePicker.hour + 1; if (h > 12) h = 1; setActivePicker({ ...activePicker, hour: h }); }} className="w-6 h-6 bg-white hover:bg-slate-100 text-slate-700 rounded-md font-bold flex items-center justify-center text-xs border border-slate-200 cursor-pointer">+</button>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5 mt-1">
-                    <button type="button" onClick={() => setActivePicker({ ...activePicker, isPm: false })} className={`py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-0.5 transition-all cursor-pointer border ${!activePicker.isPm ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
+                    <button type="button" onClick={() => setActivePicker({ ...activePicker, isPm: false })} className={`py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-0.5 transition-all cursor-pointer border ${!activePicker.isPm ? 'bg-[#75b5ff] text-black border-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
                       <Sunrise size={15} /><span className="text-[10px] leading-none mt-0.5 font-urdu">صبح</span>
                     </button>
-                    <button type="button" onClick={() => setActivePicker({ ...activePicker, isPm: true })} className={`py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-0.5 transition-all cursor-pointer border ${activePicker.isPm ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
+                    <button type="button" onClick={() => setActivePicker({ ...activePicker, isPm: true })} className={`py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-0.5 transition-all cursor-pointer border ${activePicker.isPm ? 'bg-[#75b5ff] text-black border-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
                       <Moon size={15} /><span className="text-[10px] leading-none mt-0.5 font-urdu">شام</span>
                     </button>
                   </div>
@@ -1069,12 +1113,12 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                   <div className="grid grid-cols-3 gap-1">
                     {[0,5,10,15,20,25,30,35,40,45,50,55].map((m) => (
                       <button key={m} type="button" onClick={() => setActivePicker({ ...activePicker, minute: m })}
-                        className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${activePicker.minute === m ? 'bg-emerald-700 text-white' : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                        className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${activePicker.minute === m ? 'bg-[#75b5ff] text-black' : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'}`}>
                         {String(m).padStart(2, '0')}
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center justify-between gap-1 pt-1 bg-slate-50 rounded-lg p-1 border border-slate-100 mt-1">
+                  <div className="flex items-center justify-between gap-1 pt-1 bg-white rounded-lg p-1 border border-slate-100 mt-1">
                     <button type="button" onClick={() => { let m = activePicker.minute - 1; if (m < 0) m = 59; setActivePicker({ ...activePicker, minute: m }); }} className="w-6 h-6 bg-white hover:bg-slate-100 text-slate-700 rounded-md font-bold flex items-center justify-center text-xs border border-slate-200 cursor-pointer">-</button>
                     <span className="text-xs font-mono font-bold text-slate-700">{String(activePicker.minute).padStart(2, '0')}</span>
                     <button type="button" onClick={() => { let m = activePicker.minute + 1; if (m > 59) m = 0; setActivePicker({ ...activePicker, minute: m }); }} className="w-6 h-6 bg-white hover:bg-slate-100 text-slate-700 rounded-md font-bold flex items-center justify-center text-xs border border-slate-200 cursor-pointer">+</button>
@@ -1083,7 +1127,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
               </div>
               <div className="flex gap-2 pt-2 border-t border-slate-100 font-urdu">
                 <button type="button" onClick={() => setActivePicker(null)} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold cursor-pointer">منسوخ کریں</button>
-                <button type="button" onClick={saveCustomTime} className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold cursor-pointer">محفوظ کریں</button>
+                <button type="button" onClick={saveCustomTime} className="flex-1 py-2 bg-[#75b5ff] hover:bg-[#96c7ff] text-black rounded-xl text-xs font-bold cursor-pointer">محفوظ کریں</button>
               </div>
             </div>
           </div>
@@ -1094,9 +1138,9 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
       {showEditInfoModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-3 touch-none overscroll-none select-none animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-[340px] shadow-xl border border-slate-200 p-5 space-y-4 text-right">
-            <div className="flex items-center gap-2 justify-end text-emerald-700 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2 justify-end text-black border-b border-slate-100 pb-3">
               <span className="text-sm font-bold font-urdu">نام اور پتہ تبدیل کریں</span>
-              <Pencil size={16} className="shrink-0 text-emerald-600" />
+              <Pencil size={16} className="shrink-0 text-black" />
             </div>
             <div className="space-y-3">
               <div className="space-y-1.5">
@@ -1105,7 +1149,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                   type="text"
                   value={editInfoName}
                   onChange={(e) => setEditInfoName(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:border-emerald-400 transition-all text-right font-urdu"
+                  className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white focus:border-blue-200 transition-all text-right font-urdu"
                   dir="rtl"
                 />
               </div>
@@ -1115,14 +1159,14 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                   type="text"
                   value={editInfoAddress}
                   onChange={(e) => setEditInfoAddress(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:border-emerald-400 transition-all text-right font-urdu"
+                  className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:bg-white focus:border-blue-200 transition-all text-right font-urdu"
                   dir="rtl"
                 />
               </div>
             </div>
             <div className="flex gap-2.5 pt-1 font-urdu">
               <button type="button" onClick={() => setShowEditInfoModal(false)} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold cursor-pointer">منسوخ کریں</button>
-              <button type="button" onClick={saveNameAddress} className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-sm font-bold cursor-pointer">محفوظ کریں</button>
+              <button type="button" onClick={saveNameAddress} className="flex-1 py-2 bg-[#75b5ff] hover:bg-[#96c7ff] text-black rounded-xl text-sm font-bold cursor-pointer">محفوظ کریں</button>
             </div>
           </div>
         </div>
@@ -1134,18 +1178,18 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
         return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-3 touch-none overscroll-none select-none animate-fadeIn">
             <div className="bg-white rounded-3xl w-full max-w-[325px] shadow-xl border border-slate-200 p-5 space-y-4 text-right">
-              <div className="flex items-center gap-2 justify-end text-rose-600 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 justify-end text-black border-b border-slate-100 pb-3">
                 <span className="text-sm font-bold font-urdu">مسجد ڈیلیٹ کریں</span>
-                <Trash size={16} className="shrink-0 text-rose-500" />
+                <Trash size={16} className="shrink-0 text-black" />
               </div>
               <div className="space-y-2">
                 <p className="text-sm text-slate-700 leading-relaxed font-urdu">کیا آپ واقعی یہ مسجد مکمل طور پر ڈیلیٹ کرنا چاہتے ہیں؟</p>
-                {target && <p className="text-sm font-bold text-rose-700 font-urdu bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">{target.name}</p>}
+                {target && <p className="text-sm font-bold text-black font-urdu bg-blue-50 px-3 py-2 rounded-xl border border-blue-200">{target.name}</p>}
                 <p className="text-xs text-slate-400 font-urdu">یہ عمل واپس نہیں ہو سکتا۔</p>
               </div>
               <div className="flex gap-2.5 pt-1 font-urdu">
                 <button type="button" onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold cursor-pointer">منسوخ کریں</button>
-                <button type="button" onClick={() => { onDeleteMosque(deleteConfirmId); if (editId === deleteConfirmId) resetForm(); setDeleteConfirmId(null); setSuccessMessage('مسجد کا ریکارڈ کامیابی سے ڈیلیٹ کر دیا گیا ہے۔'); setTimeout(() => setSuccessMessage(''), 4000); }} className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold cursor-pointer">ہاں، ڈیلیٹ کریں</button>
+                <button type="button" onClick={() => { onDeleteMosque(deleteConfirmId); if (editId === deleteConfirmId) resetForm(); setDeleteConfirmId(null); setSuccessMessage('مسجد کا ریکارڈ کامیابی سے ڈیلیٹ کر دیا گیا ہے۔'); setTimeout(() => setSuccessMessage(''), 4000); }} className="flex-1 py-2 bg-[#75b5ff] hover:bg-[#96c7ff] text-black rounded-xl text-sm font-bold cursor-pointer">ہاں، ڈیلیٹ کریں</button>
               </div>
             </div>
           </div>
@@ -1156,9 +1200,9 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
       {showLocationOffPopup && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-3 touch-none overscroll-none select-none animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-[340px] shadow-xl border border-slate-200 p-5 space-y-4 text-right">
-            <div className="flex items-center gap-2 justify-end text-amber-600 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2 justify-end text-black border-b border-slate-100 pb-3">
               <span className="text-sm font-bold font-urdu">لوکیشن آن کریں</span>
-              <MapPin size={16} className="shrink-0 text-amber-500" />
+              <MapPin size={16} className="shrink-0 text-black" />
             </div>
             <div className="space-y-1.5">
               <p className="text-sm text-slate-700 leading-relaxed font-urdu font-bold">
@@ -1172,7 +1216,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => { setShowLocationOffPopup(false); handleAutoGrabLocation(); }}
-                className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-sm font-bold cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 bg-[#75b5ff] hover:bg-[#96c7ff] text-black rounded-xl text-sm font-bold cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <MapPin size={14} /> دوبارہ کوشش کریں
               </button>
@@ -1180,7 +1224,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => { setShowLocationOffPopup(false); onNavigateToSettings(); }}
-                  className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-sm font-bold border border-amber-200 cursor-pointer flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 bg-blue-50 hover:bg-blue-50 text-black rounded-xl text-sm font-bold border border-blue-200 cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   دستی طور پر لوکیشن سیٹ کریں (سیٹنگز)
                 </button>
@@ -1199,14 +1243,14 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
       {showLogoutConfirm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-3 touch-none overscroll-none select-none animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-[325px] shadow-xl border border-slate-200 p-5 space-y-4 text-right">
-            <div className="flex items-center gap-2 justify-end text-rose-600 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2 justify-end text-black border-b border-slate-100 pb-3">
               <span className="text-sm font-bold font-urdu">تصدیق لاگ آؤٹ</span>
-              <AlertCircle size={16} className="shrink-0 text-rose-500" />
+              <AlertCircle size={16} className="shrink-0 text-black" />
             </div>
             <p className="text-sm text-slate-700 leading-relaxed font-urdu">کیا آپ واقعی لاگ آؤٹ کرنا چاہتے ہیں؟</p>
             <div className="flex gap-2.5 pt-1 font-urdu">
               <button type="button" onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold cursor-pointer">منسوخ کریں</button>
-              <button type="button" onClick={() => { setShowLogoutConfirm(false); handleLogOut(); }} className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold cursor-pointer">جی ہاں، لاگ آؤٹ کریں</button>
+              <button type="button" onClick={() => { setShowLogoutConfirm(false); handleLogOut(); }} className="flex-1 py-2 bg-[#75b5ff] hover:bg-[#96c7ff] text-black rounded-xl text-sm font-bold cursor-pointer">جی ہاں، لاگ آؤٹ کریں</button>
             </div>
           </div>
         </div>
@@ -1214,15 +1258,15 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
 
       {/* ── سیونگ اوورلے ── */}
       {isSaving && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[999999] flex flex-col items-center justify-center p-6 text-center select-none touch-none animate-fadeIn">
-          <div className="bg-emerald-900/40 p-7 rounded-full border-2 border-emerald-600/30 relative mb-4 animate-scaleUp">
-            <RefreshCw className="text-amber-400 animate-spin" size={54} strokeWidth={2} />
-            <span className="absolute inset-x-0 top-[26px] flex items-center justify-center font-mono font-bold text-white text-sm">{savingStep}</span>
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-md z-[999999] flex flex-col items-center justify-center p-6 text-center select-none touch-none animate-fadeIn">
+          <div className="bg-[#75b5ff] p-7 rounded-full border-2 border-blue-200 relative mb-4 animate-scaleUp">
+            <RefreshCw className="text-black animate-spin" size={54} strokeWidth={2} />
+            <span className="absolute inset-x-0 top-[26px] flex items-center justify-center font-mono font-bold text-black text-sm">{savingStep}</span>
           </div>
-          <h3 className="text-base font-bold font-urdu text-amber-300 animate-pulse tracking-wide">اوقاتِ جماعت کلاؤڈ سرور پر اپڈیٹ ہو رہے ہیں...</h3>
-          <p className="text-sm text-emerald-100 leading-relaxed font-urdu max-w-xs mt-2.5">براہ کرم تھوڑا انتظار کیجیئے۔</p>
-          <div className="w-52 bg-slate-800 rounded-full h-1.5 mt-5 overflow-hidden">
-            <div className="bg-amber-400 h-full rounded-full" style={{ width: `${((3 - savingStep) / 3) * 100}%`, transition: 'width 1.1s linear' }}></div>
+          <h3 className="text-base font-bold font-urdu text-black animate-pulse tracking-wide">اوقاتِ جماعت کلاؤڈ سرور پر اپڈیٹ ہو رہے ہیں...</h3>
+          <p className="text-sm text-black leading-relaxed font-urdu max-w-xs mt-2.5">براہ کرم تھوڑا انتظار کیجیئے۔</p>
+          <div className="w-52 bg-black/10 rounded-full h-1.5 mt-5 overflow-hidden">
+            <div className="bg-[#75b5ff] h-full rounded-full" style={{ width: `${((3 - savingStep) / 3) * 100}%`, transition: 'width 1.1s linear' }}></div>
           </div>
         </div>
       )}
@@ -1231,24 +1275,24 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
       {(successMessage || errorMessage) && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999999] flex items-center justify-center p-3 touch-none overscroll-none select-none animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-[320px] shadow-xl border border-slate-200 p-6 space-y-4 text-center animate-scaleUp">
-            <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${errorMessage ? 'bg-rose-50' : 'bg-emerald-50'}`}>
+            <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${errorMessage ? 'bg-blue-50' : 'bg-blue-50'}`}>
               {errorMessage ? (
-                <AlertCircle size={30} className="text-rose-600" />
+                <AlertCircle size={30} className="text-black" />
               ) : (
-                <CheckCircle size={30} className="text-emerald-600" />
+                <CheckCircle size={30} className="text-black" />
               )}
             </div>
             <p className="text-sm text-slate-700 leading-relaxed font-urdu font-bold">{errorMessage || successMessage}</p>
             <button
               type="button"
               onClick={() => { setSuccessMessage(''); setErrorMessage(''); }}
-              className={`w-full py-2.5 rounded-xl text-sm font-bold font-urdu cursor-pointer text-white transition-all ${errorMessage ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-700 hover:bg-emerald-800'}`}
+              className={`w-full py-2.5 rounded-xl text-sm font-bold font-urdu cursor-pointer text-black transition-all ${errorMessage ? 'bg-[#75b5ff] hover:bg-[#96c7ff]' : 'bg-[#75b5ff] hover:bg-[#96c7ff]'}`}
             >
               ٹھیک ہے
             </button>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
