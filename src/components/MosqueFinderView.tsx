@@ -16,6 +16,7 @@ import {
 import { Mosque } from '../types';
 import { useJamaatTimesForMany, mosqueJumuah } from '../hooks/useJamaatTimes';
 import type { PrayerKey } from '../hooks/useJamaatTimes';
+import { createPortal } from 'react-dom';
 import { setMosqueFollow, getFollowedMosques } from '../utils/fcm';
 import './MosqueFinderView.css';
 
@@ -563,8 +564,12 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
     if (!res.ok) {
       setNotifPreferences((prev) => ({ ...prev, [mosque.id]: !want })); // ناکام: واپس
       showToast(res.message || 'کچھ گڑبڑ ہو گئی، دوبارہ کوشش کریں۔');
-    } else if (want) {
-      showToast(`✅ ${mosque.name.trim()} کی جماعت کے نوٹیفکیشن آن ہو گئے`);
+    } else {
+      showToast(
+        want
+          ? `✅ ${mosque.name.trim()} کی جماعت کے نوٹیفکیشن آن ہو گئے`
+          : `🔕 ${mosque.name.trim()} کے نوٹیفکیشن بند ہو گئے`
+      );
     }
   };
 
@@ -590,20 +595,26 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
   return (
     <NowProvider>
       <div className="mfv-root" dir="rtl">
-        {toast && (
-          <div
-            role="status"
-            style={{
-              position: 'fixed', left: 16, right: 16, bottom: 96, zIndex: 1000,
-              margin: '0 auto', maxWidth: 420, padding: '12px 16px',
-              background: '#0f5a43', color: '#fff', borderRadius: 14,
-              textAlign: 'center', fontSize: 14, fontWeight: 600, lineHeight: 1.6,
-              boxShadow: '0 8px 24px rgba(0,0,0,.25)',
-            }}
-          >
-            {toast}
-          </div>
-        )}
+        {toast &&
+          createPortal(
+            <div
+              role="status"
+              dir="rtl"
+              style={{
+                position: 'fixed', left: 16, right: 16,
+                bottom: 'calc(150px + env(safe-area-inset-bottom, 0px))',
+                zIndex: 2147483000,
+                margin: '0 auto', maxWidth: 420, padding: '12px 16px',
+                background: '#0f5a43', color: '#fff', borderRadius: 14,
+                textAlign: 'center', fontSize: 14, fontWeight: 600, lineHeight: 1.6,
+                boxShadow: '0 8px 24px rgba(0,0,0,.25)',
+                pointerEvents: 'none',
+              }}
+            >
+              {toast}
+            </div>,
+            document.body
+          )}
 
         {/* ہیڈر */}
         <section className="mfv-hero">
