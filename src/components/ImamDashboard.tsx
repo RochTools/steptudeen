@@ -11,6 +11,7 @@ import { PrayerSettingsCard } from './imam/PrayerSettingsCard';
 import { CalibrationWizard } from './imam/CalibrationWizard';
 import { DEFAULT_PRAYER_CONFIG, PrayerConfig } from '../lib/prayerEngine';
 import { IqamaSchedule } from '../lib/iqama';
+import { calculateMosqueTimes, mosqueDate, scheduleWithOffsets } from '../lib/mosqueTimes';
 
 // ── انٹرفیسز ──
 interface ImamDashboardProps {
@@ -196,7 +197,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   // ── نیا: اذان کی کیلیبریشن + جماعت کا شیڈول ──
   const [prayerConfig, setPrayerConfig] = useState<PrayerConfig>(DEFAULT_PRAYER_CONFIG);
   const [iqamaSchedule, setIqamaSchedule] = useState<IqamaSchedule>({
-    effectiveFrom: new Date().toISOString().slice(0, 10),
+    effectiveFrom: mosqueDate().dateKey,
   });
 
   // ── manual اوقات ──
@@ -207,10 +208,32 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   const [iftar, setIftar] = useState('18:30');
   const [announcement, setAnnouncement] = useState('');
 
-  // ── API اوقات ──
-  const [apiTimes, setApiTimes] = useState<Record<string, string> | null>(null);
-  const [apiLoading, setApiLoading] = useState(false);
-  const [apiError, setApiError] = useState(false);
+  // Refresh the date while the dashboard stays open, without an API dependency.
+  const [calculationNow, setCalculationNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setCalculationNow(new Date()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const effectivePrayerConfig = useMemo(() => ({
+    ...prayerConfig, timeZone: prayerConfig.timeZone || 'Asia/Karachi',
+  }), [prayerConfig]);
+  const effectiveIqamaSchedule = useMemo(() => scheduleWithOffsets(iqamaSchedule, {
+    fajr: fajrOffset, zuhr: zuhrOffset, asr: asrOffset, maghrib: maghribOffset, isha: ishaOffset,
+  }), [iqamaSchedule, fajrOffset, zuhrOffset, asrOffset, maghribOffset, ishaOffset]);
+  const existingMosque = mosques.find(m => m.id === editId);
+  const timingPreview = useMemo(() => {
+    if (latitude === null || longitude === null) return null;
+    try {
+      return calculateMosqueTimes({ latitude, longitude, prayerConfig: effectivePrayerConfig,
+        iqamaSchedule: effectiveIqamaSchedule, iqamaHistory: existingMosque?.iqamaHistory,
+        fajrOffset, zuhrOffset, asrOffset, maghribOffset, ishaOffset,
+      }, calculationNow);
+    } catch { return null; }
+  }, [latitude, longitude, effectivePrayerConfig, effectiveIqamaSchedule, existingMosque?.iqamaHistory,
+      fajrOffset, zuhrOffset, asrOffset, maghribOffset, ishaOffset, calculationNow]);
+  const apiTimes = timingPreview?.adhan ?? null;
+  const apiLoading = false;
+  const apiError = latitude !== null && longitude !== null && !timingPreview;
 
   const [activePicker, setActivePicker] = useState<{
     prayerKey: 'jumah' | 'eidFitr' | 'eidAdha' | 'sehri' | 'iftar';
@@ -269,94 +292,10 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     return () => { document.body.style.overflow = ''; };
   }, [activePicker]);
 
-  // ── API سے اوقات حاصل کریں (Debounce کے ساتھ) ──
-  useEffect(() => {
-    // پہلے سے چل رہی ٹائمر کلئیر کریں
-    if (apiTimeoutRef.current) {
-      clearTimeout(apiTimeoutRef.current);
-      apiTimeoutRef.current = null;
-    }
-
-    if (latitude === null || longitude === null) {
-      setApiTimes(null);
-      return;
-    }
-
-    // ✅ 500ms ڈیلی کے ساتھ API کال
-    apiTimeoutRef.current = setTimeout(() => {
-      let cancelled = false;
-      setApiLoading(true);
-      setApiError(false);
-
-      const today = new Date();
-      const dd = String(today.getDate()).padStart(2, '0');
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const yyyy = today.getFullYear();
-      const dateStr = `${dd}-${mm}-${yyyy}`;
-      const url = `https://api.aladhan.com/v1/timings/${dateStr}?latitude=${latitude}&longitude=${longitude}&method=1&school=1`;
-
-      fetch(url)
-        .then((res) => {
-          if (!res.ok) {
-            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-          }
-          return res.json();
-        })
-        .then((data) => {
-          if (cancelled || !isMountedRef.current) return;
-          if (data.code === 200) {
-            const t = data.data.timings;
-            setApiTimes({
-              fajr: t.Fajr.split(' ')[0],
-              zuhr: t.Dhuhr.split(' ')[0],
-              asr: t.Asr.split(' ')[0],
-              maghrib: t.Maghrib.split(' ')[0],
-              isha: t.Isha.split(' ')[0],
-            });
-            setApiError(false);
-          } else {
-            setApiError(true);
-            setErrorMessage('API سے درست ڈیٹا نہیں ملا');
-            setTimeout(() => setErrorMessage(''), 4000);
-          }
-        })
-        .catch((err) => {
-          if (cancelled || !isMountedRef.current) return;
-          setApiError(true);
-          // ✅ مخصوص ایرر میسجز
-          if (err.name === 'AbortError') {
-            setErrorMessage('درخواست منسوخ کر دی گئی');
-          } else if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
-            setErrorMessage('انٹرنیٹ کنکشن چیک کریں');
-          } else if (err.message?.includes('429')) {
-            setErrorMessage('بہت زیادہ درخواستیں، تھوڑا انتظار کریں');
-          } else {
-            setErrorMessage(`سرور سے رابطہ ممکن نہیں: ${err.message}`);
-          }
-          setTimeout(() => setErrorMessage(''), 5000);
-        })
-        .finally(() => {
-          if (!cancelled && isMountedRef.current) {
-            setApiLoading(false);
-          }
-        });
-
-      return () => { cancelled = true; };
-    }, 500);
-
-    return () => {
-      if (apiTimeoutRef.current) {
-        clearTimeout(apiTimeoutRef.current);
-        apiTimeoutRef.current = null;
-      }
-    };
-  }, [latitude, longitude]);
-
   // ── جماعت کا فائنل وقت ──
-  const getJamaatTime = useCallback((prayerKey: 'fajr' | 'zuhr' | 'asr' | 'maghrib' | 'isha', offset: number): string | null => {
-    if (!apiTimes || !apiTimes[prayerKey]) return null;
-    return minutesToHHMM(hhmmToMinutes(apiTimes[prayerKey]) + offset);
-  }, [apiTimes]);
+  const getJamaatTime = useCallback((prayerKey: 'fajr' | 'zuhr' | 'asr' | 'maghrib' | 'isha', _offset: number): string | null => {
+    return timingPreview?.jamaat[prayerKey] ?? null;
+  }, [timingPreview]);
 
   // ── فارمیٹ ہیلپرز ──
   const formatTo12HourString = (timeStr: string) => {
@@ -512,6 +451,8 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     setAsrOffset(15);
     setMaghribOffset(5);
     setIshaOffset(15);
+    setPrayerConfig(DEFAULT_PRAYER_CONFIG);
+    setIqamaSchedule({ effectiveFrom: mosqueDate().dateKey });
   };
 
   // ── مسجد ایڈٹ ──
@@ -537,7 +478,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     // نئی سیٹنگ لوڈ کریں (نہ ہو تو پرانے offsets کو شیڈول میں ڈھال دیں)
     setPrayerConfig(mosque.prayerConfig ?? DEFAULT_PRAYER_CONFIG);
     setIqamaSchedule(mosque.iqamaSchedule ?? {
-      effectiveFrom: new Date().toISOString().slice(0, 10),
+      effectiveFrom: mosqueDate().dateKey,
       iqama: {
         fajr: { delay: mosque.fajrOffset ?? 15 },
         zuhr: { delay: mosque.zuhrOffset ?? 15 },
@@ -578,7 +519,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
       return;
     }
     if (!apiTimes) {
-      setErrorMessage('جماعت کے اوقات API سے ابھی تک نہیں آئے۔ تھوڑا انتظار کریں یا انٹرنیٹ چیک کریں۔');
+      setErrorMessage('اوقات کا حساب نہیں ہو سکا۔ مسجد کے کوآرڈینیٹس اور نماز کی سیٹنگ چیک کریں۔');
       return;
     }
 
@@ -648,8 +589,9 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           ishaOffset,
 
           // ── نیا: امام کی کیلیبریشن → Firebase → تمام صارفین ──
-          prayerConfig,
-          iqamaSchedule,
+          prayerConfig: effectivePrayerConfig,
+          iqamaSchedule: effectiveIqamaSchedule,
+          ...(existingMosque?.iqamaHistory ? { iqamaHistory: existingMosque.iqamaHistory } : {}),
         });
         setIsSaving(false);
         setSuccessMessage(editId
@@ -966,7 +908,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                   ) : apiError ? (
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-right">
                       <p className="text-xs text-black font-urdu leading-relaxed">
-                        اذان کا وقت لانے میں مسئلہ ہوا۔ انٹرنیٹ چیک کریں۔
+                        اذان کا حساب نہیں ہو سکا۔ کوآرڈینیٹس اور نماز کی سیٹنگ چیک کریں۔
                       </p>
                     </div>
                   ) : null}
