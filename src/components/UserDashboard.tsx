@@ -1,23 +1,24 @@
 import { useState, useEffect } from 'react';
-import { User, Heart, MapPin, LogIn, LayoutDashboard, LogOut, Bookmark, Clock } from 'lucide-react';
-import { Mosque } from '../types';
+import { ArrowLeft, ArrowUpRight, BookOpen, Check, Heart, MapPin, LogIn, LayoutDashboard, LogOut, Bookmark, Clock, Layers, X } from 'lucide-react';
+import type { Mosque } from '../types';
 
 interface UserDashboardProps {
-  userName?: string;          // ✅ اب optional ہے — login کے بغیر (guest) بھی ڈش بورڈ چلے گا
+  profileImageSrc?: string;
+  userName?: string;
   onClose: () => void;
   onOpenMosque: (mosque: Mosque) => void;
   onGoToSavedHadith?: (bookKey: string, chapterKey: string, chapterName: string, from: number, to: number, hadithNum: number) => void;
-  onImamLogin: () => void;    // ✅ امام لاگ ان پیج پر لے جاتا ہے
+  onImamLogin: () => void;
   onImamDashboard: () => void;
   isImamLoggedIn: boolean;
   onImamLogout: () => void;
-  onGoToQuran?: (surah: number, ayah: number) => void; // New prop for Quran navigation
-  isGuest?: boolean;          // ✅ true ہو تو guest mode دکھائے گا
-  userPhone?: string;         // ✅ optional: یوزر کا فون/ای میل (اگر ہو)
-  onLogout?: () => void;      // ✅ optional: یوزر لاگ آؤٹ (صرف logged-in یوزر کے لیے)
+  onGoToQuran?: (surah: number, ayah: number) => void;
+  isGuest?: boolean;
+  userPhone?: string;
+  onLogout?: () => void;
 }
 
-// Last seen Quran interface - matches QuranView's LastSeen
+
 interface LastSeenQuran {
   surah: number;
   ayah: number;
@@ -25,34 +26,37 @@ interface LastSeenQuran {
   savedAt: number;
 }
 
-export function UserDashboard({ 
-  userName = 'Guest',   // ✅ login کے بغیر آنے پر نام "Guest" دکھے گا
-  onClose, 
-  onOpenMosque, 
-  onGoToSavedHadith, 
-  onImamLogin, 
-  onImamDashboard, 
-  isImamLoggedIn, 
+export function UserDashboard({
+  userName = 'Guest',
+  onClose,
+  onOpenMosque,
+  onGoToSavedHadith,
+  onImamLogin,
+  onImamDashboard,
+  isImamLoggedIn,
   onImamLogout,
   onGoToQuran,
   isGuest = false,
   userPhone,
-  onLogout
+  onLogout,
+  profileImageSrc = '/profile.jpg'
 }: UserDashboardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [profileImageSrc]);
   const [showAllDhikr, setShowAllDhikr] = useState(false);
-  
-  // ── Toast notification ──
+
+
   const [toast, setToast] = useState('');
 
-  // ── Last Seen Quran (same key as QuranView) ──
+
   const [lastSeenQuran, setLastSeenQuran] = useState<LastSeenQuran | null>(() => {
-    try { 
+    try {
       const data = localStorage.getItem('steptudeen_app_quran_last_seen');
       return data ? JSON.parse(data) : null;
     } catch { return null; }
   });
 
-  // Listen for Quran last seen updates
+
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'steptudeen_app_quran_last_seen') {
@@ -68,7 +72,7 @@ export function UserDashboard({
       }
     };
 
-    // Custom event listener for real-time updates from QuranView
+
     const handleCustomEvent = (e: CustomEvent) => {
       if (e.detail?.type === 'quranLastSeenUpdated') {
         try {
@@ -86,21 +90,21 @@ export function UserDashboard({
 
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('quranLastSeenUpdated', handleCustomEvent as EventListener);
-    
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('quranLastSeenUpdated', handleCustomEvent as EventListener);
     };
   }, []);
 
-  // ── Toast auto-dismiss ──
+
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(''), 3200);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  // ── Tasbih Data ─────────────────────────────────────────────
+
   const today = new Date().toISOString().split('T')[0];
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
@@ -119,12 +123,12 @@ export function UserDashboard({
     } catch { return []; }
   })();
 
-  // ── Saved Hadiths ─────────────────────────────────────────────
+
   const [savedHadiths, setSavedHadiths] = useState<any[]>(() => {
     try { return JSON.parse(localStorage.getItem('user_saved_hadiths') || '[]'); } catch { return []; }
   });
 
-  // Listen for saved hadith updates
+
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'user_saved_hadiths') {
@@ -148,7 +152,7 @@ export function UserDashboard({
     setToast('Hadith removed from saved list');
   };
 
-  // ── Saved Mosques ─────────────────────────────────────────────
+
   const [savedMosques, setSavedMosques] = useState<any[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('user_saved_mosques') || '[]');
@@ -165,7 +169,7 @@ export function UserDashboard({
     setToast('Mosque removed from saved list');
   };
 
-  // Format time ago
+
   const getTimeAgo = (timestamp: number) => {
     const diff = Date.now() - timestamp;
     const minutes = Math.floor(diff / 60000);
@@ -180,273 +184,130 @@ export function UserDashboard({
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center px-6 pt-10 gap-6 pb-8">
+    <main className="ud" dir="ltr">
+      <style>{`
+        .ud { --blue:#75b5ff; --ink:#080808; box-sizing:border-box; min-height:100vh; background:#fff; color:var(--ink); padding:28px 20px 40px; font-family:inherit; }
+        .ud *, .ud *::before, .ud *::after { box-sizing:border-box; }
+        .ud .ud-shell { max-width:1080px; margin:auto; }
+        .ud h1,.ud h2,.ud h3,.ud p { margin:0; }
+        .ud button { font:inherit; cursor:pointer; }
+        .ud .ud-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:10px 16px; border:1px solid #00000012; border-radius:12px; background:var(--blue); color:#000; font-size:12px; font-weight:700; box-shadow:0 3px 0 #00000012; transition:transform .18s,background .18s,box-shadow .18s; text-decoration:none; }
+        .ud .ud-btn:hover { background:#96c7ff; transform:translateY(-2px); box-shadow:0 6px 12px #00000010; }
+        .ud .ud-btn:active { transform:translateY(1px); }
+        .ud button:focus-visible { outline:3px solid #1674de; outline-offset:4px; }
+        .ud .ud-icon-btn { padding:10px; flex-shrink:0; }
+        .ud .ud-top,.ud .ud-actions,.ud .ud-row { display:flex; align-items:center; gap:12px; }
+        .ud .ud-top { justify-content:space-between; flex-wrap:wrap; margin-bottom:26px; }
+        .ud .ud-actions { flex-wrap:wrap; }
+        .ud .ud-brand { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:800; letter-spacing:.04em; }
+        .ud .ud-brand-mark,.ud .ud-symbol { display:grid; place-items:center; width:38px; height:38px; border:1px solid #00000010; border-radius:12px; color:#0870df; background:#fff; flex-shrink:0; }
+        .ud .ud-card { background:#fff; border:1px solid #0000000d; border-radius:23px; box-shadow:0 12px 32px #00000008,0 3px 7px #00000006; }
+        .ud .ud-profile { padding:30px; display:flex; align-items:center; gap:23px; position:relative; overflow:hidden; margin-bottom:24px; border-top:3px solid var(--blue); }
+        .ud .ud-avatar { width:92px; height:92px; flex-shrink:0; border-radius:25px; padding:5px; border:1px solid #00000012; box-shadow:0 5px 16px #0000000c; background:#fff; }
+        .ud .ud-avatar img { width:100%;height:100%;object-fit:cover;border-radius:19px;display:block; }
+        .ud .ud-initials { height:100%; display:grid;place-items:center;background:var(--blue);border-radius:19px;font-size:26px;font-weight:800; }
+        .ud .ud-kicker { font-size:10px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;opacity:.55;margin-bottom:8px; }
+        .ud h1 { font-size:clamp(24px,4vw,34px);font-weight:800;letter-spacing:-.04em;line-height:1.2;overflow-wrap:anywhere; }
+        .ud .ud-muted { font-size:12px;line-height:1.7;opacity:.58; }
+        .ud .ud-profile-copy { flex:1;min-width:0; }
+        .ud .ud-profile-copy .ud-muted { margin-top:6px;overflow-wrap:anywhere; }
+        .ud .ud-badge { display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #00000012;border-radius:9px;font-size:10px;font-weight:700;white-space:nowrap; }
+        .ud .ud-section { padding:25px;min-width:0; }
+        .ud .ud-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px; }
+        .ud h2 { font-size:15px;font-weight:800;letter-spacing:-.02em; }
+        .ud .ud-sub { font-size:11px;opacity:.5;margin-top:5px;line-height:1.5; }
+        .ud .ud-grid { display:grid;grid-template-columns:1.15fr 1fr;gap:24px;margin-top:24px;align-items:start; }
+        .ud .ud-stats { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px; }
+        .ud .ud-stat { padding:22px 18px;border:1px solid #0000000c;border-radius:17px;box-shadow:0 5px 14px #00000006;background:white; }
+        .ud .ud-stat:first-child { border-top:3px solid var(--blue);padding-top:20px; }
+        .ud .ud-number { display:block;font-size:clamp(22px,3.5vw,34px);font-weight:800;letter-spacing:-.045em;overflow-wrap:anywhere;margin:8px 0 4px; }
+        .ud .ud-stat-label { font-size:11px;opacity:.6; }
+        .ud .ud-list { display:grid;gap:13px; }
+        .ud .ud-item { border:1px solid #0000000d;border-radius:15px;padding:17px;background:#fff;box-shadow:0 4px 10px #00000004;min-width:0; }
+        .ud .ud-spread { justify-content:space-between; }
+        .ud .ud-dhikr { margin-top:18px; }
+        .ud .ud-arabic { font-size:17px;line-height:1.95;text-align:right;overflow-wrap:anywhere; }
+        .ud .ud-empty { min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:9px;padding:24px 12px;border:1px dashed #00000019;border-radius:15px; }
+        .ud .ud-empty svg { color:#2586f0;margin-bottom:5px; }
+        .ud .ud-empty strong { font-size:12px;font-weight:600; }
+        .ud .ud-count { font-size:11px;padding:5px 9px;border:1px solid #00000014;border-radius:8px;font-weight:700; }
+        .ud .ud-full { width:100%;margin-top:16px; }
+        .ud .ud-reading { font-size:25px;font-weight:800;letter-spacing:-.035em;margin:15px 0 8px; }
+        .ud .ud-meta { display:flex;align-items:center;gap:6px;font-size:11px;opacity:.6; }
+        .ud .ud-divider { border:0;border-top:1px solid #0000000c;margin:14px 0; }
+        .ud .ud-footer { margin-top:28px;display:flex;align-items:center;justify-content:space-between;gap:16px; }
+        .ud .ud-toast { position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100;display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #00000012;border-radius:15px;padding:16px 20px;box-shadow:0 12px 45px #00000020;width:max-content;max-width:calc(100vw - 32px);font-size:12px; }
+        @media(max-width:700px) { .ud{padding:18px 14px 28px}.ud .ud-grid{grid-template-columns:1fr;gap:18px;margin-top:18px}.ud .ud-profile{padding:23px 19px;gap:16px;flex-wrap:wrap}.ud .ud-avatar{width:76px;height:76px}.ud .ud-section{padding:20px 16px}.ud .ud-stats{gap:8px}.ud .ud-stat{padding:16px 10px}.ud .ud-stat:first-child{padding-top:14px}.ud .ud-profile>.ud-badge{margin-left:92px}.ud .ud-footer{align-items:flex-start;flex-direction:column}.ud .ud-top{gap:18px}.ud .ud-btn{font-size:11px;padding:10px 12px} }
+        @media(prefers-reduced-motion:reduce) { .ud .ud-btn{transition:none}.ud .ud-btn:hover{transform:none} }
+      `}</style>
+      <div className="ud-shell">
+        <header className="ud-top">
+          <div className="ud-brand"><span className="ud-brand-mark"><LayoutDashboard size={19}/></span> MY DASHBOARD</div>
+          <nav className="ud-actions" aria-label="Account actions">
+            {isImamLoggedIn ? <>
+              <button className="ud-btn" onClick={onImamDashboard}><LayoutDashboard size={15}/> Imam Panel</button>
+              <button className="ud-btn" onClick={onImamLogout}><LogOut size={15}/> Imam Logout</button>
+            </> : <button className="ud-btn" onClick={onImamLogin}><LogIn size={15}/> Imam Login</button>}
+            {!isGuest && onLogout && <button className="ud-btn" onClick={onLogout}><LogOut size={15}/> Logout</button>}
+          </nav>
+        </header>
 
-      {/* Top Row: profile + imam button */}
-      <div className="w-full flex items-start justify-center relative">
-
-        {/* ✅ User Logout - top left (صرف logged-in یوزر کے لیے، guest کے لیے نہیں) */}
-        {!isGuest && onLogout && (
-          <button
-            onClick={onLogout}
-            className="absolute left-0 top-0 flex items-center gap-1 px-2.5 py-1.5 bg-red-50 border border-red-200 text-red-500 text-xs font-bold rounded-lg active:scale-95 hover:bg-red-100 transition-all"
-          >
-            <LogOut size={12} />
-            Logout
-          </button>
-        )}
-
-        {/* Imam Login / Dashboard - top right */}
-        {isImamLoggedIn ? (
-          <div className="absolute right-0 top-0 flex flex-col items-end gap-1">
-            <button
-              onClick={onImamDashboard}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold rounded-lg active:scale-95 hover:bg-emerald-100 transition-all"
-            >
-              <LayoutDashboard size={12} />
-              Imam Panel
-            </button>
-            <button
-              onClick={onImamLogout}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-red-50 border border-red-200 text-red-500 text-xs font-bold rounded-lg active:scale-95 hover:bg-red-100 transition-all"
-            >
-              <LogOut size={12} />
-              Logout
-            </button>
+        <section className="ud-card ud-profile" aria-label="Your profile">
+          <div className="ud-avatar">
+            {!imageFailed ? <img src={profileImageSrc} alt={`${userName}'s profile`} onError={() => setImageFailed(true)}/> : <span className="ud-initials" aria-label={userName}>{userName.trim().slice(0,2).toUpperCase() || 'GU'}</span>}
           </div>
-        ) : (
-          <button
-            onClick={onImamLogin}
-            className="absolute right-0 top-0 flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold rounded-lg active:scale-95 hover:bg-blue-100 transition-all"
-          >
-            <LogIn size={12} />
-            Imam Login
-          </button>
-        )}
+          <div className="ud-profile-copy">
+            <p className="ud-kicker">Your personal space</p>
+            <h1>{userName}</h1>
+            {userPhone && <p className="ud-muted">{userPhone}</p>}
+            <p className="ud-muted">{isGuest ? 'Guest mode — data is saved on this device only.' : 'Your daily remembrance, reading and saved places.'}</p>
+          </div>
+          <span className="ud-badge">{isGuest ? <Bookmark size={13}/> : <Check size={13}/>} {isGuest ? 'Guest account' : 'Personal dashboard'}</span>
+        </section>
 
-        {/* ✅ پروفائل پکچر سسٹم ہٹا دیا گیا — سادہ آئیکن ایویٹر */}
-        <div className="w-24 h-24 rounded-full bg-emerald-50 border-2 border-emerald-100 flex items-center justify-center shadow-sm">
-          <User size={44} className="text-emerald-600" />
+        <section className="ud-card ud-section">
+          <div className="ud-heading"><div className="ud-row"><span className="ud-symbol"><Layers size={19}/></span><div><h2>Tasbih Counter</h2><p className="ud-sub">Small moments. Meaningful progress.</p></div></div><span className="ud-badge">Daily activity</span></div>
+          <div className="ud-stats">
+            {[['Today', tasbihToday], ['Yesterday', tasbihYesterday], ['All time', tasbihTotal]].map(([label, value]) => <div className="ud-stat" key={String(label)}><span className="ud-stat-label">{label}</span><strong className="ud-number">{Number(value).toLocaleString()}</strong><span className="ud-stat-label">remembrances</span></div>)}
+          </div>
+          {dhikrList.length > 0 && <div className="ud-list ud-dhikr">
+            {(showAllDhikr ? dhikrList : dhikrList.slice(0,3)).map((d: any, i: number) => <div className="ud-item ud-row ud-spread" key={i}><div><strong>{Number(d.savedProgress || 0).toLocaleString()}</strong><p className="ud-sub">times</p></div><div style={{textAlign:'right'}}><p className="ud-arabic" dir="rtl">{d.ur}</p><p className="ud-sub">{d.en}</p></div></div>)}
+            {dhikrList.length > 3 && <button className="ud-btn" aria-expanded={showAllDhikr} onClick={() => setShowAllDhikr(!showAllDhikr)}>{showAllDhikr ? 'Show less' : `Show more (${dhikrList.length - 3})`}</button>}
+          </div>}
+        </section>
+
+        <div className="ud-grid">
+          <section className="ud-card ud-section">
+            <div className="ud-heading"><div className="ud-row"><span className="ud-symbol"><BookOpen size={19}/></span><div><h2>Continue your Quran</h2><p className="ud-sub">Pick up where you left off.</p></div></div></div>
+            {lastSeenQuran ? <div className="ud-item">
+              <span className="ud-badge">Last viewed</span><h3 className="ud-reading">Surah {lastSeenQuran.surahName}</h3><p className="ud-muted">Ayah {lastSeenQuran.ayah}</p><hr className="ud-divider"/>
+              <span className="ud-meta"><Clock size={13}/>{getTimeAgo(lastSeenQuran.savedAt)}</span>
+              <button className="ud-btn ud-full" onClick={() => onGoToQuran ? onGoToQuran(lastSeenQuran.surah,lastSeenQuran.ayah) : onClose()}>Continue reading <ArrowUpRight size={16}/></button>
+            </div> : <div className="ud-empty"><BookOpen size={27}/><strong>Your reading journey starts here</strong><p className="ud-muted">Your last viewed ayah will appear here.</p></div>}
+          </section>
+          <section className="ud-card ud-section">
+            <div className="ud-heading"><div className="ud-row"><span className="ud-symbol"><Bookmark size={19}/></span><div><h2>Saved Hadiths</h2><p className="ud-sub">Words to return to.</p></div></div><span className="ud-count">{savedHadiths.length}</span></div>
+            {savedHadiths.length === 0 ? <div className="ud-empty"><Bookmark size={27}/><strong>No hadiths saved yet</strong><p className="ud-muted">Tap Save on any hadith to keep it here.</p></div> : <div className="ud-list">
+              {savedHadiths.map((h,i) => <article className="ud-item" key={`${h.book}-${h.num}-${i}`}>
+                <div className="ud-row ud-spread"><div><strong style={{fontSize:12}}>{h.bookName}</strong><p className="ud-sub">Hadith {h.num}</p></div><button className="ud-btn ud-icon-btn" aria-label={`Remove hadith ${h.num}`} onClick={() => handleRemoveHadith(h.num,h.book)}><X size={14}/></button></div>
+                <hr className="ud-divider"/><p className="ud-arabic" dir="rtl">{h.ar}</p>{h.ur && <p className="ud-muted" style={{textAlign:'right',marginTop:8}} dir="rtl">{h.ur}</p>}
+                {onGoToSavedHadith && h.chapterKey && <button className="ud-btn ud-full" onClick={() => onGoToSavedHadith(h.book,h.chapterKey,h.chapterName || '',h.from || 0,h.to || 0,h.num)}>Open hadith <ArrowUpRight size={15}/></button>}
+              </article>)}
+            </div>}
+          </section>
+          <section className="ud-card ud-section" style={{gridColumn:'1 / -1'}}>
+            <div className="ud-heading"><div className="ud-row"><span className="ud-symbol"><MapPin size={19}/></span><div><h2>Saved Mosques</h2><p className="ud-sub">Your places of prayer, together.</p></div></div><span className="ud-count">{savedMosques.length}</span></div>
+            {savedMosques.length === 0 ? <div className="ud-empty"><Heart size={27}/><strong>No mosques saved yet</strong><p className="ud-muted">Tap the heart icon next to a mosque to save it.</p></div> : <div className="ud-list">
+              {savedMosques.map(mosque => <article className="ud-item" key={mosque.id}>
+                <div className="ud-row ud-spread"><div><h3 style={{fontSize:15,fontWeight:700}}>{mosque.name}</h3>{mosque.address && <p className="ud-muted" style={{marginTop:5}}>{mosque.address}</p>}</div><button className="ud-btn ud-icon-btn" aria-label={`Remove ${mosque.name} from saved mosques`} onClick={() => handleRemoveMosque(mosque.id)}><X size={15}/></button></div>
+                <button className="ud-btn ud-full" onClick={() => { onOpenMosque(mosque); onClose(); }}><MapPin size={15}/> View Prayer Times <ArrowUpRight size={15}/></button>
+              </article>)}
+            </div>}
+          </section>
         </div>
+        <footer className="ud-footer"><p className="ud-muted">A little progress, every day.</p><button className="ud-btn" onClick={onClose}><ArrowLeft size={16}/> Back to App</button></footer>
       </div>
-
-      {/* Name */}
-      <div className="text-center -mt-1">
-        <h2 className="text-black text-2xl font-bold">{userName}</h2>
-        {userPhone && <p className="text-[11px] text-slate-400 mt-1 truncate max-w-[240px] mx-auto">{userPhone}</p>}
-
-        {/* ✅ Guest mode — login کے بغیر بھی ڈش بورڈ چلتا ہے (لوکل ڈیٹا) */}
-        {isGuest && (
-          <span className="inline-block mt-2 text-[10px] text-slate-400">Guest mode — data is saved on this device only</span>
-        )}
-      </div>
-
-      <div className="w-full border-t border-slate-200"></div>
-
-      {/* ── Tasbih Counter ── */}
-      <div className="w-full">
-        <h3 className="text-left text-slate-700 font-bold text-sm mb-3">📿 Tasbih Counter</h3>
-
-        <div className="flex gap-2 mb-3">
-          <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-2xl p-3 text-center">
-            <p className="text-xl font-black text-emerald-700">{tasbihToday.toLocaleString()}</p>
-            <p className="text-[10px] text-emerald-600 mt-0.5">Today</p>
-          </div>
-          <div className="flex-1 bg-amber-50 border border-amber-100 rounded-2xl p-3 text-center">
-            <p className="text-xl font-black text-amber-700">{tasbihYesterday.toLocaleString()}</p>
-            <p className="text-[10px] text-amber-600 mt-0.5">Yesterday</p>
-          </div>
-          <div className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl p-3 text-center">
-            <p className="text-xl font-black text-slate-700">{Number(tasbihTotal).toLocaleString()}</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">Total</p>
-          </div>
-        </div>
-
-        {dhikrList.length > 0 && (
-          <div className="space-y-2">
-            {(showAllDhikr ? dhikrList : dhikrList.slice(0, 3)).map((d: any, i: number) => (
-              <div key={i} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
-                <span className="text-emerald-700 font-black text-sm">{d.savedProgress || 0} <span className="text-slate-400 font-normal text-[10px]">times</span></span>
-                <div className="text-right">
-                  <p className="text-slate-800 text-xs font-bold">{d.ur}</p>
-                  <p className="text-slate-400 text-[10px]">{d.en}</p>
-                </div>
-              </div>
-            ))}
-            {dhikrList.length > 3 && (
-              <button
-                onClick={() => setShowAllDhikr(!showAllDhikr)}
-                className="w-full py-2 text-emerald-700 text-xs font-bold border border-emerald-200 rounded-xl hover:bg-emerald-50 transition-all"
-              >
-                {showAllDhikr ? '← Show less' : `Show more (${dhikrList.length - 3}+)`}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="w-full border-t border-slate-200"></div>
-
-      {/* ── Quran - Last Seen (from QuranView) ── */}
-      <div className="w-full">
-        <h3 className="text-left text-slate-700 font-bold text-sm mb-3">
-          📖 Quran - Last Viewed
-        </h3>
-
-        {lastSeenQuran ? (
-          <div 
-            onClick={() => {
-              if (onGoToQuran) {
-                // ✅ قرآن کھلے گا اور یہی آیت highlight ہو گی
-                // ❌ onClose() ہٹا دیا — یہ navigateTo('quran') کو فوراً undo کر کے
-                //    واپس ڈش بورڈ پر لے آتا تھا، اس لیے آیت کبھی نہیں کھلتی تھی
-                onGoToQuran(lastSeenQuran.surah, lastSeenQuran.ayah);
-              } else {
-                onClose();
-              }
-            }}
-            className={`bg-emerald-50 border border-emerald-200 rounded-xl p-3 ${onGoToQuran ? 'cursor-pointer active:scale-95 hover:bg-emerald-100 transition-all' : ''}`}
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] text-emerald-600 border border-emerald-200 bg-emerald-100 px-1.5 py-0.5 rounded-lg">
-                {onGoToQuran ? '← Open' : 'Last Seen'}
-              </span>
-              <div className="text-right">
-                <span className="text-[10px] text-emerald-700 font-bold">Surah {lastSeenQuran.surahName}</span>
-                <span className="text-[10px] text-emerald-500 font-mono ml-1"> #{lastSeenQuran.ayah}</span>
-              </div>
-            </div>
-            <p className="text-[10px] text-emerald-600 text-right">⭐ Last viewed ayah</p>
-            <div className="flex items-center justify-end gap-1 mt-1">
-              <Clock size={10} className="text-emerald-400" />
-              <p className="text-[9px] text-emerald-400 text-right">
-                {getTimeAgo(lastSeenQuran.savedAt)}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-5 bg-slate-50 rounded-2xl border border-slate-100">
-            <Bookmark size={24} className="text-slate-300 mx-auto mb-2" />
-            <p className="text-slate-400 text-xs">No Quran ayah viewed yet</p>
-            <p className="text-slate-300 text-[10px] mt-1">Your last viewed ayah will appear here</p>
-          </div>
-        )}
-      </div>
-
-      <div className="w-full border-t border-slate-200"></div>
-
-      {/* ── Saved Hadiths ── */}
-      <div className="w-full">
-        <h3 className="text-left text-slate-700 font-bold text-sm mb-3">
-          📚 Saved Hadiths
-          <span className="text-slate-400 font-normal text-xs ml-1">({savedHadiths.length})</span>
-        </h3>
-
-        {savedHadiths.length === 0 ? (
-          <div className="text-center py-5 bg-slate-50 rounded-2xl border border-slate-100">
-            <p className="text-slate-400 text-xs">No hadiths saved yet</p>
-            <p className="text-slate-300 text-[10px] mt-1">Tap the Save button on any hadith</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {savedHadiths.map((h, i) => (
-              <div
-                key={i}
-                onClick={() => {
-                  if (onGoToSavedHadith && h.chapterKey) {
-                    onGoToSavedHadith(h.book, h.chapterKey, h.chapterName || '', h.from || 0, h.to || 0, h.num);
-                  }
-                }}
-                className={`bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5 ${onGoToSavedHadith && h.chapterKey ? 'cursor-pointer active:scale-95 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all' : 'cursor-default'}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleRemoveHadith(h.num, h.book); }}
-                      className="text-[10px] text-red-400 font-bold border border-red-200 bg-red-50 px-2 py-0.5 rounded-lg"
-                    >✕</button>
-                    {onGoToSavedHadith && h.chapterKey && (
-                      <span className="text-[9px] text-emerald-600 border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 rounded-lg">← Open</span>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-emerald-700 font-bold">{h.bookName}</span>
-                    <span className="text-[10px] text-slate-400 font-mono ml-1"> #{h.num}</span>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-700 text-right leading-relaxed line-clamp-2" dir="rtl">{h.ar}</p>
-                {h.ur && <p className="text-[10px] text-slate-500 text-right leading-relaxed line-clamp-2 border-t border-slate-100 pt-1" dir="rtl">{h.ur}</p>}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="w-full border-t border-slate-200"></div>
-
-      {/* ── Saved Mosques ── */}
-      <div className="w-full">
-        <h3 className="text-left text-slate-700 font-bold text-sm mb-3">
-          ❤️ Saved Mosques
-          <span className="text-slate-400 font-normal text-xs ml-1">({savedMosques.length})</span>
-        </h3>
-
-        {savedMosques.length === 0 ? (
-          <div className="text-center py-6 bg-slate-50 rounded-2xl border border-slate-100">
-            <Heart size={24} className="text-slate-300 mx-auto mb-2" />
-            <p className="text-slate-400 text-xs">No mosques saved yet</p>
-            <p className="text-slate-300 text-[10px] mt-1">Tap the ❤️ next to any mosque</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {savedMosques.map(mosque => (
-              <div key={mosque.id} className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => handleRemoveMosque(mosque.id)}
-                    className="p-1.5 rounded-lg text-red-400 hover:text-red-600 transition-colors"
-                  >
-                    <Heart size={14} className="fill-red-400" />
-                  </button>
-                  <div className="text-right flex-1 pr-2">
-                    <p className="text-slate-800 text-sm font-bold">{mosque.name}</p>
-                    {mosque.address && (
-                      <p className="text-slate-400 text-[10px] mt-0.5">{mosque.address}</p>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => { onOpenMosque(mosque); onClose(); }}
-                  className="w-full py-2 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all"
-                >
-                  <MapPin size={12} />
-                  View Prayer Times
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="w-full border-t border-slate-200"></div>
-
-      {/* Back */}
-      <button
-        onClick={onClose}
-        className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-sm rounded-xl transition-all"
-      >
-        ← Back to App
-      </button>
-
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed right-4 top-4 z-[100] flex w-[min(360px,calc(100vw-32px))] items-center gap-3 rounded-xl border border-[#d8e4da] bg-white p-3 text-xs shadow-2xl">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f0f7f1] text-[#14532d]">
-            <Bookmark size={15} />
-          </span>
-          <span>{toast}</span>
-        </div>
-      )}
-    </div>
+      {toast && <div className="ud-toast" role="status" aria-live="polite"><Check size={18} style={{flexShrink:0,color:'#0870df'}}/><span>{toast}</span></div>}
+    </main>
   );
 }
