@@ -1,3 +1,4 @@
+import { getAuth } from 'firebase/auth';
 import { useState, useCallback, useEffect } from 'react';
 import {
   getLocalMosques,
@@ -6,7 +7,7 @@ import {
 } from '../firebase';
 import {
   onSnapshot, collection, addDoc,
-  doc, setDoc, deleteDoc
+  doc, setDoc, deleteDoc, getDocFromServer
 } from 'firebase/firestore';
 import { Mosque } from '../types';
 import { validateMosqueId, parseSavedMosques } from '../utils/mosqueHelpers';
@@ -73,52 +74,37 @@ export const useMosques = (
     return () => window.removeEventListener('online', handleOnline);
   }, [realFirebaseActive, realtimeDb]);
 
-  // ============ ADD / UPDATE ============
+  const requireImam = useCallback(async () => {
+    if (!realFirebaseActive || !realtimeDb) throw new Error('Firebase login required.');
+    const firebaseAuth = getAuth(realtimeDb.app);
+    const user = firebaseAuth.currentUser;
+    if (!user || user.isAnonymous) throw new Error('Please sign in to manage a mosque.');
+    const profile = await getDocFromServer(doc(realtimeDb, 'users', user.uid));
+    if (firebaseAuth.currentUser?.uid !== user.uid || profile.data()?.role !== 'imam') throw new Error('Imam access is not verified.');
+    return user;
+  }, [realFirebaseActive, realtimeDb]);
+
   const handleAddOrUpdateMosque = useCallback(async (
     data: Omit<Mosque, 'id' | 'updatedAt'> & { id?: string }
   ) => {
-    // ✅ Firestore rules چیک کرتے ہیں: request.resource.data.ownerId == request.auth.uid
-    // ImamDashboard صرف imamUid بھیجتا ہے (جو دراصل Firebase Auth کا وہی uid ہے)،
-    // اس لیے یہاں ownerId خود بھر دیتے ہیں تاکہ rules سے میل کھائے۔
-    // imamUid کو بھی ساتھ رکھا ہے تاکہ باقی جگہ استعمال ہونے والا کوڈ نہ ٹوٹے۔
-    const freshMosque = {
-      ...data,
-      ownerId: (data as any).imamUid || (data as any).ownerId,
-      updatedAt: new Date().toISOString(),
-    };
-    if (realFirebaseActive && realtimeDb) {
-      try {
-        const { id, ...firestoreData } = freshMosque;
-        if (data.id) {
-          await setDoc(doc(realtimeDb, 'mosques', data.id), firestoreData);
-        } else {
-          await addDoc(collection(realtimeDb, 'mosques'), firestoreData);
-        }
-      } catch (error) {
-        // ✅ صرف localStorage میں رکھ کر خاموش نہ ہوں — بلانے والے کو بھی بتائیں
-        // (ورنہ ImamDashboard جھوٹی "کامیابی" دکھاتا رہتا ہے جبکہ Firestore نے رد کیا ہو)
-        console.error('Firestore save failed:', error);
-        setMosquesAndStopLoading(saveLocalMosque(freshMosque));
-        throw error;
-      }
-    } else {
-      setMosquesAndStopLoading(saveLocalMosque(freshMosque));
+    const user = await requireImam();
+    const { id, ...fields } = data;
+    if (id) {
+      const existing = await getDocFromServer(doc(realtimeDb, 'mosques', id));
+      if (!existing.exists() || existing.data().imamUid !== user.uid) throw new Error('You can only edit your own mosque.');
     }
-  }, [realFirebaseActive, realtimeDb, setMosquesAndStopLoading]);
+    const record = { ...fields, imamUid: user.uid, imamEmail: user.email || '', ownerId: user.uid, updatedAt: new Date().toISOString() };
+    // Never fall back to an unverified local write on permission/network failure.
+    if (id) await setDoc(doc(realtimeDb, 'mosques', id), record, { merge: true });
+    else await addDoc(collection(realtimeDb, 'mosques'), record);
+  }, [requireImam, realtimeDb]);
 
-  // ============ DELETE ============
   const handleDeleteMosque = useCallback(async (id: string) => {
-    if (realFirebaseActive && realtimeDb) {
-      try {
-        await deleteDoc(doc(realtimeDb, 'mosques', id));
-      } catch (error) {
-        console.error('Firestore delete failed:', error);
-        setMosquesAndStopLoading(deleteLocalMosque(id));
-      }
-    } else {
-      setMosquesAndStopLoading(deleteLocalMosque(id));
-    }
-  }, [realFirebaseActive, realtimeDb, setMosquesAndStopLoading]);
+    const user = await requireImam();
+    const existing = await getDocFromServer(doc(realtimeDb, 'mosques', id));
+    if (!existing.exists() || existing.data().imamUid !== user.uid) throw new Error('You can only delete your own mosque.');
+    await deleteDoc(doc(realtimeDb, 'mosques', id));
+  }, [requireImam, realtimeDb]);
 
   // ============ SAVE / UNSAVE ============
   const handleToggleSaveMosque = useCallback((mosque: Mosque) => {

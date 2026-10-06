@@ -4,7 +4,7 @@ export const useAuth = () => {
 
   // ============ IMAM AUTH ============
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
-    () => localStorage.getItem('imam_authenticated') === 'true'
+    false
   );
   const [authEmail, setAuthEmail] = useState<string>(
     () => localStorage.getItem('imam_email') || ''
@@ -101,8 +101,7 @@ export const useAuth = () => {
     const keys = [
       'imam_authenticated','imam_email','imam_name','imam_uid',
       'user_authenticated','user_name','user_phone',
-      'otp_authenticated','otp_user_email','otp_user_name',
-      'user_saved_mosques'
+      'otp_authenticated','otp_user_email','otp_user_name'
     ];
     keys.forEach(k => localStorage.removeItem(k));
   }, []);
