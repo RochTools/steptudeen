@@ -245,7 +245,7 @@ export function UserDashboard({
           <div className="ud-brand"><span className="ud-brand-mark"><LayoutDashboard size={19}/></span> MY DASHBOARD</div>
           <nav className="ud-actions" aria-label="Account actions">
             {isImamLoggedIn ? <>
-              <button className="ud-btn" onClick={onImamDashboard}><LayoutDashboard size={15}/> Imam Panel</button>
+              <button className="ud-btn" onClick={onImamDashboard}><LayoutDashboard size={15}/> Go to Imam Dashboard</button>
               <button className="ud-btn" onClick={onImamLogout}><LogOut size={15}/> Imam Logout</button>
             </> : <button className="ud-btn" onClick={onImamLogin}><LogIn size={15}/> Imam Login</button>}
             {!isGuest && onLogout && <button className="ud-btn" onClick={onLogout}><LogOut size={15}/> Logout</button>}

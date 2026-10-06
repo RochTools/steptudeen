@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { firebaseGoogleSignIn } from '../firebase';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { firebaseGoogleSignIn, initializeFirebaseAtRuntime } from '../firebase';
+import { doc, getDocFromServer, setDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, getRedirectResult, signInWithRedirect } from 'firebase/auth';
 
 interface LoginChoiceViewProps {
@@ -42,9 +42,11 @@ export function LoginChoiceView({
     setAuthName(user.displayName || user.email?.split('@')[0] || '');
     setAuthUid(user.uid);
 
-    const db = getFirestore();
+    if (!isRealFirebase || !realtimeAuth?.currentUser || realtimeAuth.currentUser.isAnonymous || realtimeAuth.currentUser.uid !== user.uid) throw new Error('Verified Firebase login required');
+    const { db } = await initializeFirebaseAtRuntime();
+    if (!db) throw new Error('Database unavailable');
     const userDocRef = doc(db, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
+    const userDoc = await getDocFromServer(userDocRef);
 
     if (!userDoc.exists()) {
       // ✅ نیا اکاؤنٹ — پہلی بار لاگ ان کرنے والے کے لیے
@@ -60,8 +62,9 @@ export function LoginChoiceView({
     }
 
     // ✅ لاگ ان مکمل — ہوم پر چلو
-    localStorage.setItem('imam_authenticated', 'true');
-    setIsAuthenticated(true);
+    const confirmed = await getDocFromServer(userDocRef);
+    if (realtimeAuth.currentUser?.uid !== user.uid || confirmed.data()?.role !== 'imam') throw new Error('Account verification failed');
+    // The central session listener, not a local flag, authorizes the dashboard.
     onImamLoginSuccess();
   };
 

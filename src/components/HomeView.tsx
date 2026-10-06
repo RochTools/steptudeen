@@ -460,7 +460,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const accountLabel = isAuthenticated
     ? (authName || 'Imam account')
     : isUserAuthenticated ? (userAuthName || 'My account') : 'My Dashboard';
-  const accountTarget = isAuthenticated ? 'imam-login' : 'user-dashboard';
+  const accountTarget = 'user-dashboard';
 
   /* ───── Inbox: refresh on mount and every minute ───── */
   useEffect(() => {

@@ -16,9 +16,10 @@ import { calculateMosqueTimes, mosqueDate, scheduleWithOffsets } from '../lib/mo
 // ── انٹرفیسز ──
 interface ImamDashboardProps {
   onAddOrUpdateMosque: (mosque: Omit<Mosque, 'id' | 'updatedAt'> & { id?: string }) => void;
-  onDeleteMosque: (id: string) => void;
+  onDeleteMosque: (id: string) => void | Promise<void>;
   mosques: Mosque[];
   onLoggedOut?: () => void;
+  onMyDashboard?: () => void;
   onNavigateToSettings?: () => void; // ✅ لوکیشن آف ہونے پر سیٹنگز پیج پر بھیجنے کے لیے
   userCoords: { latitude: number; longitude: number } | null;
   requestLocation: () => void;
@@ -152,6 +153,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   setAuthUid,
   realtimeAuth,
   onLoggedOut,
+  onMyDashboard,
   onNavigateToSettings
 }) => {
   // ── ریفرنسز ──
@@ -245,8 +247,8 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
 
   // ── مسجد کی لسٹ ──
   const myMosques = useMemo(() => {
-    return mosques.filter((m) => m.imamEmail === authEmail);
-  }, [mosques, authEmail]);
+    return mosques.filter((m) => m.imamUid === authUid);
+  }, [mosques, authUid]);
 
   // ── کلین اپ ──
   useEffect(() => {
@@ -276,11 +278,11 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   // ── موجودہ مسجد لوڈ کریں ──
   useEffect(() => {
     if (isAuthenticated && !editId) {
-      const existing = mosques.find((m) => m.imamEmail === authEmail);
+      const existing = mosques.find((m) => m.imamUid === authUid);
       if (existing) handleEditMosque(existing);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, mosques, editId, authEmail]);
+  }, [isAuthenticated, mosques, editId, authUid]);
 
   // ── Active Picker کے لیے باڈی اسکرول بند کریں ──
   useEffect(() => {
@@ -420,7 +422,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   // ── لاگ آؤٹ ──
   const handleLogOut = async () => {
     if (isRealFirebase && realtimeAuth) {
-      try { await firebaseSignOut(realtimeAuth); } catch (err) { console.error(err); }
+      try { await firebaseSignOut(realtimeAuth); } catch (err) { setErrorMessage('لاگ آؤٹ نہیں ہو سکا۔ دوبارہ کوشش کریں۔'); return; }
     } else {
       setIsAuthenticated(false);
       setAuthEmail('');
@@ -512,6 +514,10 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   // ── فارم جمع کروائیں ──
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAuthenticated || !isRealFirebase || !realtimeAuth?.currentUser || realtimeAuth.currentUser.isAnonymous || realtimeAuth.currentUser.uid !== authUid) {
+      setErrorMessage('مسجد محفوظ کرنے کے لیے دوبارہ لاگ ان کریں۔');
+      return;
+    }
 
     // ✅ چیک کریں کہ null نہ ہوں
     if (!name || !address || latitude === null || longitude === null) {
@@ -567,7 +573,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           name,
           imamName,
           imamEmail: authEmail,
-          imamUid: authUid || ('demo_' + authEmail.split('@')[0]),
+          imamUid: authUid,
           address,
           latitude: Number(latitude),
           longitude: Number(longitude),
@@ -732,7 +738,8 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
 
             <div className="animate-fadeIn">
               <div className="imam-card imam-profile bg-white pt-5 pb-4 px-4 text-center">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  {onMyDashboard && <button type="button" onClick={onMyDashboard} className="flex items-center gap-2 rounded-xl bg-[#75b5ff] px-3 py-2 text-xs font-bold text-black"><LayoutDashboard size={15} /> My Dashboard</button>}
                   <button
                     type="button"
                     onClick={() => setShowLogoutConfirm(true)}
@@ -1131,7 +1138,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
               </div>
               <div className="flex gap-2.5 pt-1 font-urdu">
                 <button type="button" onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold cursor-pointer">منسوخ کریں</button>
-                <button type="button" onClick={() => { onDeleteMosque(deleteConfirmId); if (editId === deleteConfirmId) resetForm(); setDeleteConfirmId(null); setSuccessMessage('مسجد کا ریکارڈ کامیابی سے ڈیلیٹ کر دیا گیا ہے۔'); setTimeout(() => setSuccessMessage(''), 4000); }} className="flex-1 py-2 bg-[#75b5ff] hover:bg-[#96c7ff] text-black rounded-xl text-sm font-bold cursor-pointer">ہاں، ڈیلیٹ کریں</button>
+                <button type="button" onClick={async () => { try { await onDeleteMosque(deleteConfirmId); if (editId === deleteConfirmId) resetForm(); setDeleteConfirmId(null); setSuccessMessage('مسجد کا ریکارڈ کامیابی سے ڈیلیٹ کر دیا گیا ہے۔'); setTimeout(() => setSuccessMessage(''), 4000); } catch { setErrorMessage('مسجد حذف نہیں ہو سکی۔ لاگ ان، اجازت اور انٹرنیٹ چیک کریں۔'); } }} className="flex-1 py-2 bg-[#75b5ff] hover:bg-[#96c7ff] text-black rounded-xl text-sm font-bold cursor-pointer">ہاں، ڈیلیٹ کریں</button>
               </div>
             </div>
           </div>
