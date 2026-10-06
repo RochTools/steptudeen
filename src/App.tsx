@@ -1,11 +1,13 @@
 import React, { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { initializeFirebaseAtRuntime, subscribeToAuthState } from './firebase';
-import { onSnapshot, collection, doc, getDoc, setDoc } from 'firebase/firestore';
+import { initializeFirebaseAtRuntime } from './firebase';
+import { onSnapshot, collection } from 'firebase/firestore';
 import { initFCM, listenForegroundMessages } from './utils/fcm';
 import { requestNotificationPermission, scheduleAllPrayerNotifications } from './utils/notifications';
 
 // ============ HOOKS ============
 import { useAuth } from './hooks/useAuth';
+import { useImamSession } from './hooks/useImamSession';
+import { signOut } from 'firebase/auth';
 import { usePrayerTimes } from './hooks/usePrayerTimes';
 import { useMosques } from './hooks/useMosques';
 import { useNavigation } from './hooks/useNavigation';
@@ -159,6 +161,14 @@ export default function App() {
 
   // ============ HOOKS ============
   const auth = useAuth();
+  const imamSession = useImamSession(realtimeAuth, realtimeDb);
+  const hasVerifiedImam = realFirebaseActive && imamSession.allowed;
+  useEffect(() => {
+    auth.setIsAuthenticated(hasVerifiedImam);
+    auth.setAuthUid(imamSession.user?.uid || '');
+    auth.setAuthEmail(imamSession.user?.email || '');
+    auth.setAuthName(imamSession.user?.displayName || imamSession.user?.email?.split('@')[0] || '');
+  }, [hasVerifiedImam, imamSession.user]);
   const mosques = useMosques(realtimeDb, realFirebaseActive);
   const prayer = usePrayerTimes({
     mosques: mosques.mosques,
@@ -176,7 +186,7 @@ export default function App() {
     let isMountedLocal = true;
     let unsubscribe: (() => void) | undefined;
 
-    if (auth.isAnyUser || auth.isAuthenticated) {
+    if (auth.isAnyUser || hasVerifiedImam) {
       initFCM(auth.authUid || undefined)
         .then(token => { if (isMountedLocal && token) console.log('FCM ready ✅'); })
         .catch(err => console.warn('FCM init failed:', err));
@@ -205,12 +215,13 @@ export default function App() {
       isMountedLocal = false;
       if (unsubscribe) unsubscribe();
     };
-  }, [auth.isAnyUser, auth.isAuthenticated, auth.authUid, prayer.prayerTimes]);
+  }, [auth.isAnyUser, hasVerifiedImam, auth.authUid, prayer.prayerTimes]);
 
   // ============ FIREBASE SETUP ============
   useEffect(() => {
+    isMounted.current = true;
     let unsubMosques: (() => void) | null = null;
-    let unsubAuth: (() => void) | null = null;
+
 
     const runSetup = async () => {
       try {
@@ -227,45 +238,6 @@ export default function App() {
         setRealFirebaseActive(loadedIsReal);
 
         if (loadedIsReal && loadedDb && loadedAuth) {
-          unsubAuth = subscribeToAuthState(loadedAuth, async (user) => {
-            if (!isMounted.current) return;
-            if (user) {
-              auth.setAuthEmail(user.email || '');
-              auth.setAuthName(user.displayName || user.email?.split('@')[0] || '');
-              auth.setAuthUid(user.uid);
-
-              try {
-                // ریفریش سے پہلے یہ ڈیوائس امام کے طور پر لاگ ان تھی؟
-                const wasImam = localStorage.getItem('imam_authenticated') === 'true';
-                const userDocSnap = await getDoc(doc(loadedDb, 'users', user.uid));
-                const role = userDocSnap.exists() ? userDocSnap.data()?.role : undefined;
-                if (isMounted.current) {
-                  if (role === 'imam') {
-                    auth.setIsAuthenticated(true);
-                    auth.setIsUserAuthenticated(false);
-                    auth.setIsOTPAuthenticated(false);
-                  } else if (wasImam) {
-                    // ✅ امام کی حالت برقرار رکھو (ریفریش پر یوزر نہ بن جائے)،
-                    //    اور Firestore میں role بھی درست کر دو تاکہ اگلی بار مسئلہ نہ ہو
-                    auth.setIsAuthenticated(true);
-                    auth.setIsUserAuthenticated(false);
-                    auth.setIsOTPAuthenticated(false);
-                    setDoc(doc(loadedDb, 'users', user.uid), { role: 'imam' }, { merge: true })
-                      .catch((e) => console.warn('Could not repair imam role:', e));
-                  } else {
-                    auth.setIsAuthenticated(false);
-                    auth.setIsUserAuthenticated(true);
-                    auth.setUserAuthName(
-                      user.displayName || user.email?.split('@')[0] || ''
-                    );
-                  }
-                }
-              } catch (error) {
-                console.warn('Error fetching user role:', error);
-              }
-            }
-          });
-
           unsubMosques = onSnapshot(
             collection(loadedDb, 'mosques'),
             (snapshot) => {
@@ -291,7 +263,7 @@ export default function App() {
     return () => {
       isMounted.current = false;
       if (unsubMosques) unsubMosques();
-      if (unsubAuth) unsubAuth();
+
     };
   }, []);
 
@@ -306,8 +278,7 @@ export default function App() {
         {currentView === 'login-splash' && (
           <LoginChoiceView
             onImamLoginSuccess={() => {
-              auth.setIsAuthenticated(true);
-              nav.setNavigationHistory(['home']);
+              nav.setNavigationHistory(['home', 'user-dashboard', 'imam-login']);
             }}
             onUserLogin={(name, phone) => {
               auth.handleUserLogin(name, phone);
@@ -344,7 +315,7 @@ export default function App() {
                   onOpenMosque={(m) => mosques.setSelectedMosque(m)}
                   userCoords={prayer.userCoords}
                   requestLocation={prayer.requestLocation}
-                  isAuthenticated={auth.isAuthenticated}
+                  isAuthenticated={hasVerifiedImam}
                   isUserAuthenticated={auth.isAnyUser}
                   userAuthName={auth.currentUserName}
                   authName={auth.authName}
@@ -395,19 +366,21 @@ export default function App() {
               {currentView === 'user-dashboard' && (
                 <UserDashboard
                   /* ✅ Guest mode: login نہیں ہے تو "Guest"، ورنے اصل نام (imam ہو تو امام کا نام) */
-                  userName={auth.isAnyUser ? (auth.currentUserName || 'My Account') : auth.isAuthenticated ? (auth.authName || 'Imam Account') : 'Guest'}
-                  userPhone={auth.currentUserEmail}
-                  isGuest={!auth.isAnyUser && !auth.isAuthenticated}
+                  userName={hasVerifiedImam ? (imamSession.user?.displayName || auth.authName || 'Imam Account') : auth.isAnyUser ? (auth.currentUserName || 'My Account') : 'Guest'}
+                  userPhone={hasVerifiedImam ? imamSession.user?.email || '' : auth.currentUserEmail}
+                  isGuest={!auth.isAnyUser && !hasVerifiedImam}
                   onClose={() => nav.goBack()}
                   onOpenMosque={(mosque) => {
                     // Open the shared mosque modal without leaving the dashboard.
                     // goHome() clears selectedMosque, which would close it immediately.
                     mosques.setSelectedMosque(mosque);
                   }}
-                  onLogout={() => {
-                    auth.handleLogoutAll();
-                    mosques.setSavedPopupMosques([]);
-                    nav.setNavigationHistory(['login-splash']);
+                  onLogout={async () => {
+                    try {
+                      if (realtimeAuth?.currentUser) await signOut(realtimeAuth);
+                      auth.handleLogoutAll();
+                      nav.setNavigationHistory(['home', 'user-dashboard']);
+                    } catch { window.alert('Logout failed. Please try again.'); }
                   }}
                   onGoToSavedHadith={(bookKey, chapterKey, chapterName, from, to, hadithNum) => {
                     setPendingHadithNav({ bookKey, chapterKey, chapterName, from, to, hadithNum });
@@ -428,15 +401,13 @@ export default function App() {
                      اصل لاگ ان اسکرین (LoginChoiceView) پر جائے گا جہاں امام لاگ ان ہو سکتا ہے۔
                      لاگ ان ہے → Imam Panel سے امام ڈش بورڈ کھلے گا۔ */
                   onImamLogin={() => nav.navigateTo('login-splash')}
-                  onImamDashboard={() => nav.navigateTo('imam-login')}
-                  isImamLoggedIn={auth.isAuthenticated}
-                  onImamLogout={() => {
-                    try { realtimeAuth?.signOut?.(); } catch (error) { console.warn('Imam sign-out failed:', error); }
-                    auth.setIsAuthenticated(false);
-                    auth.setAuthEmail('');
-                    auth.setAuthName('');
-                    auth.setAuthUid('');
-                    nav.setNavigationHistory(['home']);
+                  onImamDashboard={() => nav.navigateTo(hasVerifiedImam ? 'imam-login' : 'login-splash')}
+                  isImamLoggedIn={hasVerifiedImam}
+                  onImamLogout={async () => {
+                    try {
+                      if (realtimeAuth) await signOut(realtimeAuth);
+                      nav.setNavigationHistory(['home', 'user-dashboard']);
+                    } catch { window.alert('Logout failed. Please try again.'); }
                   }}
                 />
               )}
@@ -506,15 +477,24 @@ export default function App() {
   </div>
 )}
               
-     {currentView === 'imam-login' && (
+              {currentView === 'imam-login' && !hasVerifiedImam && (
+                <section className="m-4 rounded-2xl border border-blue-100 bg-white p-6 text-center shadow-lg">
+                  <h2 className="font-bold text-black">Imam Dashboard</h2>
+                  <p className="my-4 text-sm text-black">{imamSession.ready ? 'Please sign in to manage your own mosque.' : 'Verifying your account…'}</p>
+                  {imamSession.ready && <button onClick={() => nav.navigateTo('login-splash')} className="rounded-xl bg-[#75b5ff] px-4 py-3 font-bold text-black">Imam Login</button>}
+                  <button onClick={() => nav.setNavigationHistory(['home', 'user-dashboard'])} className="ml-2 rounded-xl bg-[#75b5ff] px-4 py-3 font-bold text-black">My Dashboard</button>
+                </section>
+              )}
+     {currentView === 'imam-login' && hasVerifiedImam && (
                 <ImamDashboard
+                  onMyDashboard={() => nav.setNavigationHistory(['home', 'user-dashboard'])}
                 onAddOrUpdateMosque={mosques.handleAddOrUpdateMosque}
                   onDeleteMosque={mosques.handleDeleteMosque}
                 mosques={mosques.mosques}
                   userCoords={prayer.userCoords}
                   requestLocation={prayer.requestLocation}
                   isRealFirebase={realFirebaseActive}
-                  isAuthenticated={auth.isAuthenticated}
+                  isAuthenticated={hasVerifiedImam}
                   setIsAuthenticated={(val) => {
                     auth.setIsAuthenticated(val);
                     if (val) nav.setNavigationHistory(['home']);
