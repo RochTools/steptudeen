@@ -1,32 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════════════
-//  firestore.rules — steptudeen
-//
-//  کیا بدلا:
-//    1) مسجد کی دستاویز میں نئے فیلڈز شامل ہوئے:
-//         prayerConfig   — طریقہ / مشرب / زاویے / فی نماز ±منٹ
-//         iqamaSchedule  — جماعت کا شیڈول (اذان+منٹ یا مقررہ گھڑی، رمضان، جمعہ)
-//         iqamaHistory   — آئندہ/پرانی ترتیبیں
-//         jumuah         — ایک سے زیادہ جمعہ
-//         calibration    — آخری کیلیبریشن کی جانچ
-//    2) یہ سب پہلے rules سے مسترد ہو رہے تھے (whitelist نہ تھا) — اب اجازت ہے،
-//       مگر صرف متعین keys، متعین لمبائی اور متعین اقسام کے ساتھ۔
-//
-//  ⚠️ Firebase کی حد: فی ریکوئسٹ 1000 expressions۔ اس لیے ہر فیلڈ کی گہری
-//     جانچ ممکن نہیں۔ یہاں جو جانچی جاتی ہے:
-//       • متعین keys کے سوا کچھ نہیں (hasOnly) — junk injection بند
-//       • لمبائی کی حد: iqamaHistory ≤ 24، daily ≤ 70، jumuah ≤ 6 …
-//       • طریقہ/مشرب/بلند عرض بلد کی اقدار محدود
-//       • فجر و عشاء کے زاویے 0–30°
-//       • offsets: فجر و عشاء −60…+60 منٹ
-//       • جماعت: فجر و عشاء کے اصول (وقت کی شکل یا وقفے کی حد)
-//       • جمعہ کا پہلا سلاٹ، اور رمضان کا افطار وقفہ
-//     باقی سب کچھ ایپ (امام کارڈ + prayerEngine) خود جانچتا ہے۔
-//     مکمل سرور سائیڈ جانچ چاہیں تو Cloud Function لگائیں۔
-//
-//  ⚠️ نوٹ: create/update پر auth کی شرط نہیں (پہلے بھی نہیں تھی) — تاکہ موجودہ
-//     امام پینل نہ ٹوٹے۔ سخت نسخہ فائل کے آخر میں کمنٹ میں موجود ہے۔
-// ═══════════════════════════════════════════════════════════════════════════
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -87,27 +58,43 @@ service cloud.firestore {
         && (data.get('calibration', {}) is map && data.get('calibration', {}).size() <= 8)
         ;
     }
+    // Self-registration is intentional: authenticated non-anonymous users may
+    // choose the imam role, but that grants access ONLY to their own mosques.
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function isImam() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'imam';
+    }
+    function owns(data) {
+      return data.get('imamUid', '') == request.auth.uid
+        && data.get('ownerId', request.auth.uid) == request.auth.uid;
+    }
+    function validProfile(data) {
+      return data.get('role', 'user') in ['user', 'imam']
+        && okStr(data.get('name', ''), 150)
+        && data.get('email', request.auth.token.get('email', '')) == request.auth.token.get('email', '')
+        && okStr(data.get('fcmToken', ''), 4096);
+    }
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, delete: if false;
+      allow create: if signedIn() && request.auth.uid == uid
+        && incoming().keys().hasOnly(['role','email','name','createdAt','fcmToken','tokenUpdatedAt','platform'])
+        && validProfile(incoming());
+      allow update: if signedIn() && request.auth.uid == uid
+        && incoming().diff(resource.data).affectedKeys().hasOnly(['role','email','name','fcmToken','tokenUpdatedAt','platform'])
+        && validProfile(incoming());
+    }
     match /mosques/{mosqueId} {
       allow read: if true;
-      // ماضی کی طرح: صرف شکل کی جانچ (auth نہیں) — نیچے سخت نسخہ دیکھیں
-      allow create, update: if isValidId(mosqueId) && isValidMosque(incoming());
-      allow delete: if isValidId(mosqueId);
-    /* ── سخت نسخہ (اختیاری — ٹیسٹ کے بعد لگائیں) ──────────────────────────
-       صرف اُس صورت میں جب امام Firebase Auth سے لاگ اِن ہو اور دستاویز میں
-       imamUid یا ownerId موجود ہو۔ ورنہ امام اپنی ہی مسجد اپ ڈیٹ نہ کر سکے گا۔
-       (نیچے resource = موجودہ محفوظ دستاویز، incoming() = نئی آنے والی)
-
-      allow create: if isValidId(mosqueId) && isValidMosque(incoming())
-        && request.auth != null
-        && (incoming().imamUid == request.auth.uid
-            || (incoming().keys().hasAny(['ownerId']) && incoming().ownerId == request.auth.uid));
-
-      allow update, delete: if isValidId(mosqueId) && isValidMosque(incoming())
-        && request.auth != null
-        && (resource.data.imamUid == request.auth.uid
-            || (resource.data.keys().hasAny(['ownerId']) && resource.data.ownerId == request.auth.uid));
-    ─────────────────────────────────────────────────────────────────── */
-
+      allow create: if isImam() && isValidId(mosqueId)
+        && owns(incoming()) && isValidMosque(incoming());
+      allow update: if isImam() && isValidId(mosqueId)
+        && owns(resource.data) && owns(incoming()) && isValidMosque(incoming());
+      allow delete: if isImam() && isValidId(mosqueId) && owns(resource.data);
     }
   }
 }
