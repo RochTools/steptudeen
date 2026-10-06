@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, BookOpen, ChevronRight, Search, RefreshCw, X, Layers, Globe, AlertCircle } from 'lucide-react';
-import { loadDuaChapters, loadDuaSummaries, loadDuaInfo, loadDuaEntry } from '../lib/openDua';
-import type { ApiResult, DuaStep, DuaReference, DuaEntry, DuaChapter, DuaSummary, DuaApiInfo } from '../lib/openDua';
+import { DUA_LANGUAGES, DUA_REPO, DUA_REF, loadDuaDataset } from '../lib/duaCdn';
+import type { CdnDua, CdnChapter, DuaLanguage, DuaDatasetResult } from '../lib/duaCdn';
 
 const IA_DUAS: { c: string; ar: string; ur: string }[] = [
   {c:"صبح اٹھ کر پڑھنے کی دعا",ar:"أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ",ur:"ہم نے صبح کی اور سارا ملک اللہ ہی کا ہے، اور سب تعریف اللہ کے لیے ہے۔"},
@@ -16,102 +16,74 @@ const IA_DUAS: { c: string; ar: string; ur: string }[] = [
   {c:"پریشانی اور مصیبت کی دعا",ar:"لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ",ur:"تیرے سوا کوئی معبود نہیں، تو پاک ہے، بے شک میں ہی قصوروار تھا۔"}
 ];
 
-interface Library { chapters: DuaChapter[]; entries: DuaSummary[]; info: DuaApiInfo | null }
-function useResource<T>(loader: (signal: AbortSignal) => Promise<ApiResult<T>> | null) {
-  const [state, setState] = useState<{ result: ApiResult<T> | null; loading: boolean; error: string }>({ result: null, loading: true, error: '' });
-  useEffect(() => {
-    const controller = new AbortController();
-    const promise = loader(controller.signal);
-    if (!promise) { setState({ result: null, loading: false, error: '' }); return () => controller.abort(); }
-    setState({ result: null, loading: true, error: '' });
-    promise.then(result => {
-      if (!controller.signal.aborted) setState({ result, loading: false, error: '' });
-    }).catch(error => {
-      if (!controller.signal.aborted) setState({ result: null, loading: false, error: error instanceof Error ? error.message : 'Could not load this content.' });
-    });
-    return () => controller.abort();
-  }, [loader]);
-  return state;
+const PAGE_SIZE = 16;
+const normalize = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, '');
+function BrandLoader() {
+  return <div className="dv-loader" role="status" aria-live="polite"><div className="dv-brand-word" aria-hidden="true">{'StepTuDeen'.split('').map((letter, i) => <span key={i} style={{ animationDelay: `${i * .075}s` }}>{letter}</span>)}</div><div className="dv-loader-track" aria-hidden="true"><span/></div><p>StepTuDeen — Loading duas…</p></div>;
 }
-export function DuaBrandLoader() {
-  return <div className="dv-loader" role="status" aria-live="polite">
-    <div className="dv-brand-word" aria-hidden="true">{'StepTuDeen'.split('').map((letter, index) => <span key={index} style={{ animationDelay: `${index * .075}s` }}>{letter}</span>)}</div>
-    <div className="dv-loader-track" aria-hidden="true"><span /></div>
-    <p>StepTuDeen — Loading duas…</p>
-  </div>;
+function TranslationWarning({ language }: { language: DuaLanguage }) {
+  return <aside className="dv-machine" role="note">
+    <strong>Machine translation — not human-reviewed</strong>
+    <p>The repository labels this translation as machine-generated. Verify it against a reliable published translation before relying on it.</p>
+    {language === 'ur' && <p className="font-urdu" dir="rtl">یہ مشینی ترجمہ ہے، اس کی انسانی نظرِ ثانی نہیں ہوئی۔ مستند مطبوعہ ترجمے سے تصدیق کریں۔</p>}
+    {language === 'hi' && <p lang="hi">यह मशीनी अनुवाद है, जिसकी मानव समीक्षा नहीं हुई है। प्रामाणिक प्रकाशित अनुवाद से सत्यापन करें।</p>}
+  </aside>;
 }
-function References({ values }: { values?: DuaReference[] }) {
-  if (!values?.length) return null;
-  return <div className="dv-references"><span className="dv-label">References supplied by OpenDua</span>{values.map((ref, index) => <p key={index}>{ref.reference}{ref.grades?.map((grade, i) => <span key={i}> · {grade.value}{grade.gradedBy ? ` (${grade.gradedBy})` : ''}</span>)}</p>)}</div>;
-}
-function Steps({ steps, transliteration }: { steps: DuaStep[]; transliteration: boolean }) {
-  return <div className="dv-steps">{steps.map((step, index) => {
-    if (step.type === 'repeat') return <section className="dv-repeat" key={index}><span className="dv-pill">Repeat this sequence {step.times} times</span><Steps steps={step.steps} transliteration={transliteration}/><References values={step.references}/></section>;
-    if (step.type === 'recitation') return <section className="dv-step" key={index}>
-      {step.condition && <p className="dv-note">{step.condition}</p>}
-      {step.speaker && <p className="dv-note">Speaker: {step.speaker}</p>}
-      {step.items.map((item, i) => <div className="dv-dua-text" key={`${item.dua.id}-${i}`}>
-        <div className="dv-row dv-spread"><span className="dv-label">{item.dua.id}</span>{item.times && <span className="dv-pill">Repeat {item.times} times</span>}</div>
-        <p className="dv-arabic font-amiri" dir="rtl" lang="ar">{item.dua.arabic}</p>
-        {transliteration && item.dua.transliteration && <div className="dv-text-block"><span className="dv-label">Transliteration</span><p className="dv-transliteration">{item.dua.transliteration}</p></div>}
-        <div className="dv-text-block"><span className="dv-label">English translation</span><p>{item.dua.translation}</p></div>
-        {item.dua.placeholders?.map(placeholder => <p className="dv-note" key={placeholder.key}>{placeholder.instruction}</p>)}
-        <References values={item.dua.references}/>
-      </div>)}
-      <References values={step.references}/>
-    </section>;
-    return <section className="dv-step" key={index}><span className="dv-pill">{step.type === 'instruction' ? 'Instruction' : 'Narration'}</span>{step.arabic && <p className="dv-arabic font-amiri" dir="rtl" lang="ar">{step.arabic}</p>}<p className="dv-context">{step.text}</p><References values={step.references}/></section>;
-  })}</div>;
-}
-function EntryReader({ entry, transliteration }: { entry: DuaEntry; transliteration: boolean }) {
+function DuaReader({ dua, chapter, language, transliteration }: { dua: CdnDua; chapter: CdnChapter; language: DuaLanguage; transliteration: boolean }) {
+  const chosen = DUA_LANGUAGES.find(l => l.code === language)!;
+  const reference = dua.reference;
   return <article className="dv-card dv-reader">
-    <header className="dv-reader-heading"><span className="dv-pill">{entry.type}</span><h2>{entry.title}</h2>{entry.sourceReference && <p className="dv-muted">Hisn al-Muslim · Entry {entry.sourceReference}</p>}</header>
-    {entry.variations?.map((variation, i) => <section className="dv-variation" key={variation.id}>
-      {(variation.label || entry.variations!.length > 1) && <h3>{variation.label || `Variation ${i + 1}`}</h3>}
-      {variation.condition && <p className="dv-note">{variation.condition}</p>}
-      <Steps steps={variation.steps} transliteration={transliteration}/><References values={variation.references}/>
-    </section>)}
-    {entry.steps && <Steps steps={entry.steps} transliteration={transliteration}/>}
-    <References values={entry.references}/>
+    <header className="dv-reader-heading"><div className="dv-row dv-spread"><span className="dv-pill">Entry {reference?.sourceReference || dua.id}</span>{dua.repeat && dua.repeat > 1 ? <span className="dv-pill">Repeat {dua.repeat} times</span> : null}</div><h2>{dua.title}</h2><p className={`dv-muted ${chosen.dir === 'rtl' ? 'font-urdu' : ''}`} dir={chosen.dir}>{chapter.title}</p></header>
+    <p className="dv-arabic font-amiri" dir="rtl" lang="ar">{dua.arabic}</p>
+    {transliteration && dua.transliteration && <div className="dv-text-block"><span className="dv-label">Transliteration</span><p className="dv-transliteration">{dua.transliteration}</p></div>}
+    {language !== 'ar' && <div className="dv-text-block"><span className="dv-label">{chosen.name} · {dua.translationKind === 'machine' ? 'Machine translation (unreviewed)' : 'Translation supplied by the repository'}</span><p className={language === 'ur' ? 'font-urdu' : ''} lang={language} dir={chosen.dir}>{dua.text}</p>{dua.translationSource && <p className="dv-muted" style={{ marginTop: 12 }}>Source: {dua.translationSource}</p>}</div>}
+    {dua.guidance && <p className="dv-note">{dua.guidance}</p>}
+    {dua.placeholders?.length ? <div className="dv-note"><span className="dv-label">Placeholder guidance (from source)</span>{Array.from(new Map(dua.placeholders.map(p => [p.key, p])).values()).map(p => <p key={p.key}><code>{`{{${p.key}}}`}</code> — {p.instruction}</p>)}</div> : null}
+    {dua.parts?.length ? <details><summary>Source sub-parts & repetition notes ({dua.parts.length})</summary><p className="dv-muted" style={{marginTop:10}}>Shown as provided by the dataset. Sub-parts may include alternative wording; this is not an instruction to repeat the full text again.</p>{dua.parts.map((part, i) => <section className="dv-part" key={i}><span className="dv-pill">Part {i + 1}{part.times && part.times > 1 ? ` · ${part.times} times` : ''}</span><p className="dv-arabic font-amiri" dir="rtl" lang="ar">{part.arabic}</p>{transliteration && part.transliteration && <p className="dv-transliteration dv-context">{part.transliteration}</p>}{part.en && <div className="dv-text-block"><span className="dv-label">English part meaning (from source)</span><p lang="en" dir="ltr">{part.en}</p></div>}</section>)}</details> : null}
+    <div className="dv-references"><span className="dv-label">Source reference</span><p>Hisn al-Muslim · {reference?.sourceReference || dua.id}</p>{reference?.references?.map((ref, i) => <p key={i}>{ref.reference}{ref.grades?.map((grade, n) => <span key={n}> · {grade.value}{grade.gradedBy ? ` (${grade.gradedBy})` : ''}</span>)}</p>)}</div>
   </article>;
 }
-const normalize = (value: string) => value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, '');
-const PAGE_SIZE = 16;
 export const DuasView: React.FC = () => {
-  const [source, setSource] = useState<'opendua' | 'urdu'>('opendua');
+  const [language, setLanguage] = useState<DuaLanguage>('ar');
+  const [source, setSource] = useState<'cdn' | 'local'>('cdn');
   const [mode, setMode] = useState<'chapters' | 'entries'>('chapters');
-  const [chapter, setChapter] = useState<DuaChapter | null>(null);
-  const [selected, setSelected] = useState<DuaSummary | null>(null);
+  const [chapterId, setChapterId] = useState<number | null>(null);
+  const [entryId, setEntryId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
-  const [retry, setRetry] = useState(0);
-  const [entryRetry, setEntryRetry] = useState(0);
+  const [refresh, setRefresh] = useState(0);
   const [transliteration, setTransliteration] = useState(true);
-  const libraryLoader = useCallback(async (signal: AbortSignal): Promise<ApiResult<Library>> => {
-    const [chapters, entries, info] = await Promise.all([loadDuaChapters(signal, retry > 0), loadDuaSummaries(signal, undefined, retry > 0), loadDuaInfo(signal, retry > 0).catch(() => null)]);
-    return { data: { chapters: chapters.data, entries: entries.data, info: info?.data || null }, cached: chapters.cached || entries.cached, savedAt: Math.min(chapters.savedAt, entries.savedAt) };
-  }, [retry]);
-  const library = useResource(libraryLoader);
-  const chapterLoader = useCallback((signal: AbortSignal) => chapter && source === 'opendua' ? loadDuaSummaries(signal, chapter.id, retry > 0) : null, [chapter, source, retry]);
-  const chapterState = useResource(chapterLoader);
-  const entryLoader = useCallback((signal: AbortSignal) => selected && source === 'opendua' ? loadDuaEntry(selected.id, signal, entryRetry > 0) : null, [selected, source, entryRetry]);
-  const entryState = useResource(entryLoader);
+  const [state, setState] = useState<{ result: DuaDatasetResult | null; loading: boolean; error: string }>({ result: null, loading: true, error: '' });
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({ result: null, loading: true, error: '' });
+    loadDuaDataset(language, controller.signal, refresh > 0).then(result => {
+      if (!controller.signal.aborted) setState({ result, loading: false, error: '' });
+    }).catch(error => {
+      if (!controller.signal.aborted) setState({ result: null, loading: false, error: error instanceof Error ? error.message : 'Could not load the library.' });
+    });
+    return () => controller.abort();
+  }, [language, refresh]);
+  const result = state.result?.data.meta.language === language ? state.result : null;
+  const data = result?.data;
+  const chapters = data?.chapters || [];
+  const currentChapter = chapters.find(c => c.id === chapterId);
+  const allEntries = useMemo(() => chapters.flatMap(chapter => chapter.duas.map(dua => ({ dua, chapter }))), [data]);
+  const selected = allEntries.find(item => item.dua.id === entryId);
   const search = normalize(query.trim());
-  const items = chapter ? chapterState.result?.data || [] : mode === 'chapters' ? library.result?.data.chapters || [] : library.result?.data.entries || [];
-  const filtered = useMemo(() => items.filter(item => normalize(`${item.title} ${item.id} ${'sourceReference' in item ? item.sourceReference : ''}`).includes(search)), [items, search]);
-  const local = IA_DUAS.filter(item => normalize(`${item.c} ${item.ar} ${item.ur}`).includes(search));
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const isChapters = mode === 'chapters' && chapterId === null;
+  const filteredChapters = chapters.filter(c => normalize(`${c.id} ${c.title} ${c.titleArabic} ${c.tags.join(' ')} ${c.duas.map(d => `${d.title} ${d.arabic} ${d.text} ${d.transliteration || ''}`).join(' ')}`).includes(search));
+  const filteredEntries = allEntries.filter(({dua, chapter}) => (chapterId === null || chapter.id === chapterId) && normalize(`${dua.id} ${dua.reference?.sourceReference || ''} ${dua.title} ${chapter.title} ${dua.arabic} ${dua.text} ${dua.transliteration || ''}`).includes(search));
+  const count = isChapters ? filteredChapters.length : filteredEntries.length;
+  const pages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const safePage = Math.min(page, pages);
-  const listState = chapter ? chapterState : library;
-  const info = library.result?.data.info;
-  const resetSearch = () => { setQuery(''); setPage(1); };
-  const changeSource = (next: 'opendua' | 'urdu') => { setSource(next); setSelected(null); setChapter(null); setEntryRetry(0); resetSearch(); };
-  const back = () => {
-    if (selected) { setSelected(null); setEntryRetry(0); }
-    else if (chapter) { setChapter(null); resetSearch(); }
-  };
-  const failure = (message: string, onRetry: () => void) => <div className="dv-card dv-empty" role="alert"><AlertCircle size={25}/><h3>Content could not be loaded</h3><p>{message}</p><button className="dv-btn" onClick={onRetry}><RefreshCw size={15}/> Try again</button><p className="font-urdu" dir="rtl">پہلے سے موجود اردو دعائیں دوسرے ٹیب میں دستیاب ہیں۔</p></div>;
-
+  const start = (safePage - 1) * PAGE_SIZE;
+  const local = IA_DUAS.filter(dua => normalize(`${dua.c} ${dua.ar} ${dua.ur}`).includes(search));
+  const reset = () => { setQuery(''); setPage(1); };
+  const chooseSource = (next: 'cdn' | 'local') => {setSource(next);setEntryId(null);setChapterId(null);reset();};
+  const chosen = DUA_LANGUAGES.find(l => l.code === language)!;
+  const machineTranslation = data?.chapters.some(c => c.duas.some(d => d.translationKind === 'machine'));
+  const back = () => { if (entryId) setEntryId(null); else { setChapterId(null); reset(); } };
   return <main className="dv" dir="ltr">
     <style>{`
       .dv{--dv-blue:#75b5ff;--dv-ink:#080808;min-height:100vh;background:#fff;color:var(--dv-ink);padding:22px 16px 90px;font-family:inherit;box-sizing:border-box}
@@ -127,39 +99,26 @@ export const DuasView: React.FC = () => {
       .dv .dv-muted{font-size:11px;opacity:.58;line-height:1.7}.dv .dv-note{font-size:12px;line-height:1.8;padding:12px 14px;border:1px solid #bcd9fc;border-inline-start:3px solid var(--dv-blue);border-radius:10px;margin:12px 0!important}.dv .dv-cache{font-size:10px;opacity:.6;margin:10px 0 16px;line-height:1.7}.dv .dv-pagination{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:22px}.dv .dv-pagination span{font-size:11px;opacity:.65}
       .dv .dv-reader{padding:24px 20px}.dv .dv-reader-heading{border-bottom:1px solid #0000000d;padding-bottom:19px;margin-bottom:20px}.dv .dv-reader-heading h2{font-size:20px;line-height:1.6;font-weight:800;margin:12px 0 8px;letter-spacing:-.025em}.dv .dv-pill{display:inline-flex;font-size:10px;font-weight:700;padding:6px 10px;border:1px solid #00000018;border-radius:8px}.dv .dv-label{display:block;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.5;margin-bottom:6px}.dv .dv-steps{display:grid;gap:20px}.dv .dv-step+.dv-step{border-top:1px solid #00000010;padding-top:20px}.dv .dv-dua-text+.dv-dua-text{border-top:1px solid #00000010;margin-top:22px;padding-top:22px}.dv .dv-arabic{font-size:clamp(30px,6vw,38px);line-height:2.2;text-align:right;color:#000;margin:18px 0 24px;overflow-wrap:anywhere}.dv .dv-text-block{border-top:1px solid #0000000a;padding-top:15px;margin-top:15px}.dv .dv-text-block p,.dv .dv-context{font-size:14px;line-height:1.95;overflow-wrap:anywhere}.dv .dv-context{margin-top:12px}.dv .dv-transliteration{font-style:italic;opacity:.72}.dv .dv-variation+.dv-variation{border-top:2px solid #75b5ff;margin-top:24px;padding-top:22px}.dv .dv-variation h3{font-size:14px;margin-bottom:14px}.dv .dv-repeat{border-inline-start:3px solid #75b5ff;padding-inline-start:15px}.dv .dv-repeat>.dv-pill{margin-bottom:14px}.dv .dv-references{border-top:1px solid #00000012;margin-top:18px;padding-top:14px}.dv .dv-references p{font-size:11px;line-height:1.85}.dv .dv-local{display:grid;gap:18px}.dv .dv-local h3{font-size:15px;line-height:1.9}.dv .dv-local .dv-urdu{font-size:14px;line-height:2.2;text-align:right;border-top:1px solid #00000010;padding-top:15px}
       .dv .dv-loader{padding:56px 12px;text-align:center}.dv .dv-brand-word{display:flex;justify-content:center;font-size:29px;font-weight:800;letter-spacing:-.03em}.dv .dv-brand-word span{display:inline-block;animation:dv-brand-wave 1.35s ease-in-out infinite}.dv .dv-loader p{font-size:11px;opacity:.55;margin-top:17px}.dv .dv-loader-track{width:100px;height:3px;background:#0000000b;border-radius:10px;overflow:hidden;margin:16px auto 0}.dv .dv-loader-track span{display:block;width:40%;height:100%;background:var(--dv-blue);animation:dv-loader-slide 1.4s ease-in-out infinite}.dv .dv-empty{display:flex;flex-direction:column;align-items:center;gap:14px;padding:38px 20px;text-align:center}.dv .dv-empty h3{font-size:14px}.dv .dv-empty p{font-size:12px;line-height:1.8;opacity:.65}.dv .dv-footer{border-top:1px solid #0000000c;padding-top:20px;margin-top:30px;font-size:10px;line-height:1.9;opacity:.65}.dv .dv-footer a{color:#000;text-decoration:underline;text-underline-offset:3px}
+      .dv .dv-language{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0}.dv .dv-language label{font-size:12px;font-weight:700}.dv .dv-language select{background:#75b5ff;color:#000;border:1px solid #00000018;border-radius:12px;min-height:44px;padding:8px 12px;font:inherit;font-size:13px;max-width:100%;flex:1}.dv .dv-machine{border:1px solid #00000018;border-inline-start:4px solid #75b5ff;padding:15px;border-radius:14px;font-size:12px;line-height:1.9;margin:16px 0;background:#fff}.dv .dv-machine strong{display:block;margin-bottom:5px}.dv details{margin-top:20px;border-top:1px solid #00000012;padding-top:14px}.dv summary{cursor:pointer;font-size:12px;font-weight:700;line-height:1.8}.dv .dv-part{border:1px solid #00000012;border-radius:14px;padding:15px;margin-top:14px}.dv select:focus-visible,.dv summary:focus-visible{outline:3px solid #1680ef;outline-offset:3px}.dv .dv-card-bottom{gap:8px}
       @keyframes dv-brand-wave{0%,65%,100%{transform:translateY(0);color:#080808}30%{transform:translateY(-7px);color:#1680ef}}@keyframes dv-loader-slide{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
       @media(min-width:700px){.dv{padding:30px 24px 90px}.dv .dv-catalogue{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:360px){.dv .dv-catalogue{grid-template-columns:1fr}.dv .dv-stats{gap:15px}.dv .dv-btn{padding:9px 11px}}@media(prefers-reduced-motion:reduce){.dv .dv-brand-word span,.dv .dv-loader-track span{animation:none}.dv *{transition:none!important}}
     `}</style>
     <div className="dv-shell">
-      <header className="dv-card dv-hero"><div className="dv-row dv-spread"><div><p className="dv-kicker">StepTuDeen · Daily remembrance</p><h1>Dua Library</h1></div><span className="dv-icon"><BookOpen size={23}/></span></div><p className="dv-hero-description font-urdu" dir="rtl">ہر لمحے کے لیے دعا — پڑھیں، سمجھیں اور یاد رکھیں۔</p>
-        <div className="dv-stats"><div><strong>{library.result?.data.chapters.length ?? '—'}</strong><span>Chapters</span></div><div><strong>{library.result?.data.entries.length ?? '—'}</strong><span>Entries</span></div><div><strong>{info?.counts.duas ?? '—'}</strong><span>Canonical duas</span></div></div>
-      </header>
-      <nav className="dv-tabs" aria-label="Dua collection"><button className={`dv-btn ${source === 'opendua' ? 'dv-active' : ''}`} aria-pressed={source === 'opendua'} onClick={() => changeSource('opendua')}><Globe size={15}/> OpenDua Library</button><button className={`dv-btn font-urdu ${source === 'urdu' ? 'dv-active' : ''}`} aria-pressed={source === 'urdu'} onClick={() => changeSource('urdu')}>موجودہ اردو دعائیں</button></nav>
-      {source === 'opendua' && <p className="dv-muted" style={{marginBottom:16}}>Hisn al-Muslim · Arabic text with English translation. Includes invocations, instructions and narrations.</p>}
-      {(selected || chapter) && source === 'opendua' && <div className="dv-toolbar"><button className="dv-btn" onClick={back}><ArrowLeft size={15}/>{selected ? 'Back to entries' : 'All chapters'}</button>{selected && <button className="dv-btn" aria-pressed={transliteration} onClick={() => setTransliteration(value => !value)}>{transliteration ? 'Hide' : 'Show'} transliteration</button>}</div>}
-      {!selected && <div className="dv-toolbar"><label className="dv-search"><Search size={17} aria-hidden="true"/><input aria-label={source === 'urdu' ? 'Search Urdu duas' : 'Search chapter or entry titles'} placeholder={source === 'urdu' ? 'دعا تلاش کریں…' : 'Search titles or entry numbers…'} value={query} onChange={event => {setQuery(event.target.value);setPage(1);}}/>{query && <button type="button" className="dv-clear" aria-label="Clear search" onClick={resetSearch}><X size={14}/></button>}</label>{source === 'opendua' && <button className="dv-btn" aria-label="Refresh OpenDua library" disabled={listState.loading} onClick={() => setRetry(value => value + 1)}><RefreshCw size={16}/></button>}</div>}
-      {source === 'urdu' ? <>
-        <p className="dv-note font-urdu" dir="rtl">یہ ایپ کا پہلے سے موجود اردو مجموعہ ہے، OpenDua کا اردو ترجمہ نہیں۔</p><div className="dv-local">{local.map((dua, index) => <article className="dv-card dv-reader" key={dua.c}><div className="dv-row dv-spread"><span className="dv-card-number">DUA {index + 1}</span><h3 className="font-urdu" dir="rtl">{dua.c}</h3></div><p className="dv-arabic font-amiri" dir="rtl" lang="ar">{dua.ar}</p><p className="dv-urdu font-urdu" dir="rtl" lang="ur">{dua.ur}</p></article>)}</div>{!local.length && <div className="dv-empty"><Search size={25}/><h3>No matching duas</h3><button className="dv-btn" onClick={resetSearch}>Clear search</button></div>}
-      </> : selected ? <>
-        {entryState.loading ? <DuaBrandLoader/> : entryState.error ? failure(entryState.error, () => setEntryRetry(value => value + 1)) : entryState.result && <>
-          {entryState.result.cached && <p className="dv-cache">Saved copy · {new Date(entryState.result.savedAt).toLocaleString()} <button className="dv-btn" onClick={() => setEntryRetry(value => value + 1)}>Refresh</button></p>}
-          <EntryReader entry={entryState.result.data} transliteration={transliteration}/>
-        </>}
-      </> : <>
-        {!chapter && <div className="dv-tabs" aria-label="Browse mode"><button className={`dv-btn ${mode === 'chapters' ? 'dv-active' : ''}`} aria-pressed={mode === 'chapters'} onClick={() => {setMode('chapters');resetSearch();}}><Layers size={14}/> Chapters</button><button className={`dv-btn ${mode === 'entries' ? 'dv-active' : ''}`} aria-pressed={mode === 'entries'} onClick={() => {setMode('entries');resetSearch();}}>All entries <ArrowUpRight size={14}/></button></div>}
-        {listState.loading ? <DuaBrandLoader/> : listState.error ? failure(listState.error, () => setRetry(value => value + 1)) : <>
-          {listState.result?.cached && <p className="dv-cache">Showing a saved copy · {new Date(listState.result.savedAt).toLocaleString()}. Use Refresh to check for updates.</p>}
-          <div className="dv-section-head"><h2>{chapter?.title || (mode === 'chapters' ? 'Find a moment. Find a dua.' : 'All entries')}</h2><span className="dv-count">{filtered.length}</span></div>
-          {!filtered.length ? <div className="dv-card dv-empty"><Search size={25}/><h3>No matching results</h3><p>Try a shorter English title or an entry number.</p><button className="dv-btn" onClick={resetSearch}>Clear search</button></div> : <div className="dv-catalogue">{filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE).map(item => {
-            const isChapter = 'entryCount' in item;
-            return <button className="dv-card dv-catalogue-card" key={item.id} onClick={() => { if (isChapter) {setChapter(item as DuaChapter);resetSearch();} else {setSelected(item as DuaSummary);setEntryRetry(0);} }}>
-              <div className="dv-row dv-spread"><span className="dv-card-number">{isChapter ? `CHAPTER ${(item as DuaChapter).number || item.id.split('-').pop()}` : `ENTRY ${(item as DuaSummary).sourceReference || item.id.split('-').pop()}`}</span><BookOpen size={15}/></div><h3>{item.title}</h3><div className="dv-row dv-spread dv-card-bottom"><span className="dv-muted">{isChapter ? `${(item as DuaChapter).entryCount} entries` : (item as DuaSummary).type}</span><span className="dv-open">Open <ChevronRight size={12}/></span></div>
-            </button>;
-          })}</div>}
+      <header className="dv-card dv-hero"><div className="dv-row dv-spread"><div><p className="dv-kicker">StepTuDeen · Daily remembrance</p><h1>Dua Library</h1></div><span className="dv-icon"><BookOpen size={23}/></span></div><p className="dv-hero-description font-urdu" dir="rtl">ہر لمحے کے لیے دعا — پڑھیں، سمجھیں اور یاد رکھیں۔</p><div className="dv-stats"><div><strong>{data?.meta.counts.chapters ?? '—'}</strong><span>Chapters</span></div><div><strong>{data?.meta.counts.duas ?? '—'}</strong><span>Entries</span></div><div><strong>{chosen.label}</strong><span>Selected language</span></div></div></header>
+      <nav className="dv-tabs" aria-label="Dua source"><button className={`dv-btn ${source === 'cdn' ? 'dv-active' : ''}`} aria-pressed={source === 'cdn'} onClick={() => chooseSource('cdn')}><Globe size={15}/> GitHub Library</button><button className={`dv-btn font-urdu ${source === 'local' ? 'dv-active' : ''}`} aria-pressed={source === 'local'} onClick={() => chooseSource('local')}>پہلے سے موجود اردو</button></nav>
+      {source === 'cdn' && <><div className="dv-language"><label htmlFor="dv-language">Reading language</label><select id="dv-language" value={language} onChange={event => {setLanguage(event.target.value as DuaLanguage);setRefresh(0);reset();}}>{DUA_LANGUAGES.map(item => <option value={item.code} key={item.code}>{item.label}{item.code === 'ur' || item.code === 'hi' ? ' · Machine translation' : ''}</option>)}</select><button className="dv-btn" aria-label="Refresh GitHub library" disabled={state.loading} onClick={() => setRefresh(n => n + 1)}><RefreshCw size={16}/></button></div>{machineTranslation && <TranslationWarning language={language}/>}</>}
+      {source === 'cdn' && (chapterId !== null || entryId) && <div className="dv-toolbar"><button className="dv-btn" onClick={back}><ArrowLeft size={15}/>{entryId ? 'Back to entries' : 'All chapters'}</button>{entryId && <button className="dv-btn" aria-pressed={transliteration} onClick={() => setTransliteration(v => !v)}>{transliteration ? 'Hide' : 'Show'} transliteration</button>}</div>}
+      {!entryId && <div className="dv-toolbar"><label className="dv-search"><Search size={17} aria-hidden="true"/><input aria-label="Search duas" value={query} placeholder="Search titles, Arabic or translation…" onChange={event => {setQuery(event.target.value);setPage(1);}}/>{query && <button className="dv-clear" aria-label="Clear search" onClick={reset}><X size={14}/></button>}</label></div>}
+      {source === 'local' ? <><p className="dv-note font-urdu" dir="rtl">یہ ایپ کی پہلے سے موجود 10 اردو دعاؤں کی فہرست ہے؛ GitHub کے مجموعے سے الگ ہے۔</p><div className="dv-local">{local.map((dua, i) => <article className="dv-card dv-reader" key={dua.c}><div className="dv-row dv-spread"><span className="dv-card-number">DUA {i + 1}</span><h3 className="font-urdu" dir="rtl">{dua.c}</h3></div><p className="dv-arabic font-amiri" dir="rtl" lang="ar">{dua.ar}</p><p className="dv-urdu font-urdu" dir="rtl" lang="ur">{dua.ur}</p></article>)}</div>{!local.length && <p className="dv-note">No matching duas.</p>}</> : state.loading || (!result && !state.error) ? <BrandLoader/> : state.error ? <div className="dv-card dv-empty" role="alert"><AlertCircle size={25}/><h3>Library unavailable</h3><p>{state.error}</p><button className="dv-btn" onClick={() => setRefresh(n => n + 1)}><RefreshCw size={15}/> Try again</button><p className="font-urdu" dir="rtl">پہلے سے موجود اردو دعائیں دوسرے ٹیب میں دستیاب ہیں۔</p></div> : <>
+        <p className="dv-cache">{result?.via === 'cache' ? `${result.stale ? 'Offline fallback' : 'Saved copy'} · ${new Date(result.savedAt).toLocaleString()}` : result?.via === 'github' ? 'Loaded directly from GitHub Raw' : 'Loaded via jsDelivr CDN'} · Dataset {data?.meta.version}</p>
+        {selected ? <DuaReader dua={selected.dua} chapter={selected.chapter} language={language} transliteration={transliteration}/> : entryId ? <div className="dv-card dv-empty"><h3>This entry is not available in this language.</h3><button className="dv-btn" onClick={() => setEntryId(null)}>Back to library</button></div> : <>
+          {chapterId === null && <div className="dv-tabs" aria-label="Browse mode"><button className={`dv-btn ${mode === 'chapters' ? 'dv-active' : ''}`} aria-pressed={mode === 'chapters'} onClick={() => {setMode('chapters');reset();}}><Layers size={14}/> Chapters</button><button className={`dv-btn ${mode === 'entries' ? 'dv-active' : ''}`} aria-pressed={mode === 'entries'} onClick={() => {setMode('entries');reset();}}>All entries <ArrowUpRight size={14}/></button></div>}
+          <div className="dv-section-head"><h2 dir={currentChapter ? chosen.dir : 'ltr'}>{currentChapter?.title || (isChapters ? 'Find a moment. Find a dua.' : 'All entries')}</h2><span className="dv-count">{count}</span></div>
+          {!count ? <div className="dv-card dv-empty"><Search size={25}/><h3>No matching results</h3><p>Try an Arabic word, translation, title or reference number.</p><button className="dv-btn" onClick={reset}>Clear search</button></div> : <div className="dv-catalogue">{isChapters ? filteredChapters.slice(start, start + PAGE_SIZE).map(chapter => <button className="dv-card dv-catalogue-card" key={chapter.id} onClick={() => {setChapterId(chapter.id);reset();}}><div className="dv-row dv-spread"><span className="dv-card-number">CHAPTER {chapter.id}</span><BookOpen size={15}/></div><h3 className={chosen.dir === 'rtl' ? 'font-urdu' : ''} dir={chosen.dir}>{chapter.title}</h3><div className="dv-row dv-spread dv-card-bottom"><span className="dv-muted">{chapter.duas.length} entries</span><span className="dv-open">Open <ChevronRight size={12}/></span></div></button>) : filteredEntries.slice(start, start + PAGE_SIZE).map(({dua, chapter}) => <button className="dv-card dv-catalogue-card" key={dua.id} onClick={() => setEntryId(dua.id)}><div className="dv-row dv-spread"><span className="dv-card-number">ENTRY {dua.reference?.sourceReference || dua.id}</span><BookOpen size={15}/></div><h3>{dua.title}</h3><p className={`dv-muted ${chosen.dir === 'rtl' ? 'font-urdu' : ''}`} dir={chosen.dir}>{chapter.title}</p><div className="dv-row dv-spread dv-card-bottom"><span className="dv-muted">{dua.id}</span><span className="dv-open">Read <ChevronRight size={12}/></span></div></button>)}</div>}
           {pages > 1 && <nav className="dv-pagination" aria-label="Library pages"><button className="dv-btn" disabled={safePage === 1} onClick={() => setPage(safePage - 1)}><ArrowLeft size={14}/> Previous</button><span>{safePage} / {pages}</span><button className="dv-btn" disabled={safePage === pages} onClick={() => setPage(safePage + 1)}>Next <ChevronRight size={14}/></button></nav>}
         </>}
       </>}
-      <footer className="dv-footer">API text: <a href="https://opendua.org" target="_blank" rel="noopener noreferrer">OpenDua</a> · Hisn al-Muslim{info?.dataVersion ? ` · Data ${info.dataVersion}` : ''}<br/><a href="https://opendua.org/licence/data" target="_blank" rel="noopener noreferrer">OpenDua data licence</a> · Text and references displayed as supplied; no generated translations.</footer>
+      <footer className="dv-footer"><a href={`https://github.com/${DUA_REPO}`} target="_blank" rel="noopener noreferrer">{DUA_REPO}</a> · Hisn al-Muslim · {DUA_REF}<br/>Data delivered via jsDelivr CDN with GitHub Raw fallback.{data?.meta.attribution && <details><summary>Dataset attribution & translation notes</summary><p style={{marginTop:10}}>{data.meta.attribution}</p>{data.meta.license?.dataset && <p>Compilation licence (as stated by repository): {data.meta.license.dataset}</p>}{data.meta.license?.notes?.map((note, i) => <p key={i}>{note}</p>)}</details>}</footer>
     </div>
   </main>;
 };
