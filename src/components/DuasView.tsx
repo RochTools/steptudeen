@@ -18,6 +18,8 @@ const IA_DUAS: { c: string; ar: string; ur: string }[] = [
 
 const PAGE_SIZE = 16;
 const normalize = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f\u064B-\u065F\u0670]/g, '');
+// Display-only: removes the ( ) and [ ] marks that come with the API text; the words inside are kept.
+const clean = (t?: string) => (t ? t.replace(/[()\[\]]/g, '').replace(/\s{2,}/g, ' ').trim() : t);
 function BrandLoader() {
   return <div className="dv-loader" role="status" aria-live="polite"><div className="dv-brand-word" aria-hidden="true">{'StepTuDeen'.split('').map((letter, i) => <span key={i} style={{ animationDelay: `${i * .075}s` }}>{letter}</span>)}</div><div className="dv-loader-track" aria-hidden="true"><span/></div><p>StepTuDeen — Loading duas…</p></div>;
 }
@@ -37,12 +39,12 @@ function DuaReader({ dua, chapter, language, transliteration }: { dua: CdnDua; c
   const reference = dua.reference;
   return <article className="dv-card dv-reader">
     <header className="dv-reader-heading"><div className="dv-row dv-spread"><span className="dv-pill">Entry {reference?.sourceReference || dua.id}</span>{dua.repeat && dua.repeat > 1 ? <span className="dv-pill">Repeat {dua.repeat} times</span> : null}</div><h2>{dua.title}</h2><p className={`dv-muted ${chosen.dir === 'rtl' ? 'font-urdu' : ''}`} dir={chosen.dir}>{chapter.title}</p></header>
-    <p className="dv-arabic font-amiri" dir="rtl" lang="ar">{dua.arabic}</p>
-    {transliteration && dua.transliteration && <div className="dv-text-block"><span className="dv-label">Transliteration</span><p className="dv-transliteration">{dua.transliteration}</p></div>}
+    <p className="dv-arabic font-amiri" dir="rtl" lang="ar">{clean(dua.arabic)}</p>
+    {transliteration && dua.transliteration && <div className="dv-text-block"><span className="dv-label">Transliteration</span><p className="dv-transliteration">{clean(dua.transliteration)}</p></div>}
     {language !== 'ar' && <div className="dv-text-block"><span className="dv-label">{chosen.name} · {dua.translationKind === 'machine' ? 'AI translation' : 'Translation'}</span><p className={language === 'ur' ? 'font-urdu' : ''} lang={language} dir={chosen.dir}>{dua.text}</p></div>}
     {dua.guidance && <p className="dv-note">{dua.guidance}</p>}
     {dua.placeholders?.length ? <div className="dv-note"><span className="dv-label">Note</span>{Array.from(new Map(dua.placeholders.map(p => [p.key, p])).values()).map(p => <p key={p.key}><code>{`{{${p.key}}}`}</code> — {p.instruction}</p>)}</div> : null}
-    {dua.parts?.length ? <details><summary>More parts ({dua.parts.length})</summary>{dua.parts.map((part, i) => <section className="dv-part" key={i}><span className="dv-pill">Part {i + 1}{part.times && part.times > 1 ? ` · ${part.times} times` : ''}</span><p className="dv-arabic font-amiri" dir="rtl" lang="ar">{part.arabic}</p>{transliteration && part.transliteration && <p className="dv-transliteration dv-context">{part.transliteration}</p>}{part.en && <div className="dv-text-block"><span className="dv-label">Meaning (English)</span><p lang="en" dir="ltr">{part.en}</p></div>}</section>)}</details> : null}
+    {dua.parts?.length ? <details><summary>More parts ({dua.parts.length})</summary>{dua.parts.map((part, i) => <section className="dv-part" key={i}><span className="dv-pill">Part {i + 1}{part.times && part.times > 1 ? ` · ${part.times} times` : ''}</span><p className="dv-arabic font-amiri" dir="rtl" lang="ar">{clean(part.arabic)}</p>{transliteration && part.transliteration && <p className="dv-transliteration dv-context">{clean(part.transliteration)}</p>}{part.en && <div className="dv-text-block"><span className="dv-label">Meaning (English)</span><p lang="en" dir="ltr">{part.en}</p></div>}</section>)}</details> : null}
     <div className="dv-references"><span className="dv-label">Reference</span><p>Hisn al-Muslim · {reference?.sourceReference || dua.id}</p>{reference?.references?.map((ref, i) => <p key={i}>{ref.reference}{ref.grades?.map((grade, n) => <span key={n}> · {grade.value}{grade.gradedBy ? ` (${grade.gradedBy})` : ''}</span>)}</p>)}</div>
   </article>;
 }
