@@ -607,7 +607,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         .sth-home .sth-feature:active{transform:translateY(0)}
         .sth-home .sth-feature-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;color:inherit}
         .sth-home .sth-feature-icon{display:grid;place-items:center;width:37px;height:37px;border-radius:11px;border:1px solid #00000012;color:inherit}
-        .sth-home .sth-feature-title{font-size:17px;text-align:right;white-space:normal;color:inherit}
+        .sth-home .sth-feature-title{font-size:21px;-webkit-text-stroke:.5px currentColor;text-align:center;white-space:normal;color:inherit}
         .sth-home .sth-feature-label{font-size:12px;font-weight:750;color:inherit;line-height:1.5}
         .sth-home .sth-feature-open{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:600;margin-top:auto;padding-top:4px;color:inherit}
         .sth-home .sth-panel{background:#fff;color:#080808;border:1px solid #0000000d;border-radius:12px!important;padding:19px!important}
@@ -813,7 +813,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             onChange={event => setSearchQuery(event.target.value)}
             onKeyDown={event => event.key === 'Enter' && handleSearch()}
             placeholder="Search Surah or Ayah, e.g. Yaseen Ayah 7..."
-            className="min-w-0 flex-1 bg-transparent text-left text-[12px] text-black outline-none placeholder:text-black"
+            className="min-w-0 flex-1 bg-transparent text-left text-[12px] text-black outline-none placeholder:text-slate-400"
             dir="ltr"
           />
           {searchQuery && (
@@ -830,13 +830,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 key={index}
                 type="button"
                 onClick={() => { result.action(); clearSearch(); }}
-                className="flex w-full items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 text-left transition-colors last:border-0 hover:bg-white active:bg-white"
+                className="flex w-full items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 text-left transition-colors last:border-0 hover:bg-blue-50 active:bg-blue-100"
               >
                 <span className="flex-1 text-left">
                   <span className="block text-[12px] font-bold text-black" dir="auto">{result.title}</span>
                   {result.subtitle && <span className="block text-[10px] text-black" dir="auto">{result.subtitle}</span>}
                 </span>
-                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-black">{result.type}</span>
+                <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">{result.type}</span>
               </button>
             ))}
           </div>
@@ -853,8 +853,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* ═══════════ Main content ═══════════ */}
       <div className="sth-content relative">
         {isDeviceOffline && (
-          <div className={`sth-panel mx-4 flex animate-fadeIn items-center gap-2.5 bg-white p-2.5 text-black ${CARD_SHADOW}`}>
-            <AlertTriangle size={15} className="shrink-0 text-black" />
+          <div className={`mx-4 flex animate-fadeIn items-center gap-2.5 rounded-lg bg-amber-50/70 p-2.5 text-amber-900 ${CARD_SHADOW}`}>
+            <AlertTriangle size={15} className="shrink-0 text-amber-600" />
             <div className="flex-1 text-left text-[11px] leading-relaxed">
               Offline mode: Your internet connection is unavailable. Some content may not load.
             </div>
