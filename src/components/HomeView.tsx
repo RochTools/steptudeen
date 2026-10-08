@@ -619,7 +619,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       `}</style>
 
       {/* ═══════════ Header ═══════════ */}
-      <div className="relative min-h-[320px] overflow-hidden rounded-b-[26px] bg-[#063b9d] text-white shadow-[0_10px_30px_rgba(5,69,166,.28)]">
+      <div className="relative min-h-[260px] overflow-hidden rounded-b-[26px] pb-5 bg-[#063b9d] text-white shadow-[0_10px_30px_rgba(5,69,166,.28)]">
         <CelestialHeaderScene prayerTimes={prayerTimes} />
 
         <img
@@ -758,7 +758,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* Dates */}
-        <div className="relative z-10 mt-10 w-[58%] px-4">
+        <div className="relative z-10 mt-5 w-[58%] px-4">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-amber-200 backdrop-blur-sm"><CalendarDays size={22} /></span>
             <div className="min-w-0">
@@ -769,7 +769,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* Prayer glass card */}
-        <div className={`relative z-20 mx-4 mt-14 rounded-[20px] border p-3 shadow-[0_12px_35px_rgba(0,34,110,.28)] backdrop-blur-md ${nextPrayer.isCurrent ? 'border-amber-300/50 bg-amber-500/20' : 'border-white/35 bg-white/12'}`}>
+        <div className={`relative z-20 mx-4 mt-7 rounded-[20px] border p-3 shadow-[0_12px_35px_rgba(0,34,110,.28)] backdrop-blur-md ${nextPrayer.isCurrent ? 'border-amber-300/50 bg-amber-500/20' : 'border-white/35 bg-white/12'}`}>
           <div className="flex items-center gap-3">
             <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg ${nextPrayer.isCurrent ? 'bg-amber-300 text-amber-900' : 'bg-white text-[#0755bd]'}`}>
               <Sunrise size={27} strokeWidth={1.8} />
