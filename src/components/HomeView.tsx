@@ -354,7 +354,8 @@ const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void }> = ({ c
     : config.nav === 'qibla' ? Compass : config.nav === 'tasbih' ? CircleDot
     : config.nav === 'duas' ? Heart : config.nav === 'user-dashboard' ? LayoutDashboard : Sunrise;
   return (
-    <button type="button" onClick={onClick} className="sth-feature sth-feature-white" aria-label={`Open ${config.label}`}>
+    <button type="button" onClick={onClick} className={`sth-feature sth-feature-white sth-t-${config.theme}`} aria-label={`Open ${config.label}`}>
+      <span className="sth-feature-mark" aria-hidden="true"><Icon size={96} strokeWidth={1.3}/></span>
       <div className="sth-feature-top"><span className="sth-feature-icon"><Icon size={21} strokeWidth={1.7}/></span><ArrowUpRight size={17}/></div>
       <span className="home-card-urdu-title sth-feature-title" dir="rtl">{config.urdu}</span>
       <span className="sth-feature-label">{config.label}</span>
@@ -602,14 +603,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
         .sth-home .sth-small-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#1559cc;color:#fff;border:0;border-radius:10px;min-height:35px;padding:8px 10px;font-size:10px;font-weight:700;flex-shrink:0}
         .sth-home .sth-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin:0 16px}
         .sth-home .sth-feature{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:4px;text-align:left;min-width:0;aspect-ratio:1/1;overflow:hidden;border:1px solid #0000000c;border-radius:10px;padding:12px;box-shadow:0 10px 24px #0000000b,0 3px 6px #00000008}
-        .sth-home .sth-feature-white{background:#fff;color:#080808}
+        .sth-home .sth-t-green{--ac:#0f9d6b;--bg1:#f2fcf7;--bg2:#d3f2e3;--ink:#064e3b;--bd:#b4e5ce}
+        .sth-home .sth-t-purple{--ac:#7c4dff;--bg1:#f7f3ff;--bg2:#e3d9ff;--ink:#3b1d8a;--bd:#d0c2fb}
+        .sth-home .sth-t-pink{--ac:#e11d62;--bg1:#fff2f7;--bg2:#ffd6e4;--ink:#8a1040;--bd:#fbbfd3}
+        .sth-home .sth-t-amber{--ac:#e08a00;--bg1:#fff9ea;--bg2:#ffe7b5;--ink:#6b4000;--bd:#f5d691}
+        .sth-home .sth-t-blue{--ac:#1559cc;--bg1:#f0f6ff;--bg2:#d1e2ff;--ink:#103d91;--bd:#b9d2fb}
+        .sth-home .sth-t-white{--ac:#334155;--bg1:#f8fafc;--bg2:#e0e6ee;--ink:#0f172a;--bd:#c8d1dc}
+        .sth-home .sth-t-coral{--ac:#ef5a3c;--bg1:#fff4f0;--bg2:#ffd6c9;--ink:#80250f;--bd:#f8c0b0}
+        .sth-home .sth-t-teal{--ac:#0d9aa8;--bg1:#eefbfc;--bg2:#caeef2;--ink:#0b5560;--bd:#addfe5}
+        .sth-home .sth-t-rose{--ac:#b83280;--bg1:#fdf3f9;--bg2:#fad3e9;--ink:#6b1b4b;--bd:#f0bad8}
+        .sth-home .sth-feature-white{background:linear-gradient(150deg,var(--bg1) 0%,var(--bg2) 100%);color:var(--ink);border-color:var(--bd)}
+        .sth-home .sth-feature>*:not(.sth-feature-mark){position:relative}
+        .sth-home .sth-feature-mark{position:absolute;right:-16px;bottom:-16px;color:var(--ac);opacity:.1;pointer-events:none;line-height:0}
+        .sth-home .sth-feature-top>svg{color:var(--ac)}
         .sth-home .sth-feature:hover{transform:translateY(-3px);box-shadow:0 15px 27px #00000012}
         .sth-home .sth-feature:active{transform:translateY(0)}
         .sth-home .sth-feature-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;color:inherit}
-        .sth-home .sth-feature-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;border:1px solid #00000012;color:inherit}
+        .sth-home .sth-feature-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:var(--ac);color:#fff;box-shadow:0 6px 12px -4px var(--ac)}
         .sth-home .sth-feature-title{font-size:18px;line-height:1.65!important;-webkit-text-stroke:.5px currentColor;text-align:center;white-space:normal;color:inherit}
         .sth-home .sth-feature-label{font-size:12px;font-weight:750;color:inherit;line-height:1.5}
-        .sth-home .sth-feature-open{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:600;margin-top:auto;padding-top:4px;color:inherit}
+        .sth-home .sth-feature-open{display:inline-flex;align-items:center;align-self:flex-start;gap:4px;font-size:9px;font-weight:700;margin-top:auto;padding:5px 10px;border-radius:999px;background:var(--ac);color:#fff}
         .sth-home .sth-panel{background:#fff;color:#080808;border:1px solid #0000000d;border-radius:12px!important;padding:19px!important}
         .sth-home .sth-mosque{border-radius:10px;background:#fff;border:1px solid #0000000e;padding:13px!important;box-shadow:0 4px 10px #00000005}
         .sth-home .sth-daily-title{display:flex;align-items:center;gap:8px;color:#080808;text-transform:uppercase;font-size:10px;font-weight:800;letter-spacing:.1em;margin:0 0 12px}
