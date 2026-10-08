@@ -601,13 +601,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
         .sth-home .sth-section-heading p{font-size:10px;line-height:1.7;color:#080808;margin:5px 0 0}
         .sth-home .sth-small-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#1559cc;color:#fff;border:0;border-radius:10px;min-height:35px;padding:8px 10px;font-size:10px;font-weight:700;flex-shrink:0}
         .sth-home .sth-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin:0 16px}
-        .sth-home .sth-feature{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:7px;text-align:left;min-width:0;min-height:164px;border:1px solid #0000000c;border-radius:10px;padding:17px 15px;box-shadow:0 10px 24px #0000000b,0 3px 6px #00000008}
+        .sth-home .sth-feature{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:4px;text-align:left;min-width:0;aspect-ratio:1/1;overflow:hidden;border:1px solid #0000000c;border-radius:10px;padding:12px;box-shadow:0 10px 24px #0000000b,0 3px 6px #00000008}
         .sth-home .sth-feature-white{background:#fff;color:#080808}
         .sth-home .sth-feature:hover{transform:translateY(-3px);box-shadow:0 15px 27px #00000012}
         .sth-home .sth-feature:active{transform:translateY(0)}
-        .sth-home .sth-feature-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;color:inherit}
-        .sth-home .sth-feature-icon{display:grid;place-items:center;width:37px;height:37px;border-radius:11px;border:1px solid #00000012;color:inherit}
-        .sth-home .sth-feature-title{font-size:21px;-webkit-text-stroke:.5px currentColor;text-align:center;white-space:normal;color:inherit}
+        .sth-home .sth-feature-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;color:inherit}
+        .sth-home .sth-feature-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;border:1px solid #00000012;color:inherit}
+        .sth-home .sth-feature-title{font-size:18px;line-height:1.65!important;-webkit-text-stroke:.5px currentColor;text-align:center;white-space:normal;color:inherit}
         .sth-home .sth-feature-label{font-size:12px;font-weight:750;color:inherit;line-height:1.5}
         .sth-home .sth-feature-open{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:600;margin-top:auto;padding-top:4px;color:inherit}
         .sth-home .sth-panel{background:#fff;color:#080808;border:1px solid #0000000d;border-radius:12px!important;padding:19px!important}
