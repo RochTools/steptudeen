@@ -2,10 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AlertTriangle, Bell, CalendarDays, ChevronDown, Compass,
-  MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X,
+  MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X, BookOpen, ScrollText, ArrowUpRight, CircleDot, Heart, LayoutDashboard,
 } from 'lucide-react';
 import { Mosque } from '../types';
-import CelestialHeaderScene from './CelestialHeaderScene';
 import { InboxItem, readInbox, markInboxRead } from '../utils/notifications';
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
@@ -46,7 +45,7 @@ const QURAN_SEARCH_TARGET_KEY = 'steptudeen_app_quran_search_target';
 const QURAN_LANGUAGE_KEY = 'steptudeen_app_quran_language';
 const HADITH_HOME_TARGET_KEY = 'steptudeen_app_hadith_book_target';
 
-const CARD_SHADOW = 'shadow-[0_2px_10px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.03)]';
+const CARD_SHADOW = 'shadow-[0_12px_28px_rgba(0,0,0,0.06),0_3px_6px_rgba(0,0,0,0.04)]';
 const DEFAULT_LOCATION_NAME = 'Current location';
 const CURRENT_PRAYER_WINDOW_MINS = 30;
 
@@ -159,21 +158,8 @@ const DAILY_HADITHS: DailyText[] = [
 
 /* ═══════════════════════════ Home cards ═══════════════════════════ */
 
-type CardTheme = { bg: string; icon: string; title: string; label: string };
-
-const CARD_THEMES: Record<string, CardTheme> = {
-  green:  { bg: '#E1F5EE', icon: '#0F6E56', title: '#04342C', label: '#085041' },
-  purple: { bg: '#EEEDFE', icon: '#534AB7', title: '#26215C', label: '#3C3489' },
-  pink:   { bg: '#FBEAF0', icon: '#993556', title: '#4B1528', label: '#72243E' },
-  amber:  { bg: '#FAEEDA', icon: '#854F0B', title: '#412402', label: '#633806' },
-  blue:   { bg: '#E6F1FB', icon: '#185FA5', title: '#042C53', label: '#0C447C' },
-  coral:  { bg: '#FAECE7', icon: '#993C1D', title: '#4A1B0C', label: '#712B13' },
-  teal:   { bg: '#DDF3F0', icon: '#0E7C74', title: '#053B37', label: '#0A5A54' },
-  rose:   { bg: '#FCE8EC', icon: '#B0294A', title: '#5A0F22', label: '#7E1B36' },
-};
-
 interface HomeCardConfig {
-  theme: keyof typeof CARD_THEMES;
+  theme: string;
   urdu: string;
   label: string;
   /** Either a top-level view to open, or a Hadith book to open inside the Hadith view. */
@@ -187,6 +173,7 @@ const HOME_CARDS: HomeCardConfig[] = [
   { theme: 'pink',   urdu: 'مسنون دعائیں',    label: 'Duas',             nav: 'duas' },
   { theme: 'amber',  urdu: 'تسبیح کاؤنٹر',   label: 'Tasbih',           nav: 'tasbih' },
   { theme: 'blue',   urdu: 'قبلہ رخ سمت',     label: 'Qibla',            nav: 'qibla' },
+  { theme: 'white', urdu: 'میرا ڈش بورڈ', label: 'My Dashboard', nav: 'user-dashboard' },
   { theme: 'coral',  urdu: 'صحیح بخاری',      label: 'Sahih Bukhari',    hadithBook: 'bukhari' },
   { theme: 'teal',   urdu: 'صحیح مسلم',       label: 'Sahih Muslim',     hadithBook: 'muslim' },
   { theme: 'rose',   urdu: 'سنن ابو داود',    label: 'Sunan Abu Dawud',  hadithBook: 'abudawud' },
@@ -358,46 +345,20 @@ const buildLocalResults = (
 /* ═══════════════════════════ Small components ═══════════════════════════ */
 
 const Spinner: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) => (
-  <div className={`animate-spin rounded-full border-b-2 border-emerald-600 ${className}`} />
-);
-
-/** Small Islamic scroll ornament for one card corner (rotate it for the other three). */
-const CornerOrnament: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg
-    viewBox="0 0 40 40"
-    className={`pointer-events-none absolute h-9 w-9 text-slate-500/80 ${className}`}
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.2"
-    strokeLinecap="round"
-    aria-hidden="true"
-  >
-    <path d="M5 5c0 9 10 9 10 3 0-4-5-4-5 0" />
-    <path d="M19 6c6-2 12 0 16 5-6 1-12 0-16-5Z" />
-    <path d="M6 19c-2 6 0 12 5 16 1-6 0-12-5-16Z" />
-    <circle cx="22" cy="22" r="1.3" fill="currentColor" stroke="none" />
-  </svg>
+  <div className={`animate-spin rounded-full border-b-2 border-blue-600 ${className}`} />
 );
 
 const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void }> = ({ config, onClick }) => {
-  const { theme, urdu, label } = config;
-  const color = CARD_THEMES[theme].icon;
+  const primary = config.nav === 'quran' || config.nav === 'duas';
+  const Icon = config.hadithBook ? ScrollText : config.nav === 'quran' ? BookOpen
+    : config.nav === 'qibla' ? Compass : config.nav === 'tasbih' ? CircleDot
+    : config.nav === 'duas' ? Heart : config.nav === 'user-dashboard' ? LayoutDashboard : Sunrise;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="relative flex aspect-[4/3] flex-col items-center justify-center overflow-hidden rounded-md bg-white px-3 text-center shadow-[0_3px_10px_rgba(0,0,0,0.10)] transition-transform active:scale-[0.97]"
-    >
-      <CornerOrnament className="left-1 top-1" />
-      <CornerOrnament className="right-1 top-1 rotate-90" />
-      <CornerOrnament className="bottom-1 right-1 rotate-180" />
-      <CornerOrnament className="bottom-1 left-1 -rotate-90" />
-
-      <span dir="rtl" style={{ color }} className="home-card-urdu-title text-[18px]">
-        {urdu}
-      </span>
-      <span className="mt-0.5 text-[15px] font-medium text-slate-800">{label}</span>
-      <span className="mt-2 text-[13px] font-medium text-emerald-700">Open</span>
+    <button type="button" onClick={onClick} className={`sth-feature ${primary ? 'sth-feature-blue' : 'sth-feature-white'}`} aria-label={`Open ${config.label}`}>
+      <div className="sth-feature-top"><span className="sth-feature-icon"><Icon size={21} strokeWidth={1.7}/></span><ArrowUpRight size={17}/></div>
+      <span className="home-card-urdu-title sth-feature-title" dir="rtl">{config.urdu}</span>
+      <span className="sth-feature-label">{config.label}</span>
+      <span className="sth-feature-open">{config.hadithBook ? 'Read collection' : 'Explore'} <ArrowUpRight size={12}/></span>
     </button>
   );
 };
@@ -619,7 +580,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   /* ═══════════════════════════ Render ═══════════════════════════ */
 
   return (
-    <div className="pb-16 animate-fadeIn bg-slate-50">
+    <div className="sth-home pb-16 animate-fadeIn bg-white">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@700&display=swap');
         .home-card-urdu-title {
@@ -629,22 +590,64 @@ export const HomeView: React.FC<HomeViewProps> = ({
           text-rendering: optimizeLegibility;
           -webkit-font-smoothing: antialiased;
         }
+        .sth-home{--sth-blue:#1559cc;--sth-dark:#103d91;background:#fff;color:#080808;min-height:100vh}
+        .sth-home *, .sth-home *::before, .sth-home *::after{box-sizing:border-box}
+        .sth-home button{cursor:pointer;transition:box-shadow .18s,transform .18s,background .18s}
+        .sth-home button:focus-visible,.sth-home input:focus-visible{outline:3px solid #3685ff;outline-offset:3px}
+        .sth-home .sth-hero{background:linear-gradient(135deg,#164fb5 0%,#124497 100%);color:#fff;border-radius:0 0 30px 30px;padding:8px 0 22px;isolation:isolate}
+        .sth-home .sth-hero:before{content:'';position:absolute;width:290px;height:290px;right:-105px;top:30px;border:1px solid #ffffff16;border-radius:50%;z-index:0;box-shadow:0 0 0 36px #ffffff05,0 0 0 72px #ffffff04;pointer-events:none}
+        .sth-home .sth-brand{color:#fff;font-weight:800;font-size:16px;letter-spacing:-.04em;line-height:1.2;text-align:center}
+        .sth-home .sth-brand small{display:block;font-size:8px;letter-spacing:.16em;text-transform:uppercase;font-weight:500;margin-top:5px;color:#fff}
+        .sth-home .sth-welcome{position:relative;z-index:15;padding:26px 22px 0;color:#fff}
+        .sth-home .sth-welcome p{font-size:11px;letter-spacing:.04em;margin:0 0 7px;color:#fff}
+        .sth-home .sth-welcome h1{font-size:25px;line-height:1.5;font-weight:800;letter-spacing:-.03em;max-width:85%;color:#fff;margin:0}
+        .sth-home .sth-dates{position:relative;z-index:15;margin-top:20px;padding:0 22px;color:#fff}
+        .sth-home .sth-prayer{position:relative;z-index:20;margin:23px 16px 0;border-radius:21px;padding:17px 13px;background:#0d3582;color:#fff;border:1px solid #ffffff25;box-shadow:0 12px 25px #06214e30}
+        .sth-home .sth-search{border-radius:17px!important;padding:15px!important;border-color:#00000012!important;box-shadow:0 9px 24px #00000008,0 2px 5px #00000004!important}
+        .sth-home .sth-content{background:#fff;display:grid;gap:25px;padding:8px 0 16px}
+        .sth-home .sth-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 18px 13px;color:#080808}
+        .sth-home .sth-section-heading h2{font-size:17px;font-weight:800;letter-spacing:-.025em;color:#080808;margin:0}
+        .sth-home .sth-section-heading p{font-size:10px;line-height:1.7;color:#080808;margin:5px 0 0}
+        .sth-home .sth-small-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#1559cc;color:#fff;border:0;border-radius:10px;min-height:35px;padding:8px 10px;font-size:10px;font-weight:700;flex-shrink:0}
+        .sth-home .sth-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin:0 16px}
+        .sth-home .sth-feature{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:7px;text-align:left;min-width:0;min-height:164px;border:1px solid #0000000c;border-radius:20px;padding:17px 15px;box-shadow:0 10px 24px #00000007,0 3px 5px #00000005}
+        .sth-home .sth-feature-blue{background:#1559cc;color:#fff;border-color:#1559cc;box-shadow:0 10px 24px #1559cc23,0 3px 6px #00000008}
+        .sth-home .sth-feature-white{background:#fff;color:#080808}
+        .sth-home .sth-feature:hover{transform:translateY(-3px);box-shadow:0 15px 27px #00000012}
+        .sth-home .sth-feature:active{transform:translateY(0)}
+        .sth-home .sth-feature-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;color:inherit}
+        .sth-home .sth-feature-icon{display:grid;place-items:center;width:37px;height:37px;border-radius:11px;border:1px solid #00000012;color:inherit}
+        .sth-home .sth-feature-blue .sth-feature-icon{background:#ffffff13;border-color:#ffffff28}
+        .sth-home .sth-feature-title{font-size:17px;text-align:right;white-space:normal;color:inherit}
+        .sth-home .sth-feature-label{font-size:12px;font-weight:750;color:inherit;line-height:1.5}
+        .sth-home .sth-feature-open{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:600;margin-top:auto;padding-top:4px;color:inherit}
+        .sth-home .sth-panel{background:#fff;color:#080808;border:1px solid #0000000d;border-radius:21px!important;padding:19px!important}
+        .sth-home .sth-mosque{border-radius:15px;background:#fff;border:1px solid #0000000e;padding:13px!important;box-shadow:0 4px 10px #00000005}
+        .sth-home .sth-verse{background:#1559cc!important;color:#fff;border-color:#1559cc!important}
+        .sth-home .sth-verse p,.sth-home .sth-verse div{color:#fff!important}
+        .sth-home .sth-verse .animate-spin{border-bottom-color:#fff!important}
+        .sth-home .sth-verse .border-t{border-color:#ffffff30!important}
+        .sth-home .sth-daily-title{display:flex;align-items:center;gap:8px;color:#080808;text-transform:uppercase;font-size:10px;font-weight:800;letter-spacing:.1em;margin:0 0 12px}
+        .sth-home .sth-daily-title:before{content:'';height:3px;width:20px;border-radius:4px;background:#1559cc}
+        .sth-home .sth-daily-arabic{font-size:24px!important;line-height:2!important}
+        @media(max-width:360px){.sth-home .sth-feature{padding:13px 11px;min-height:158px}.sth-home .sth-feature-title{font-size:15px}.sth-home .sth-prayer{padding:14px 10px}.sth-home .sth-prayer-time{font-size:23px}.sth-home .sth-brand{font-size:14px}}
+        @media(prefers-reduced-motion:reduce){.sth-home *, .sth-home *::before{animation:none!important;transition:none!important}.sth-home .sth-feature:hover{transform:none}}
       `}</style>
 
       {/* ═══════════ Header ═══════════ */}
-      <div className="relative min-h-[320px] overflow-hidden rounded-b-[26px] bg-[#063b9d] text-white shadow-[0_10px_30px_rgba(5,69,166,.28)]">
-        <CelestialHeaderScene prayerTimes={prayerTimes} />
+      <div className="sth-hero relative overflow-hidden text-white shadow-[0_10px_30px_rgba(5,69,166,.18)]">
+
 
         <img
           src="/mosque-header.webp"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none absolute z-[12] select-none opacity-90"
+          className="pointer-events-none absolute z-[1] select-none opacity-20"
           style={{
-            right: '21px',
-            top: '-10px',
-            width: '94%',
-            maxHeight: 'calc(100% - 90px)',
+            right: '-22px',
+            top: '74px',
+            width: '60%',
+            maxHeight: '190px',
             objectFit: 'contain',
             objectPosition: 'top right',
           }}
@@ -674,7 +677,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             >
               <Bell size={21} />
               {unreadCount > 0 && (
-                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-bold leading-none text-slate-900">
+                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-white px-1 text-[9px] font-bold leading-none text-black">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
@@ -684,33 +687,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <>
                 {/* transparent backdrop: tapping outside closes the inbox */}
                 <div className="fixed inset-0 z-[9998]" onClick={() => setBellOpen(false)} />
-                <div className="fixed left-4 right-4 top-16 z-[9999] mx-auto max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-slate-800 shadow-2xl">
+                <div className="fixed left-4 right-4 top-16 z-[9999] mx-auto max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-black shadow-2xl">
                   <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                    <h3 className="text-[15px] font-bold text-slate-900">Inbox</h3>
-                    <button type="button" onClick={() => setBellOpen(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
+                    <h3 className="text-[15px] font-bold text-black">Inbox</h3>
+                    <button type="button" onClick={() => setBellOpen(false)} className="rounded-full p-1 text-black hover:bg-white" aria-label="Close">
                       <X size={16} />
                     </button>
                   </div>
 
                   <div className="max-h-[60vh] overflow-y-auto">
                     {announcementCount === 0 && prayerInbox.length === 0 && (
-                      <div className="px-4 py-8 text-center text-sm text-slate-400">No new notifications yet</div>
+                      <div className="px-4 py-8 text-center text-sm text-black">No new notifications yet</div>
                     )}
 
                     {announcementCount > 0 && (
                       <div className="border-b border-slate-100 px-4 py-2">
-                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">Mosque Announcements</div>
+                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-black">Mosque Announcements</div>
                         {savedMosquesWithAnnouncement.map(m => (
                           <button
                             key={m.id}
                             type="button"
                             onClick={() => { onOpenMosque(m); setBellOpen(false); }}
-                            className="mb-2 flex w-full items-start gap-2.5 rounded-xl bg-emerald-50 p-3 text-left last:mb-0"
+                            className="mb-2 flex w-full items-start gap-2.5 rounded-xl bg-white p-3 text-left last:mb-0"
                           >
-                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><MapPinned size={14} /></span>
+                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-black"><MapPinned size={14} /></span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[13px] font-bold text-slate-800">{m.name}</span>
-                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{m.announcement}</span>
+                              <span className="block truncate text-[13px] font-bold text-black">{m.name}</span>
+                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-black">{m.announcement}</span>
                             </span>
                           </button>
                         ))}
@@ -719,14 +722,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                     {prayerInbox.length > 0 && (
                       <div className="px-4 py-2">
-                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Prayer Reminders</div>
+                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-black">Prayer Reminders</div>
                         {prayerInbox.map(item => (
-                          <div key={item.id} className="mb-2 flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 last:mb-0">
-                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-600"><Bell size={13} /></span>
+                          <div key={item.id} className="mb-2 flex items-start gap-2.5 rounded-xl bg-white p-3 last:mb-0">
+                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-black"><Bell size={13} /></span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[13px] font-bold text-slate-800">{item.title}</span>
-                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{item.body}</span>
-                              <span className="mt-1 block text-[10.5px] text-slate-400">{timeAgo(item.timestamp)}</span>
+                              <span className="block truncate text-[13px] font-bold text-black">{item.title}</span>
+                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-black">{item.body}</span>
+                              <span className="mt-1 block text-[10.5px] text-black">{timeAgo(item.timestamp)}</span>
                             </span>
                           </div>
                         ))}
@@ -739,6 +742,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             )}
           </div>
 
+          <div className="sth-brand">StepTuDeen<small>Your daily companion</small></div>
           <div className="relative flex items-center gap-2">
             <button
               type="button"
@@ -750,58 +754,59 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </button>
 
             {headerMenuOpen && (
-              <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-white/20 bg-white text-slate-800 shadow-2xl">
+              <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-white/20 bg-white text-black shadow-2xl">
                 <button
                   type="button"
                   onClick={() => { setHeaderMenuOpen(false); onNavigate(accountTarget); }}
-                  className="flex w-full items-center gap-2 border-b border-slate-100 px-4 py-3 text-left text-xs font-semibold hover:bg-blue-50"
+                  className="flex w-full items-center gap-2 border-b border-slate-100 px-4 py-3 text-left text-xs font-semibold hover:bg-white"
                 >
-                  <User size={15} className="text-blue-700" /> {accountLabel}
+                  <User size={15} className="text-black" /> {accountLabel}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setHeaderMenuOpen(false); onNavigate('menu'); }}
-                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-semibold hover:bg-blue-50"
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-semibold hover:bg-white"
                 >
-                  <SlidersHorizontal size={15} className="text-blue-700" /> App menu
+                  <SlidersHorizontal size={15} className="text-black" /> App menu
                 </button>
               </div>
             )}
           </div>
         </div>
 
+        <div className="sth-welcome"><p>Peace, purpose & a little progress.</p><h1 className="font-urdu" dir="rtl">السلام علیکم</h1></div>
         {/* Dates */}
-        <div className="relative z-10 mt-10 w-[58%] px-4">
+        <div className="sth-dates">
           <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-amber-200 backdrop-blur-sm"><CalendarDays size={22} /></span>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-sm"><CalendarDays size={22} /></span>
             <div className="min-w-0">
-              <div className="truncate text-[12px] font-urdu font-bold text-amber-100" dir="auto">{todayDate || 'Hijri date'}</div>
-              <div className="mt-1 text-[12px] font-semibold text-white/90">{gregorianDate}</div>
+              <div className="truncate text-[12px] font-urdu font-bold text-white" dir="auto">{todayDate || 'Hijri date'}</div>
+              <div className="mt-1 text-[12px] font-semibold text-white">{gregorianDate}</div>
             </div>
           </div>
         </div>
 
         {/* Prayer glass card */}
-        <div className={`relative z-20 mx-4 mt-14 rounded-[20px] border p-3 shadow-[0_12px_35px_rgba(0,34,110,.28)] backdrop-blur-md ${nextPrayer.isCurrent ? 'border-amber-300/50 bg-amber-500/20' : 'border-white/35 bg-white/12'}`}>
+        <div className="sth-prayer">
           <div className="flex items-center gap-3">
-            <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg ${nextPrayer.isCurrent ? 'bg-amber-300 text-amber-900' : 'bg-white text-[#0755bd]'}`}>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-black">
               <Sunrise size={27} strokeWidth={1.8} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className={`text-[11px] font-semibold uppercase tracking-wide ${nextPrayer.isCurrent ? 'text-amber-200' : 'text-white/75'}`}>
+              <div className={`text-[11px] font-semibold uppercase tracking-wide ${nextPrayer.isCurrent ? 'text-white' : 'text-white'}`}>
                 {nextPrayer.isCurrent ? ' Current Prayer' : 'Next Prayer'}
               </div>
               <div className="mt-0.5 flex items-baseline gap-2">
                 <span className="font-urdu text-[22px] font-bold text-white" dir="rtl">{nextPrayer.urdu}</span>
-                <span className="text-[10px] font-semibold text-amber-100">{nextPrayer.label}</span>
+                <span className="text-[10px] font-semibold text-white">{nextPrayer.label}</span>
               </div>
-              <div className={`mt-1 text-[10px] ${nextPrayer.isCurrent ? 'text-amber-200' : 'text-white/75'}`}>
+              <div className={`mt-1 text-[10px] ${nextPrayer.isCurrent ? 'text-white' : 'text-white'}`}>
                 {nextPrayer.countdown}
               </div>
             </div>
             <div className="shrink-0 text-right">
-              <div className="text-[27px] font-mono font-bold leading-none tracking-tight text-white">{nextPrayer.time.replace(/\s?(AM|PM)$/i, '')}</div>
-              <div className="mt-1 text-[11px] font-bold text-amber-100">{nextPrayer.time.match(/AM|PM/i)?.[0] || ''}</div>
+              <div className="sth-prayer-time text-[27px] font-mono font-bold leading-none tracking-tight text-white">{nextPrayer.time.replace(/\s?(AM|PM)$/i, '')}</div>
+              <div className="mt-1 text-[11px] font-bold text-white">{nextPrayer.time.match(/AM|PM/i)?.[0] || ''}</div>
               <button
                 type="button"
                 onClick={() => onNavigate('settings')}
@@ -818,19 +823,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* ═══════════ Search ═══════════ */}
       <div className="relative z-30 mx-4 my-4">
-        <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-[0_5px_18px_rgba(15,53,111,.10)]">
-          <Search size={19} className="shrink-0 text-blue-700" />
+        <div className="sth-search flex items-center gap-2 border border-slate-200 bg-white px-3 py-3">
+          <Search size={19} className="shrink-0 text-black" />
           <input
             type="text"
             value={searchQuery}
             onChange={event => setSearchQuery(event.target.value)}
             onKeyDown={event => event.key === 'Enter' && handleSearch()}
             placeholder="Search Surah or Ayah, e.g. Yaseen Ayah 7..."
-            className="min-w-0 flex-1 bg-transparent text-left text-[12px] text-slate-700 outline-none placeholder:text-slate-400"
+            className="min-w-0 flex-1 bg-transparent text-left text-[12px] text-black outline-none placeholder:text-black"
             dir="ltr"
           />
           {searchQuery && (
-            <button type="button" onClick={clearSearch} className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100" aria-label="Clear search">
+            <button type="button" onClick={clearSearch} className="flex h-7 w-7 items-center justify-center rounded-full text-black hover:bg-white" aria-label="Clear search">
               <X size={14} />
             </button>
           )}
@@ -843,13 +848,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 key={index}
                 type="button"
                 onClick={() => { result.action(); clearSearch(); }}
-                className="flex w-full items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 text-left transition-colors last:border-0 hover:bg-blue-50 active:bg-blue-100"
+                className="flex w-full items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 text-left transition-colors last:border-0 hover:bg-white active:bg-white"
               >
                 <span className="flex-1 text-left">
-                  <span className="block text-[12px] font-bold text-slate-800" dir="auto">{result.title}</span>
-                  {result.subtitle && <span className="block text-[10px] text-slate-400" dir="auto">{result.subtitle}</span>}
+                  <span className="block text-[12px] font-bold text-black" dir="auto">{result.title}</span>
+                  {result.subtitle && <span className="block text-[10px] text-black" dir="auto">{result.subtitle}</span>}
                 </span>
-                <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">{result.type}</span>
+                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-black">{result.type}</span>
               </button>
             ))}
           </div>
@@ -858,16 +863,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {isSearching && (
           <div className="absolute left-0 right-0 top-full z-50 mt-1 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
             <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-600" />
-            <span className="text-[12px] text-slate-500">Searching...</span>
+            <span className="text-[12px] text-black">Searching...</span>
           </div>
         )}
       </div>
 
       {/* ═══════════ Main content ═══════════ */}
-      <div className="relative space-y-4 bg-slate-50 pt-1">
+      <div className="sth-content relative">
         {isDeviceOffline && (
-          <div className={`mx-4 flex animate-fadeIn items-center gap-2.5 bg-amber-50/70 p-2.5 text-amber-900 ${CARD_SHADOW}`}>
-            <AlertTriangle size={15} className="shrink-0 text-amber-600" />
+          <div className={`sth-panel mx-4 flex animate-fadeIn items-center gap-2.5 bg-white p-2.5 text-black ${CARD_SHADOW}`}>
+            <AlertTriangle size={15} className="shrink-0 text-black" />
             <div className="flex-1 text-left text-[11px] leading-relaxed">
               Offline mode: Your internet connection is unavailable. Some content may not load.
             </div>
@@ -875,29 +880,29 @@ export const HomeView: React.FC<HomeViewProps> = ({
         )}
 
         {/* Nearby mosques */}
-        <div className={`mx-4 space-y-3 rounded-lg bg-white p-4 ${CARD_SHADOW}`}>
+        <div className={`sth-panel mx-4 space-y-3 bg-white p-4 ${CARD_SHADOW}`}>
           <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-tight text-slate-800">
-              <Compass size={13} className="shrink-0 text-emerald-600" />
+            <h3 className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-tight text-black">
+              <Compass size={13} className="shrink-0 text-black" />
               Nearby Mosques &amp; Jumu’ah
             </h3>
             <div className="flex items-center gap-2">
-              <button type="button" className="text-[10px] font-bold text-emerald-700 hover:underline" onClick={() => onNavigate('mosques')}>
+              <button type="button" className="text-[10px] font-bold text-black hover:underline" onClick={() => onNavigate('mosques')}>
                 View all →
               </button>
-              <button type="button" className="flex items-center gap-0.5 text-[10px] font-bold text-blue-700 hover:underline" onClick={() => onNavigate('mosque-map')}>
+              <button type="button" className="flex items-center gap-0.5 text-[10px] font-bold text-black hover:underline" onClick={() => onNavigate('mosque-map')}>
                 <MapPinned size={11} /> On Map
               </button>
             </div>
           </div>
 
           {!userCoords ? (
-            <div className="space-y-2.5 rounded-lg bg-slate-50 p-4 text-center shadow-[0_1px_6px_rgba(0,0,0,0.05)]">
-              <p className="text-[11px] leading-relaxed text-slate-600">Enable location to see nearby mosques and their congregation times.</p>
+            <div className="space-y-2.5 rounded-lg bg-white p-4 text-center shadow-[0_1px_6px_rgba(0,0,0,0.05)]">
+              <p className="text-[11px] leading-relaxed text-black">Enable location to see nearby mosques and their congregation times.</p>
               <button
                 type="button"
                 onClick={() => onNavigate('settings')}
-                className="mx-auto flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                className="mx-auto flex items-center gap-1 rounded-lg bg-[#1559cc] px-3 py-1 text-xs font-bold text-white shadow-sm transition-colors hover:bg-[#1559cc]"
               >
                 <MapPin size={11} />
                 Enable Location
@@ -909,24 +914,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 isLoading ? (
                   <div className="flex items-center justify-center py-4"><Spinner /></div>
                 ) : (
-                  <p className="py-2 text-center text-xs text-gray-500">No registered mosque was found nearby.</p>
+                  <p className="py-2 text-center text-xs text-black">No registered mosque was found nearby.</p>
                 )
               ) : (
                 closestMosques.map(({ mosque, distance }) => (
                   <div
                     key={mosque.id}
                     onClick={() => onOpenMosque(mosque)}
-                    className="group flex cursor-pointer items-center justify-between bg-slate-50/50 p-3 shadow-[0_1px_5px_rgba(0,0,0,0.05)] transition-all hover:bg-emerald-50/35"
+                    className="sth-mosque group flex cursor-pointer items-center justify-between bg-white p-3 transition-all"
                   >
-                    <div className="rounded-lg border border-emerald-700 bg-emerald-600 px-2.5 py-1 text-center text-[9px] font-bold text-white transition-colors group-hover:bg-emerald-700">
+                    <div className="rounded-lg border border-blue-600 bg-[#1559cc] px-2.5 py-1 text-center text-[9px] font-bold text-white transition-colors group-hover:bg-[#1559cc]">
                       <div className="text-[8px] opacity-95">Jumu’ah</div>
                       <div className="mt-0.5 font-mono">{mosque.jumah}</div>
                     </div>
                     <div className="flex-1 pr-3 text-right">
-                      <div className="font-urdu text-xs font-bold text-slate-800">{mosque.name}</div>
-                      <div className="mt-0.5 flex items-center justify-end gap-1 font-mono font-urdu text-[9px] text-slate-400">
+                      <div className="font-urdu text-xs font-bold text-black">{mosque.name}</div>
+                      <div className="mt-0.5 flex items-center justify-end gap-1 font-mono font-urdu text-[9px] text-black">
                         <span>{distance} km away</span>
-                        <MapPin size={10} className="text-emerald-500" />
+                        <MapPin size={10} className="text-black" />
                       </div>
                     </div>
                   </div>
@@ -936,24 +941,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
           )}
         </div>
 
-        {/* Features + Hadith books */}
-        <div className="mx-3 grid grid-cols-2 gap-3 pb-1">
-          {HOME_CARDS.map(card => (
-            <HomeCard key={`${card.theme}-${card.label}`} config={card} onClick={() => handleCardClick(card)} />
-          ))}
-        </div>
+        <section aria-label="Explore the app">
+          <div className="sth-section-heading"><div><h2>Explore your deen</h2><p>A little learning, every day.</p></div></div>
+          <div className="sth-grid">{HOME_CARDS.filter(card => !card.hadithBook).map(card => <HomeCard key={card.label} config={card} onClick={() => handleCardClick(card)}/>)}</div>
+        </section>
+        <section aria-label="Hadith collections">
+          <div className="sth-section-heading"><div><h2>Hadith collections</h2><p>Read, reflect and return.</p></div><button className="sth-small-btn" onClick={() => onNavigate('hadith')}>View all <ArrowUpRight size={13}/></button></div>
+          <div className="sth-grid">{HOME_CARDS.filter(card => card.hadithBook).map(card => <HomeCard key={card.label} config={card} onClick={() => handleCardClick(card)}/>)}</div>
+        </section>
 
         {/* Verse of the day */}
         <div className="mx-4">
-          <div className="mb-1.5 text-center text-[9px] font-bold uppercase tracking-widest text-slate-400">✦ Verse of the Day ✦</div>
-          <div className={`space-y-2.5 rounded-lg bg-white p-4 text-center ${CARD_SHADOW}`}>
+          <div className="sth-daily-title">Verse of the Day</div>
+          <div className={`sth-panel sth-verse space-y-2.5 p-4 text-center ${CARD_SHADOW}`}>
             {loadingAyah ? (
               <div className="flex items-center justify-center py-4"><Spinner /></div>
             ) : (
               <>
-                <p className="font-amiri text-base leading-loose text-slate-800" dir="rtl">{dailyAyah?.ar}</p>
-                <p className="border-t border-slate-100 pt-2 font-urdu text-xs leading-relaxed text-emerald-800" dir="rtl">{dailyAyah?.ur}</p>
-                <div className="text-left font-mono text-[9px] tracking-tight text-slate-400">{dailyAyah?.ref}</div>
+                <p className="sth-daily-arabic font-amiri text-base leading-loose text-black" dir="rtl">{dailyAyah?.ar}</p>
+                <p className="border-t border-slate-100 pt-2 font-urdu text-xs leading-relaxed text-black" dir="rtl">{dailyAyah?.ur}</p>
+                <div className="text-left font-mono text-[9px] tracking-tight text-black">{dailyAyah?.ref}</div>
               </>
             )}
           </div>
@@ -961,11 +968,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         {/* Hadith of the day */}
         <div className="mx-4">
-          <div className="mb-1.5 text-center text-[9px] font-bold uppercase tracking-widest text-slate-400">✦ Hadith of the Day ✦</div>
-          <div className={`space-y-2.5 rounded-lg border-r-4 border-r-emerald-600 bg-white p-4 text-center ${CARD_SHADOW}`}>
-            <p className="text-right font-amiri text-sm font-medium leading-relaxed text-slate-800" dir="rtl">{dailyHadith.ar}</p>
-            <p className="border-t border-slate-100 pt-2 text-right font-urdu text-xs leading-relaxed text-slate-600" dir="rtl">{dailyHadith.ur}</p>
-            <div className="text-left font-mono text-[9px] tracking-tight text-slate-400">{dailyHadith.ref}</div>
+          <div className="sth-daily-title">Hadith of the Day</div>
+          <div className={`sth-panel space-y-2.5 border-r-4 border-r-blue-600 bg-white p-4 text-center ${CARD_SHADOW}`}>
+            <p className="sth-daily-arabic text-right font-amiri text-sm font-medium leading-relaxed text-black" dir="rtl">{dailyHadith.ar}</p>
+            <p className="border-t border-slate-100 pt-2 text-right font-urdu text-xs leading-relaxed text-black" dir="rtl">{dailyHadith.ur}</p>
+            <div className="text-left font-mono text-[9px] tracking-tight text-black">{dailyHadith.ref}</div>
           </div>
         </div>
       </div>
