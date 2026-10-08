@@ -5,6 +5,7 @@ import {
   MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X, BookOpen, ScrollText, ArrowUpRight, CircleDot, Heart, LayoutDashboard,
 } from 'lucide-react';
 import { Mosque } from '../types';
+import CelestialHeaderScene from './CelestialHeaderScene';
 import { InboxItem, readInbox, markInboxRead } from '../utils/notifications';
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
@@ -349,12 +350,11 @@ const Spinner: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) =>
 );
 
 const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void }> = ({ config, onClick }) => {
-  const primary = config.nav === 'quran' || config.nav === 'duas';
   const Icon = config.hadithBook ? ScrollText : config.nav === 'quran' ? BookOpen
     : config.nav === 'qibla' ? Compass : config.nav === 'tasbih' ? CircleDot
     : config.nav === 'duas' ? Heart : config.nav === 'user-dashboard' ? LayoutDashboard : Sunrise;
   return (
-    <button type="button" onClick={onClick} className={`sth-feature ${primary ? 'sth-feature-blue' : 'sth-feature-white'}`} aria-label={`Open ${config.label}`}>
+    <button type="button" onClick={onClick} className="sth-feature sth-feature-white" aria-label={`Open ${config.label}`}>
       <div className="sth-feature-top"><span className="sth-feature-icon"><Icon size={21} strokeWidth={1.7}/></span><ArrowUpRight size={17}/></div>
       <span className="home-card-urdu-title sth-feature-title" dir="rtl">{config.urdu}</span>
       <span className="sth-feature-label">{config.label}</span>
@@ -594,60 +594,44 @@ export const HomeView: React.FC<HomeViewProps> = ({
         .sth-home *, .sth-home *::before, .sth-home *::after{box-sizing:border-box}
         .sth-home button{cursor:pointer;transition:box-shadow .18s,transform .18s,background .18s}
         .sth-home button:focus-visible,.sth-home input:focus-visible{outline:3px solid #3685ff;outline-offset:3px}
-        .sth-home .sth-hero{background:linear-gradient(135deg,#164fb5 0%,#124497 100%);color:#fff;border-radius:0 0 30px 30px;padding:8px 0 22px;isolation:isolate}
-        .sth-home .sth-hero:before{content:'';position:absolute;width:290px;height:290px;right:-105px;top:30px;border:1px solid #ffffff16;border-radius:50%;z-index:0;box-shadow:0 0 0 36px #ffffff05,0 0 0 72px #ffffff04;pointer-events:none}
-        .sth-home .sth-brand{color:#fff;font-weight:800;font-size:16px;letter-spacing:-.04em;line-height:1.2;text-align:center}
-        .sth-home .sth-brand small{display:block;font-size:8px;letter-spacing:.16em;text-transform:uppercase;font-weight:500;margin-top:5px;color:#fff}
-        .sth-home .sth-welcome{position:relative;z-index:15;padding:26px 22px 0;color:#fff}
-        .sth-home .sth-welcome p{font-size:11px;letter-spacing:.04em;margin:0 0 7px;color:#fff}
-        .sth-home .sth-welcome h1{font-size:25px;line-height:1.5;font-weight:800;letter-spacing:-.03em;max-width:85%;color:#fff;margin:0}
-        .sth-home .sth-dates{position:relative;z-index:15;margin-top:20px;padding:0 22px;color:#fff}
-        .sth-home .sth-prayer{position:relative;z-index:20;margin:23px 16px 0;border-radius:21px;padding:17px 13px;background:#0d3582;color:#fff;border:1px solid #ffffff25;box-shadow:0 12px 25px #06214e30}
-        .sth-home .sth-search{border-radius:17px!important;padding:15px!important;border-color:#00000012!important;box-shadow:0 9px 24px #00000008,0 2px 5px #00000004!important}
+        .sth-home .sth-search{border-radius:12px!important;padding:15px!important;border-color:#00000012!important;box-shadow:0 9px 24px #00000008,0 2px 5px #00000004!important}
         .sth-home .sth-content{background:#fff;display:grid;gap:25px;padding:8px 0 16px}
         .sth-home .sth-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 18px 13px;color:#080808}
         .sth-home .sth-section-heading h2{font-size:17px;font-weight:800;letter-spacing:-.025em;color:#080808;margin:0}
         .sth-home .sth-section-heading p{font-size:10px;line-height:1.7;color:#080808;margin:5px 0 0}
         .sth-home .sth-small-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#1559cc;color:#fff;border:0;border-radius:10px;min-height:35px;padding:8px 10px;font-size:10px;font-weight:700;flex-shrink:0}
         .sth-home .sth-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin:0 16px}
-        .sth-home .sth-feature{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:7px;text-align:left;min-width:0;min-height:164px;border:1px solid #0000000c;border-radius:20px;padding:17px 15px;box-shadow:0 10px 24px #00000007,0 3px 5px #00000005}
-        .sth-home .sth-feature-blue{background:#1559cc;color:#fff;border-color:#1559cc;box-shadow:0 10px 24px #1559cc23,0 3px 6px #00000008}
+        .sth-home .sth-feature{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:7px;text-align:left;min-width:0;min-height:164px;border:1px solid #0000000c;border-radius:10px;padding:17px 15px;box-shadow:0 10px 24px #0000000b,0 3px 6px #00000008}
         .sth-home .sth-feature-white{background:#fff;color:#080808}
         .sth-home .sth-feature:hover{transform:translateY(-3px);box-shadow:0 15px 27px #00000012}
         .sth-home .sth-feature:active{transform:translateY(0)}
         .sth-home .sth-feature-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;color:inherit}
         .sth-home .sth-feature-icon{display:grid;place-items:center;width:37px;height:37px;border-radius:11px;border:1px solid #00000012;color:inherit}
-        .sth-home .sth-feature-blue .sth-feature-icon{background:#ffffff13;border-color:#ffffff28}
         .sth-home .sth-feature-title{font-size:17px;text-align:right;white-space:normal;color:inherit}
         .sth-home .sth-feature-label{font-size:12px;font-weight:750;color:inherit;line-height:1.5}
         .sth-home .sth-feature-open{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:600;margin-top:auto;padding-top:4px;color:inherit}
-        .sth-home .sth-panel{background:#fff;color:#080808;border:1px solid #0000000d;border-radius:21px!important;padding:19px!important}
-        .sth-home .sth-mosque{border-radius:15px;background:#fff;border:1px solid #0000000e;padding:13px!important;box-shadow:0 4px 10px #00000005}
-        .sth-home .sth-verse{background:#1559cc!important;color:#fff;border-color:#1559cc!important}
-        .sth-home .sth-verse p,.sth-home .sth-verse div{color:#fff!important}
-        .sth-home .sth-verse .animate-spin{border-bottom-color:#fff!important}
-        .sth-home .sth-verse .border-t{border-color:#ffffff30!important}
+        .sth-home .sth-panel{background:#fff;color:#080808;border:1px solid #0000000d;border-radius:12px!important;padding:19px!important}
+        .sth-home .sth-mosque{border-radius:10px;background:#fff;border:1px solid #0000000e;padding:13px!important;box-shadow:0 4px 10px #00000005}
         .sth-home .sth-daily-title{display:flex;align-items:center;gap:8px;color:#080808;text-transform:uppercase;font-size:10px;font-weight:800;letter-spacing:.1em;margin:0 0 12px}
         .sth-home .sth-daily-title:before{content:'';height:3px;width:20px;border-radius:4px;background:#1559cc}
         .sth-home .sth-daily-arabic{font-size:24px!important;line-height:2!important}
-        @media(max-width:360px){.sth-home .sth-feature{padding:13px 11px;min-height:158px}.sth-home .sth-feature-title{font-size:15px}.sth-home .sth-prayer{padding:14px 10px}.sth-home .sth-prayer-time{font-size:23px}.sth-home .sth-brand{font-size:14px}}
         @media(prefers-reduced-motion:reduce){.sth-home *, .sth-home *::before{animation:none!important;transition:none!important}.sth-home .sth-feature:hover{transform:none}}
       `}</style>
 
       {/* ═══════════ Header ═══════════ */}
-      <div className="sth-hero relative overflow-hidden text-white shadow-[0_10px_30px_rgba(5,69,166,.18)]">
-
+      <div className="relative min-h-[320px] overflow-hidden rounded-b-[26px] bg-[#063b9d] text-white shadow-[0_10px_30px_rgba(5,69,166,.28)]">
+        <CelestialHeaderScene prayerTimes={prayerTimes} />
 
         <img
           src="/mosque-header.webp"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none absolute z-[1] select-none opacity-20"
+          className="pointer-events-none absolute z-[12] select-none opacity-90"
           style={{
-            right: '-22px',
-            top: '74px',
-            width: '60%',
-            maxHeight: '190px',
+            right: '21px',
+            top: '-10px',
+            width: '94%',
+            maxHeight: 'calc(100% - 90px)',
             objectFit: 'contain',
             objectPosition: 'top right',
           }}
@@ -677,7 +661,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             >
               <Bell size={21} />
               {unreadCount > 0 && (
-                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-white px-1 text-[9px] font-bold leading-none text-black">
+                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-bold leading-none text-slate-900">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
@@ -687,33 +671,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <>
                 {/* transparent backdrop: tapping outside closes the inbox */}
                 <div className="fixed inset-0 z-[9998]" onClick={() => setBellOpen(false)} />
-                <div className="fixed left-4 right-4 top-16 z-[9999] mx-auto max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-black shadow-2xl">
+                <div className="fixed left-4 right-4 top-16 z-[9999] mx-auto max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-white text-slate-800 shadow-2xl">
                   <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                    <h3 className="text-[15px] font-bold text-black">Inbox</h3>
-                    <button type="button" onClick={() => setBellOpen(false)} className="rounded-full p-1 text-black hover:bg-white" aria-label="Close">
+                    <h3 className="text-[15px] font-bold text-slate-900">Inbox</h3>
+                    <button type="button" onClick={() => setBellOpen(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
                       <X size={16} />
                     </button>
                   </div>
 
                   <div className="max-h-[60vh] overflow-y-auto">
                     {announcementCount === 0 && prayerInbox.length === 0 && (
-                      <div className="px-4 py-8 text-center text-sm text-black">No new notifications yet</div>
+                      <div className="px-4 py-8 text-center text-sm text-slate-400">No new notifications yet</div>
                     )}
 
                     {announcementCount > 0 && (
                       <div className="border-b border-slate-100 px-4 py-2">
-                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-black">Mosque Announcements</div>
+                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">Mosque Announcements</div>
                         {savedMosquesWithAnnouncement.map(m => (
                           <button
                             key={m.id}
                             type="button"
                             onClick={() => { onOpenMosque(m); setBellOpen(false); }}
-                            className="mb-2 flex w-full items-start gap-2.5 rounded-xl bg-white p-3 text-left last:mb-0"
+                            className="mb-2 flex w-full items-start gap-2.5 rounded-xl bg-emerald-50 p-3 text-left last:mb-0"
                           >
-                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-black"><MapPinned size={14} /></span>
+                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><MapPinned size={14} /></span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[13px] font-bold text-black">{m.name}</span>
-                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-black">{m.announcement}</span>
+                              <span className="block truncate text-[13px] font-bold text-slate-800">{m.name}</span>
+                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{m.announcement}</span>
                             </span>
                           </button>
                         ))}
@@ -722,14 +706,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                     {prayerInbox.length > 0 && (
                       <div className="px-4 py-2">
-                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-black">Prayer Reminders</div>
+                        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Prayer Reminders</div>
                         {prayerInbox.map(item => (
-                          <div key={item.id} className="mb-2 flex items-start gap-2.5 rounded-xl bg-white p-3 last:mb-0">
-                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-black"><Bell size={13} /></span>
+                          <div key={item.id} className="mb-2 flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 last:mb-0">
+                            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-600"><Bell size={13} /></span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[13px] font-bold text-black">{item.title}</span>
-                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-black">{item.body}</span>
-                              <span className="mt-1 block text-[10.5px] text-black">{timeAgo(item.timestamp)}</span>
+                              <span className="block truncate text-[13px] font-bold text-slate-800">{item.title}</span>
+                              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-slate-600">{item.body}</span>
+                              <span className="mt-1 block text-[10.5px] text-slate-400">{timeAgo(item.timestamp)}</span>
                             </span>
                           </div>
                         ))}
@@ -742,7 +726,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
             )}
           </div>
 
-          <div className="sth-brand">StepTuDeen<small>Your daily companion</small></div>
           <div className="relative flex items-center gap-2">
             <button
               type="button"
@@ -754,59 +737,58 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </button>
 
             {headerMenuOpen && (
-              <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-white/20 bg-white text-black shadow-2xl">
+              <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-white/20 bg-white text-slate-800 shadow-2xl">
                 <button
                   type="button"
                   onClick={() => { setHeaderMenuOpen(false); onNavigate(accountTarget); }}
-                  className="flex w-full items-center gap-2 border-b border-slate-100 px-4 py-3 text-left text-xs font-semibold hover:bg-white"
+                  className="flex w-full items-center gap-2 border-b border-slate-100 px-4 py-3 text-left text-xs font-semibold hover:bg-blue-50"
                 >
-                  <User size={15} className="text-black" /> {accountLabel}
+                  <User size={15} className="text-blue-700" /> {accountLabel}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setHeaderMenuOpen(false); onNavigate('menu'); }}
-                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-semibold hover:bg-white"
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-semibold hover:bg-blue-50"
                 >
-                  <SlidersHorizontal size={15} className="text-black" /> App menu
+                  <SlidersHorizontal size={15} className="text-blue-700" /> App menu
                 </button>
               </div>
             )}
           </div>
         </div>
 
-        <div className="sth-welcome"><p>Peace, purpose & a little progress.</p><h1 className="font-urdu" dir="rtl">السلام علیکم</h1></div>
         {/* Dates */}
-        <div className="sth-dates">
+        <div className="relative z-10 mt-10 w-[58%] px-4">
           <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-sm"><CalendarDays size={22} /></span>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-amber-200 backdrop-blur-sm"><CalendarDays size={22} /></span>
             <div className="min-w-0">
-              <div className="truncate text-[12px] font-urdu font-bold text-white" dir="auto">{todayDate || 'Hijri date'}</div>
-              <div className="mt-1 text-[12px] font-semibold text-white">{gregorianDate}</div>
+              <div className="truncate text-[12px] font-urdu font-bold text-amber-100" dir="auto">{todayDate || 'Hijri date'}</div>
+              <div className="mt-1 text-[12px] font-semibold text-white/90">{gregorianDate}</div>
             </div>
           </div>
         </div>
 
         {/* Prayer glass card */}
-        <div className="sth-prayer">
+        <div className={`relative z-20 mx-4 mt-14 rounded-[20px] border p-3 shadow-[0_12px_35px_rgba(0,34,110,.28)] backdrop-blur-md ${nextPrayer.isCurrent ? 'border-amber-300/50 bg-amber-500/20' : 'border-white/35 bg-white/12'}`}>
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-black">
+            <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg ${nextPrayer.isCurrent ? 'bg-amber-300 text-amber-900' : 'bg-white text-[#0755bd]'}`}>
               <Sunrise size={27} strokeWidth={1.8} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className={`text-[11px] font-semibold uppercase tracking-wide ${nextPrayer.isCurrent ? 'text-white' : 'text-white'}`}>
+              <div className={`text-[11px] font-semibold uppercase tracking-wide ${nextPrayer.isCurrent ? 'text-amber-200' : 'text-white/75'}`}>
                 {nextPrayer.isCurrent ? ' Current Prayer' : 'Next Prayer'}
               </div>
               <div className="mt-0.5 flex items-baseline gap-2">
                 <span className="font-urdu text-[22px] font-bold text-white" dir="rtl">{nextPrayer.urdu}</span>
-                <span className="text-[10px] font-semibold text-white">{nextPrayer.label}</span>
+                <span className="text-[10px] font-semibold text-amber-100">{nextPrayer.label}</span>
               </div>
-              <div className={`mt-1 text-[10px] ${nextPrayer.isCurrent ? 'text-white' : 'text-white'}`}>
+              <div className={`mt-1 text-[10px] ${nextPrayer.isCurrent ? 'text-amber-200' : 'text-white/75'}`}>
                 {nextPrayer.countdown}
               </div>
             </div>
             <div className="shrink-0 text-right">
-              <div className="sth-prayer-time text-[27px] font-mono font-bold leading-none tracking-tight text-white">{nextPrayer.time.replace(/\s?(AM|PM)$/i, '')}</div>
-              <div className="mt-1 text-[11px] font-bold text-white">{nextPrayer.time.match(/AM|PM/i)?.[0] || ''}</div>
+              <div className="text-[27px] font-mono font-bold leading-none tracking-tight text-white">{nextPrayer.time.replace(/\s?(AM|PM)$/i, '')}</div>
+              <div className="mt-1 text-[11px] font-bold text-amber-100">{nextPrayer.time.match(/AM|PM/i)?.[0] || ''}</div>
               <button
                 type="button"
                 onClick={() => onNavigate('settings')}
@@ -953,7 +935,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* Verse of the day */}
         <div className="mx-4">
           <div className="sth-daily-title">Verse of the Day</div>
-          <div className={`sth-panel sth-verse space-y-2.5 p-4 text-center ${CARD_SHADOW}`}>
+          <div className={`sth-panel space-y-2.5 p-4 text-center ${CARD_SHADOW}`}>
             {loadingAyah ? (
               <div className="flex items-center justify-center py-4"><Spinner /></div>
             ) : (
