@@ -356,7 +356,7 @@ const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void }> = ({ c
   return (
     <button type="button" onClick={onClick} className={`sth-feature sth-feature-white sth-t-${config.theme}`} aria-label={`Open ${config.label}`}>
       <span className="sth-feature-mark" aria-hidden="true"><Icon size={96} strokeWidth={1.3}/></span>
-      <div className="sth-feature-top"><span className="sth-feature-icon"><Icon size={26} strokeWidth={1.7}/></span><ArrowUpRight size={17}/></div>
+      <div className="sth-feature-top"><span className="sth-feature-icon"><Icon size={38} strokeWidth={1.6}/></span><ArrowUpRight size={17}/></div>
       <span className="home-card-urdu-title sth-feature-title" dir="rtl">{config.urdu}</span>
       <span className="sth-feature-label">{config.label}</span>
       <span className="sth-feature-open">{config.hadithBook ? 'Read collection' : 'Explore'} <ArrowUpRight size={12}/></span>
@@ -619,7 +619,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         .sth-home .sth-feature:hover{transform:translateY(-3px);box-shadow:0 15px 27px #00000012}
         .sth-home .sth-feature:active{transform:translateY(0)}
         .sth-home .sth-feature-top{display:flex;align-items:center;justify-content:center;margin-bottom:0;color:inherit}
-        .sth-home .sth-feature-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:var(--ac);color:#fff;box-shadow:0 6px 12px -4px var(--ac)}
+        .sth-home .sth-feature-icon{display:grid;place-items:center;width:46px;height:46px;background:none;border:0;box-shadow:none;color:var(--ac)}
         .sth-home .sth-feature-title{font-size:17px;line-height:1.55!important;-webkit-text-stroke:.5px currentColor;text-align:center;white-space:normal;color:inherit}
         .sth-home .sth-feature-label{font-size:12px;font-weight:750;color:inherit;line-height:1.4;text-align:center}
         .sth-home .sth-feature-open{display:inline-flex;align-items:center;align-self:center;gap:4px;font-size:9px;font-weight:700;margin-top:auto;padding:4px 10px;border-radius:999px;background:var(--ac);color:#fff}
