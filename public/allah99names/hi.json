@@ -1,0 +1,596 @@
+[
+  {
+    "id": 1,
+    "arabic": "الرَّحْمَٰنُ",
+    "transliteration": "Ar-Rahman",
+    "meaning": "निहायत मेहरबान"
+  },
+  {
+    "id": 2,
+    "arabic": "الرَّحِيمُ",
+    "transliteration": "Ar-Rahim",
+    "meaning": "निहायत रहम करने वाला"
+  },
+  {
+    "id": 3,
+    "arabic": "الْمَلِكُ",
+    "transliteration": "Al-Malik",
+    "meaning": "हकीक़ी बादशाह"
+  },
+  {
+    "id": 4,
+    "arabic": "الْقُدُّوسُ",
+    "transliteration": "Al-Quddus",
+    "meaning": "पाक ज़ात"
+  },
+  {
+    "id": 5,
+    "arabic": "السَّلَامُ",
+    "transliteration": "As-Salam",
+    "meaning": "सलामती देने वाला"
+  },
+  {
+    "id": 6,
+    "arabic": "الْمُؤْمِنُ",
+    "transliteration": "Al-Mu'min",
+    "meaning": "अमन देने वाला"
+  },
+  {
+    "id": 7,
+    "arabic": "الْمُهَيْمِنُ",
+    "transliteration": "Al-Muhaymin",
+    "meaning": "निगहबान, रखवाला"
+  },
+  {
+    "id": 8,
+    "arabic": "الْعَزِيزُ",
+    "transliteration": "Al-Aziz",
+    "meaning": "ग़ालिब, ज़बरदस्त"
+  },
+  {
+    "id": 9,
+    "arabic": "الْجَبَّارُ",
+    "transliteration": "Al-Jabbar",
+    "meaning": "ज़बरदस्त, जिसका हुक्म टल न सके"
+  },
+  {
+    "id": 10,
+    "arabic": "الْمُتَكَبِّرُ",
+    "transliteration": "Al-Mutakabbir",
+    "meaning": "महानता वाला"
+  },
+  {
+    "id": 11,
+    "arabic": "الْخَالِقُ",
+    "transliteration": "Al-Khaliq",
+    "meaning": "पैदा करने वाला"
+  },
+  {
+    "id": 12,
+    "arabic": "الْبَارِئُ",
+    "transliteration": "Al-Bari",
+    "meaning": "बिना नमूने के पैदा करने वाला"
+  },
+  {
+    "id": 13,
+    "arabic": "الْمُصَوِّرُ",
+    "transliteration": "Al-Musawwir",
+    "meaning": "रूप (सूरत) बनाने वाला"
+  },
+  {
+    "id": 14,
+    "arabic": "الْغَفَّارُ",
+    "transliteration": "Al-Ghaffar",
+    "meaning": "बहुत बख़्शने वाला"
+  },
+  {
+    "id": 15,
+    "arabic": "الْقَهَّارُ",
+    "transliteration": "Al-Qahhar",
+    "meaning": "सब पर ग़ालिब"
+  },
+  {
+    "id": 16,
+    "arabic": "الْوَهَّابُ",
+    "transliteration": "Al-Wahhab",
+    "meaning": "बिना बदले अता करने वाला"
+  },
+  {
+    "id": 17,
+    "arabic": "الرَّزَّاقُ",
+    "transliteration": "Ar-Razzaq",
+    "meaning": "रिज़्क़ देने वाला"
+  },
+  {
+    "id": 18,
+    "arabic": "الْفَتَّاحُ",
+    "transliteration": "Al-Fattah",
+    "meaning": "फ़ैसला करने वाला, खोलने वाला"
+  },
+  {
+    "id": 19,
+    "arabic": "الْعَلِيمُ",
+    "transliteration": "Al-Alim",
+    "meaning": "सब कुछ जानने वाला"
+  },
+  {
+    "id": 20,
+    "arabic": "الْقَابِضُ",
+    "transliteration": "Al-Qabid",
+    "meaning": "रोज़ी तंग करने वाला"
+  },
+  {
+    "id": 21,
+    "arabic": "الْبَاسِطُ",
+    "transliteration": "Al-Basit",
+    "meaning": "कुशादगी देने वाला"
+  },
+  {
+    "id": 22,
+    "arabic": "الْخَافِضُ",
+    "transliteration": "Al-Khafid",
+    "meaning": "नीचा करने वाला"
+  },
+  {
+    "id": 23,
+    "arabic": "الرَّافِعُ",
+    "transliteration": "Ar-Rafi",
+    "meaning": "बुलंद करने वाला"
+  },
+  {
+    "id": 24,
+    "arabic": "الْمُعِزُّ",
+    "transliteration": "Al-Mu'izz",
+    "meaning": "इज़्ज़त देने वाला"
+  },
+  {
+    "id": 25,
+    "arabic": "الْمُذِلُّ",
+    "transliteration": "Al-Mudhill",
+    "meaning": "ज़िल्लत देने वाला"
+  },
+  {
+    "id": 26,
+    "arabic": "السَّمِيعُ",
+    "transliteration": "As-Sami",
+    "meaning": "सब कुछ सुनने वाला"
+  },
+  {
+    "id": 27,
+    "arabic": "الْبَصِيرُ",
+    "transliteration": "Al-Basir",
+    "meaning": "सब कुछ देखने वाला"
+  },
+  {
+    "id": 28,
+    "arabic": "الْحَكَمُ",
+    "transliteration": "Al-Hakam",
+    "meaning": "फ़ैसला करने वाला"
+  },
+  {
+    "id": 29,
+    "arabic": "الْعَدْلُ",
+    "transliteration": "Al-Adl",
+    "meaning": "इंसाफ़ करने वाला"
+  },
+  {
+    "id": 30,
+    "arabic": "اللَّطِيفُ",
+    "transliteration": "Al-Latif",
+    "meaning": "बारीक बीन, मेहरबान"
+  },
+  {
+    "id": 31,
+    "arabic": "الْخَبِيرُ",
+    "transliteration": "Al-Khabir",
+    "meaning": "पूरी ख़बर रखने वाला"
+  },
+  {
+    "id": 32,
+    "arabic": "الْحَلِيمُ",
+    "transliteration": "Al-Halim",
+    "meaning": "सहनशील"
+  },
+  {
+    "id": 33,
+    "arabic": "الْعَظِيمُ",
+    "transliteration": "Al-Azim",
+    "meaning": "अज़मत वाला, महान"
+  },
+  {
+    "id": 34,
+    "arabic": "الْغَفُورُ",
+    "transliteration": "Al-Ghafur",
+    "meaning": "बख़्शने वाला"
+  },
+  {
+    "id": 35,
+    "arabic": "الشَّكُورُ",
+    "transliteration": "Ash-Shakur",
+    "meaning": "क़द्रदान"
+  },
+  {
+    "id": 36,
+    "arabic": "الْعَلِيُّ",
+    "transliteration": "Al-Ali",
+    "meaning": "बुलंद मरतबा"
+  },
+  {
+    "id": 37,
+    "arabic": "الْكَبِيرُ",
+    "transliteration": "Al-Kabir",
+    "meaning": "सबसे बड़ा"
+  },
+  {
+    "id": 38,
+    "arabic": "الْحَفِيظُ",
+    "transliteration": "Al-Hafiz",
+    "meaning": "हिफ़ाज़त करने वाला"
+  },
+  {
+    "id": 39,
+    "arabic": "الْمُقِيتُ",
+    "transliteration": "Al-Muqit",
+    "meaning": "रोज़ी पहुँचाने वाला"
+  },
+  {
+    "id": 40,
+    "arabic": "الْحَسِيبُ",
+    "transliteration": "Al-Hasib",
+    "meaning": "हिसाब लेने वाला"
+  },
+  {
+    "id": 41,
+    "arabic": "الْجَلِيلُ",
+    "transliteration": "Al-Jalil",
+    "meaning": "जलाल वाला, प्रतापी"
+  },
+  {
+    "id": 42,
+    "arabic": "الْكَرِيمُ",
+    "transliteration": "Al-Karim",
+    "meaning": "उदार, करम करने वाला"
+  },
+  {
+    "id": 43,
+    "arabic": "الرَّقِيبُ",
+    "transliteration": "Ar-Raqib",
+    "meaning": "निगरानी करने वाला"
+  },
+  {
+    "id": 44,
+    "arabic": "الْمُجِيبُ",
+    "transliteration": "Al-Mujib",
+    "meaning": "दुआएँ क़बूल करने वाला"
+  },
+  {
+    "id": 45,
+    "arabic": "الْوَاسِعُ",
+    "transliteration": "Al-Wasi",
+    "meaning": "वसअत वाला, व्यापक"
+  },
+  {
+    "id": 46,
+    "arabic": "الْحَكِيمُ",
+    "transliteration": "Al-Hakim",
+    "meaning": "हिकमत वाला"
+  },
+  {
+    "id": 47,
+    "arabic": "الْوَدُودُ",
+    "transliteration": "Al-Wadud",
+    "meaning": "मोहब्बत करने वाला"
+  },
+  {
+    "id": 48,
+    "arabic": "الْمَجِيدُ",
+    "transliteration": "Al-Majid",
+    "meaning": "बज़ुर्गी वाला, महिमावान"
+  },
+  {
+    "id": 49,
+    "arabic": "الْبَاعِثُ",
+    "transliteration": "Al-Ba'ith",
+    "meaning": "दोबारा ज़िंदा करने वाला"
+  },
+  {
+    "id": 50,
+    "arabic": "الشَّهِيدُ",
+    "transliteration": "Ash-Shahid",
+    "meaning": "हाज़िर और नाज़िर"
+  },
+  {
+    "id": 51,
+    "arabic": "الْحَقُّ",
+    "transliteration": "Al-Haqq",
+    "meaning": "सच्चा, हक़"
+  },
+  {
+    "id": 52,
+    "arabic": "الْوَكِيلُ",
+    "transliteration": "Al-Wakil",
+    "meaning": "कारसाज़"
+  },
+  {
+    "id": 53,
+    "arabic": "الْقَوِيُّ",
+    "transliteration": "Al-Qawiyy",
+    "meaning": "ताक़त वाला"
+  },
+  {
+    "id": 54,
+    "arabic": "الْمَتِينُ",
+    "transliteration": "Al-Matin",
+    "meaning": "मज़बूत"
+  },
+  {
+    "id": 55,
+    "arabic": "الْوَلِيُّ",
+    "transliteration": "Al-Waliyy",
+    "meaning": "कारसाज़, दोस्त"
+  },
+  {
+    "id": 56,
+    "arabic": "الْحَمِيدُ",
+    "transliteration": "Al-Hamid",
+    "meaning": "तारीफ़ के लायक़"
+  },
+  {
+    "id": 57,
+    "arabic": "الْمُحْصِي",
+    "transliteration": "Al-Muhsi",
+    "meaning": "शुमार करने वाला"
+  },
+  {
+    "id": 58,
+    "arabic": "الْمُبْدِئُ",
+    "transliteration": "Al-Mubdi",
+    "meaning": "पहली बार पैदा करने वाला"
+  },
+  {
+    "id": 59,
+    "arabic": "الْمُعِيدُ",
+    "transliteration": "Al-Mu'id",
+    "meaning": "दोबारा पैदा करने वाला"
+  },
+  {
+    "id": 60,
+    "arabic": "الْمُحْيِي",
+    "transliteration": "Al-Muhyi",
+    "meaning": "ज़िंदगी देने वाला"
+  },
+  {
+    "id": 61,
+    "arabic": "الْمُمِيتُ",
+    "transliteration": "Al-Mumit",
+    "meaning": "मौत देने वाला"
+  },
+  {
+    "id": 62,
+    "arabic": "الْحَيُّ",
+    "transliteration": "Al-Hayy",
+    "meaning": "हमेशा ज़िंदा रहने वाला"
+  },
+  {
+    "id": 63,
+    "arabic": "الْقَيُّومُ",
+    "transliteration": "Al-Qayyum",
+    "meaning": "क़ायम रखने वाला"
+  },
+  {
+    "id": 64,
+    "arabic": "الْوَاجِدُ",
+    "transliteration": "Al-Wajid",
+    "meaning": "जो चाहे पा लेने वाला"
+  },
+  {
+    "id": 65,
+    "arabic": "الْمَاجِدُ",
+    "transliteration": "Al-Majid",
+    "meaning": "बज़ुर्गी वाला, महिमावान"
+  },
+  {
+    "id": 66,
+    "arabic": "الْوَاحِدُ",
+    "transliteration": "Al-Wahid",
+    "meaning": "अकेला, यकता"
+  },
+  {
+    "id": 67,
+    "arabic": "الْأَحَدُ",
+    "transliteration": "Al-Ahad",
+    "meaning": "एक, बेमिसाल"
+  },
+  {
+    "id": 68,
+    "arabic": "الصَّمَدُ",
+    "transliteration": "As-Samad",
+    "meaning": "बेनियाज़"
+  },
+  {
+    "id": 69,
+    "arabic": "الْقَادِرُ",
+    "transliteration": "Al-Qadir",
+    "meaning": "क़ुदरत वाला"
+  },
+  {
+    "id": 70,
+    "arabic": "الْمُقْتَدِرُ",
+    "transliteration": "Al-Muqtadir",
+    "meaning": "पूरी क़ुदरत वाला"
+  },
+  {
+    "id": 71,
+    "arabic": "الْمُقَدِّمُ",
+    "transliteration": "Al-Muqaddim",
+    "meaning": "आगे करने वाला"
+  },
+  {
+    "id": 72,
+    "arabic": "الْمُؤَخِّرُ",
+    "transliteration": "Al-Mu'akhkhir",
+    "meaning": "पीछे करने वाला"
+  },
+  {
+    "id": 73,
+    "arabic": "الْأَوَّلُ",
+    "transliteration": "Al-Awwal",
+    "meaning": "सबसे पहले"
+  },
+  {
+    "id": 74,
+    "arabic": "الْآخِرُ",
+    "transliteration": "Al-Akhir",
+    "meaning": "सब के बाद"
+  },
+  {
+    "id": 75,
+    "arabic": "الظَّاهِرُ",
+    "transliteration": "Az-Zahir",
+    "meaning": "ज़ाहिर"
+  },
+  {
+    "id": 76,
+    "arabic": "الْبَاطِنُ",
+    "transliteration": "Al-Batin",
+    "meaning": "छिपा हुआ"
+  },
+  {
+    "id": 77,
+    "arabic": "الْوَالِي",
+    "transliteration": "Al-Wali",
+    "meaning": "हाकिम"
+  },
+  {
+    "id": 78,
+    "arabic": "الْمُتَعَالِي",
+    "transliteration": "Al-Muta'ali",
+    "meaning": "बुलंद और बर्तर"
+  },
+  {
+    "id": 79,
+    "arabic": "الْبَرُّ",
+    "transliteration": "Al-Barr",
+    "meaning": "भलाई करने वाला"
+  },
+  {
+    "id": 80,
+    "arabic": "التَّوَّابُ",
+    "transliteration": "At-Tawwab",
+    "meaning": "तौबा क़बूल करने वाला"
+  },
+  {
+    "id": 81,
+    "arabic": "الْمُنْتَقِمُ",
+    "transliteration": "Al-Muntaqim",
+    "meaning": "बदला लेने वाला"
+  },
+  {
+    "id": 82,
+    "arabic": "الْعَفُوُّ",
+    "transliteration": "Al-Afuww",
+    "meaning": "माफ़ करने वाला"
+  },
+  {
+    "id": 83,
+    "arabic": "الرَّءُوفُ",
+    "transliteration": "Ar-Ra'uf",
+    "meaning": "निहायत शफ़ीक़"
+  },
+  {
+    "id": 84,
+    "arabic": "مَالِكُ الْمُلْكِ",
+    "transliteration": "Malik-ul-Mulk",
+    "meaning": "बादशाही का मालिक"
+  },
+  {
+    "id": 85,
+    "arabic": "ذُو الْجَلَالِ وَالْإِكْرَامِ",
+    "transliteration": "Dhul-Jalali wal-Ikram",
+    "meaning": "जलाल और बज़ुर्गी वाला"
+  },
+  {
+    "id": 86,
+    "arabic": "الْمُقْسِطُ",
+    "transliteration": "Al-Muqsit",
+    "meaning": "इंसाफ़ करने वाला"
+  },
+  {
+    "id": 87,
+    "arabic": "الْجَامِعُ",
+    "transliteration": "Al-Jami",
+    "meaning": "जमा करने वाला"
+  },
+  {
+    "id": 88,
+    "arabic": "الْغَنِيُّ",
+    "transliteration": "Al-Ghaniyy",
+    "meaning": "बेनियाज़"
+  },
+  {
+    "id": 89,
+    "arabic": "الْمُغْنِي",
+    "transliteration": "Al-Mughni",
+    "meaning": "ग़नी (बेनियाज़) करने वाला"
+  },
+  {
+    "id": 90,
+    "arabic": "الْمَانِعُ",
+    "transliteration": "Al-Mani",
+    "meaning": "रोकने वाला"
+  },
+  {
+    "id": 91,
+    "arabic": "الضَّارُّ",
+    "transliteration": "Ad-Darr",
+    "meaning": "नुक़सान पहुँचाने वाला"
+  },
+  {
+    "id": 92,
+    "arabic": "النَّافِعُ",
+    "transliteration": "An-Nafi",
+    "meaning": "फ़ायदा देने वाला"
+  },
+  {
+    "id": 93,
+    "arabic": "النُّورُ",
+    "transliteration": "An-Nur",
+    "meaning": "नूर (प्रकाश)"
+  },
+  {
+    "id": 94,
+    "arabic": "الْهَادِي",
+    "transliteration": "Al-Hadi",
+    "meaning": "हिदायत देने वाला"
+  },
+  {
+    "id": 95,
+    "arabic": "الْبَدِيعُ",
+    "transliteration": "Al-Badi",
+    "meaning": "अनोखी चीज़ें पैदा करने वाला"
+  },
+  {
+    "id": 96,
+    "arabic": "الْبَاقِي",
+    "transliteration": "Al-Baqi",
+    "meaning": "हमेशा रहने वाला"
+  },
+  {
+    "id": 97,
+    "arabic": "الْوَارِثُ",
+    "transliteration": "Al-Warith",
+    "meaning": "सब का वारिस"
+  },
+  {
+    "id": 98,
+    "arabic": "الرَّشِيدُ",
+    "transliteration": "Ar-Rashid",
+    "meaning": "राह दिखाने वाला"
+  },
+  {
+    "id": 99,
+    "arabic": "الصَّبُورُ",
+    "transliteration": "As-Sabur",
+    "meaning": "सब्र करने वाला"
+  }
+]
