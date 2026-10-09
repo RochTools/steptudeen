@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { RotateCcw, Volume2, VolumeX, Sparkles, Plus, Settings, X, Flame, Clock, Check, Trash2, Smartphone, Smile } from 'lucide-react';
 
 interface DhikrItem {
@@ -16,6 +16,16 @@ const DEFAULT_DHIKRS: DhikrItem[] = [
   { ar: 'ٱللَّٰهُ أَكْبَرُ', ur: 'اللہ اکبر', en: 'Allahu Akbar', meaning: 'اللہ سب سے بڑا ہے', count: 34, savedProgress: 0 },
   { ar: 'لَآ اِلٰهَ اِلَّا اللهُ', ur: 'لا الہ الا اللہ', en: 'La ilaha illallah', meaning: 'اللہ کے سوا کوئی معبود نہیں', count: 100, savedProgress: 0 },
   { ar: 'أَسْتَغْفِرُ ٱللَّٰهَ', ur: 'استغفر اللہ', en: 'Astaghfirullah', meaning: 'میں اللہ سے گناہوں کی معافی مانگتا ہوں', count: 100, savedProgress: 0 }
+];
+
+// Tasbih counter body colours (same design, different paint)
+const DEVICE_COLORS = [
+  { id: 'green',  name: 'سبز',   top: '#41dc7c', mid: '#10b981', bottom: '#036045', stroke: '#032d19', label: '#d1faf0' },
+  { id: 'blue',   name: 'نیلا',  top: '#60a5fa', mid: '#2563eb', bottom: '#1e3a8a', stroke: '#172554', label: '#dbeafe' },
+  { id: 'purple', name: 'جامنی', top: '#c084fc', mid: '#9333ea', bottom: '#581c87', stroke: '#3b0764', label: '#f3e8ff' },
+  { id: 'red',    name: 'سرخ',   top: '#f87171', mid: '#dc2626', bottom: '#7f1d1d', stroke: '#450a0a', label: '#fee2e2' },
+  { id: 'pink',   name: 'گلابی', top: '#f9a8d4', mid: '#ec4899', bottom: '#9d174d', stroke: '#500724', label: '#fce7f3' },
+  { id: 'black',  name: 'کالا',  top: '#6b7280', mid: '#374151', bottom: '#111827', stroke: '#030712', label: '#e5e7eb' },
 ];
 
 let sharedAudioCtx: AudioContext | null = null;
@@ -42,6 +52,13 @@ export const TasbihView: React.FC = () => {
     return Number(localStorage.getItem('tasbih_cycle_count_v4') || 0);
   });
 
+  // Live counter lives in a ref too, so rapid taps never read a stale value
+  const countRef = useRef<number>(count);
+  const updateCount = (n: number) => {
+    countRef.current = n;
+    setCount(n);
+  };
+
   // Settings states
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     return localStorage.getItem('tasbih_sound_v4') !== 'false';
@@ -67,6 +84,16 @@ export const TasbihView: React.FC = () => {
     return Number(localStorage.getItem('tasbih_target_v4') || 33);
   });
 
+  // Counter body colour
+  const [deviceColorId, setDeviceColorId] = useState<string>(() => {
+    return localStorage.getItem('tasbih_device_color_v1') || 'green';
+  });
+  const deviceColor = DEVICE_COLORS.find(c => c.id === deviceColorId) || DEVICE_COLORS[0];
+  const chooseDeviceColor = (id: string) => {
+    setDeviceColorId(id);
+    try { localStorage.setItem('tasbih_device_color_v1', id); } catch { /* ignore */ }
+  };
+
   // Interactive Overlays
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [showAddDhikrModal, setShowAddDhikrModal] = useState<boolean>(false);
@@ -81,24 +108,43 @@ export const TasbihView: React.FC = () => {
   // Status & Device tap effects
   const [isLightGlow, setIsLightGlow] = useState<boolean>(false);
   const [resetNotice, setResetNotice] = useState<string>('');
-  const [tapEffect, setTapEffect] = useState<boolean>(false);
   
   // Live Clock header state
   const [timeStr, setTimeStr] = useState<string>('');
-  const tapTimeoutRef = useRef<any>(null);
 
   // Sync state helpers
+  // Batched persistence: writing JSON to localStorage on every tap blocks the UI thread,
+  // so we save once the user pauses, and always when the app is hidden or closed.
+  const persistRef = useRef<() => void>(() => {});
+  persistRef.current = () => {
+    try {
+      localStorage.setItem('tasbih_dhikr_list_v4', JSON.stringify(dhikrList));
+      localStorage.setItem('tasbih_cycle_count_v4', String(count));
+      localStorage.setItem('tasbih_history_v4', JSON.stringify(history));
+    } catch {
+      /* storage full or unavailable */
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('tasbih_dhikr_list_v4', JSON.stringify(dhikrList));
-  }, [dhikrList]);
+    const t = setTimeout(() => persistRef.current(), 400);
+    return () => clearTimeout(t);
+  }, [dhikrList, count, history]);
+
+  useEffect(() => {
+    const flush = () => persistRef.current();
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', flush);
+      flush();
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('tasbih_dhikr_idx_v4', String(activeDhikrIndex));
   }, [activeDhikrIndex]);
-
-  useEffect(() => {
-    localStorage.setItem('tasbih_cycle_count_v4', String(count));
-  }, [count]);
 
   useEffect(() => {
     localStorage.setItem('tasbih_sound_v4', String(soundEnabled));
@@ -111,10 +157,6 @@ export const TasbihView: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('tasbih_alert_v4', String(autoCompleteAlert));
   }, [autoCompleteAlert]);
-
-  useEffect(() => {
-    localStorage.setItem('tasbih_history_v4', JSON.stringify(history));
-  }, [history]);
 
   useEffect(() => {
     localStorage.setItem('tasbih_target_v4', String(target));
@@ -211,31 +253,19 @@ export const TasbihView: React.FC = () => {
 
   const activePrayer = getActivePrayerNotification();
 
-  // Handle Increments (The Core click action)
+  // Handle Increments (the core tap action) - kept as light as possible
   const handleIncrement = () => {
-    if (tapTimeoutRef.current) {
-      clearTimeout(tapTimeoutRef.current);
-    }
-    setTapEffect(true);
-
-    const nextCount = count + 1;
+    const nextCount = countRef.current + 1;
     const todayKey = getLocalDateString();
 
-    // Increment today's count in history
-    const updatedHistory = {
-      ...history,
-      [todayKey]: (history[todayKey] || 0) + 1
-    };
-    setHistory(updatedHistory);
+    updateCount(nextCount);
+    setHistory(prev => ({ ...prev, [todayKey]: (prev[todayKey] || 0) + 1 }));
+    setDhikrList(prev =>
+      prev.map((item, i) =>
+        i === activeDhikrIndex ? { ...item, savedProgress: item.savedProgress + 1 } : item
+      )
+    );
 
-    // Save individual Dhikr progress
-    const updatedDhikrs = [...dhikrList];
-    if (updatedDhikrs[activeDhikrIndex]) {
-      updatedDhikrs[activeDhikrIndex].savedProgress += 1;
-      setDhikrList(updatedDhikrs);
-    }
-
-    // Target Limit check with celebration
     if (target > 0 && nextCount === target) {
       if (autoCompleteAlert) {
         playClickSound(880, 0.25); // Target chime
@@ -244,27 +274,28 @@ export const TasbihView: React.FC = () => {
         playClickSound(540, 0.04);
         triggerHaptic(12);
       }
-      // Target hit, flash the light screen once as a nice indicator
       setIsLightGlow(true);
       setTimeout(() => setIsLightGlow(false), 220);
     } else {
       playClickSound(540, 0.04);
-      triggerHaptic(12); // Shorter duration is cleaner and tighter for ultra fast clicks
+      triggerHaptic(12);
     }
 
-    setCount(nextCount);
-    setResetNotice('');
+    if (resetNotice) setResetNotice('');
+  };
 
-    tapTimeoutRef.current = setTimeout(() => {
-      setTapEffect(false);
-    }, 70); 
+  // Count on finger-down (not on click) for instant response; ignore real controls
+  const handleRootPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('[data-nocount]')) return;
+    handleIncrement();
   };
 
   const handleResetCurrent = (e: React.MouseEvent) => {
     e.stopPropagation(); 
     playClickSound(300, 0.1);
     triggerHaptic(60);
-    setCount(0);
+    updateCount(0);
     setResetNotice('موجودہ چکر صفر کر دیا گیا ہے');
     setTimeout(() => setResetNotice(''), 2200);
   };
@@ -272,7 +303,7 @@ export const TasbihView: React.FC = () => {
   const handleResetAllRecords = () => {
     playClickSound(220, 0.2);
     triggerHaptic([80, 50, 80]);
-    setCount(0);
+    updateCount(0);
     setHistory({});
     const baseReset = dhikrList.map(item => ({ ...item, savedProgress: 0 }));
     setDhikrList(baseReset);
@@ -286,7 +317,7 @@ export const TasbihView: React.FC = () => {
     triggerHaptic(20);
     setActiveDhikrIndex(idx);
     setTarget(dhikrList[idx].count);
-    setCount(0);
+    updateCount(0);
     setResetNotice('');
   };
 
@@ -294,7 +325,7 @@ export const TasbihView: React.FC = () => {
     playClickSound(720, 0.05);
     triggerHaptic(20);
     setTarget(limit);
-    setCount(0);
+    updateCount(0);
     setResetNotice('');
   };
 
@@ -316,7 +347,7 @@ export const TasbihView: React.FC = () => {
     setDhikrList(newList);
     setActiveDhikrIndex(newList.length - 1);
     setTarget(customLimit);
-    setCount(0);
+    updateCount(0);
 
     // Reset inputs
     setCustomAr('');
@@ -347,7 +378,7 @@ export const TasbihView: React.FC = () => {
     } else {
       setTarget(newList[activeDhikrIndex].count);
     }
-    setCount(0);
+    updateCount(0);
   };
 
   // Calculate statistics metrics
@@ -408,7 +439,7 @@ export const TasbihView: React.FC = () => {
     return streak;
   };
 
-  const streakVal = calculateStreakCount();
+  const streakVal = useMemo(calculateStreakCount, [history]);
 
   // Format past 7 days statistics map for our bar custom graphs
   // Graph functionality removed to maximize space for saved records list
@@ -418,12 +449,12 @@ export const TasbihView: React.FC = () => {
     return Object.values(history).reduce((a, b) => (a as number) + (b as number), 0);
   };
 
-  const grandTotalAll = getGrandTotalCount();
+  const grandTotalAll = useMemo(getGrandTotalCount, [history]);
 
   return (
     <div 
-      onClick={handleIncrement}
-      className="fixed inset-x-0 top-0 bottom-[6px] w-full bg-gradient-to-b from-[#fffefe] via-[#fffdf0] to-[#fef2c7] px-3 pt-3 pb-2 flex flex-col items-center select-none overflow-hidden max-w-md mx-auto cursor-pointer active:brightness-[0.99] transition-all duration-150 group touch-manipulation"
+      onPointerDown={handleRootPointerDown}
+      className="fixed inset-x-0 top-0 bottom-[6px] w-full bg-gradient-to-b from-[#fffefe] via-[#fffdf0] to-[#fef2c7] px-3 pt-3 pb-2 flex flex-col items-center select-none overflow-hidden max-w-md mx-auto cursor-pointer group touch-manipulation [-webkit-tap-highlight-color:transparent]"
       style={{
         touchAction: 'manipulation'
       }}
@@ -466,7 +497,8 @@ export const TasbihView: React.FC = () => {
       {/* ================= HEADER REMINDER & SYSTEM ACTIONS ================= */}
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="w-full flex justify-between items-center relative z-40 bg-white/75 backdrop-blur border border-amber-500/15 p-2 rounded-2xl shadow-sm tracking-tight select-none shrink-0"
+        data-nocount
+        className="w-full flex justify-between items-center relative z-40 bg-white/75 border border-amber-500/15 p-2 rounded-2xl shadow-sm tracking-tight select-none shrink-0"
       >
         {/* Date, Clock & Prayer reminders */}
         <div className="flex items-center gap-1.5 flex-row-reverse text-right">
@@ -528,7 +560,8 @@ export const TasbihView: React.FC = () => {
           {/* DHIKR BANNER SELECTION TRAY */}
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white/90 backdrop-blur rounded-2xl border border-amber-200/60 p-2 text-center shadow-sm w-full shrink-0"
+            data-nocount
+            className="bg-white/90 rounded-2xl border border-amber-200/60 p-2 text-center shadow-sm w-full shrink-0"
           >
             <div className="flex items-center justify-between pb-1 flex-row-reverse mb-1 px-1">
               <button
@@ -580,9 +613,9 @@ export const TasbihView: React.FC = () => {
           </div>
 
           {/* TARGETS & PROGRESS SUMMARY HEADER BAR */}
-          <div className="w-full flex justify-between items-center shrink-0 py-1.5 relative z-20" onClick={(e) => e.stopPropagation()}>
+          <div data-nocount className="w-full flex justify-between items-center shrink-0 py-1.5 relative z-20" onClick={(e) => e.stopPropagation()}>
             {/* Target values */}
-            <div className="flex items-center gap-1 bg-white/90 backdrop-blur px-2 py-0.5 rounded-lg border border-amber-200 shadow-xs text-amber-950">
+            <div className="flex items-center gap-1 bg-white/90 px-2 py-0.5 rounded-lg border border-amber-200 shadow-xs text-amber-950">
               <span className="text-[8.5px] text-amber-800 font-urdu font-black leading-none">حد:</span>
               {[33, 99, 100, 0].map((limit) => (
                 <button
@@ -603,7 +636,7 @@ export const TasbihView: React.FC = () => {
             </div>
 
             {/* Today progress & total counter */}
-            <div className="flex items-center gap-2 bg-white/90 backdrop-blur px-2.5 py-0.5 rounded-lg border border-amber-200 shadow-xs text-right font-bold text-stone-850">
+            <div className="flex items-center gap-2 bg-white/90 px-2.5 py-0.5 rounded-lg border border-amber-200 shadow-xs text-right font-bold text-stone-850">
               <div className="flex items-center gap-1 pl-1 border-r border-[#edd6b3]">
                 <span className="text-[7.5px] text-stone-550 font-mono leading-none">آج کُل:</span>
                 <span className="font-mono text-[10px] font-black text-emerald-800">
@@ -727,18 +760,14 @@ export const TasbihView: React.FC = () => {
             {/* THE SEAMLESS GREEN HAND HELD DEVICE TACTILE HOUSINGS */}
             <div 
               className="relative w-[138px] h-[168px] shrink-0 flex flex-col items-center justify-start z-10 select-none my-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleIncrement();
-              }}
             >
               {/* SVG counter base structure precisely tapered narrowing at the bottom edge */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 138 168" fill="none" xmlns="http://www.w3.org/2005/svg">
                 <defs>
                   <linearGradient id="body-grad" x1="69" y1="0" x2="69" y2="168" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#41dc7c" />
-                    <stop offset="35%" stopColor="#10b981" />
-                    <stop offset="100%" stopColor="#036045" />
+                    <stop offset="0%" stopColor={deviceColor.top} />
+                    <stop offset="35%" stopColor={deviceColor.mid} />
+                    <stop offset="100%" stopColor={deviceColor.bottom} />
                   </linearGradient>
                   <linearGradient id="inner-shadow-grad" x1="69" y1="0" x2="69" y2="168" gradientUnits="userSpaceOnUse">
                     <stop offset="0%" stopColor="#ffffff" stopOpacity="0.32" />
@@ -755,7 +784,7 @@ export const TasbihView: React.FC = () => {
                 <path 
                   d="M 69,2 C 114,2 136,10 136,40 C 136,66 122,80 112,92 C 102,104 118,118 118,137 C 118,152 96,166 69,166 C 42,166 20,152 20,137 C 20,118 36,104 26,92 C 16,80 2,66 2,40 C 2,10 24,2 69,2 Z" 
                   fill="url(#body-grad)"
-                  stroke="#032d19"
+                  stroke={deviceColor.stroke}
                   strokeWidth="1.2"
                   strokeLinejoin="round"
                 />
@@ -812,7 +841,7 @@ export const TasbihView: React.FC = () => {
               </div>
 
               {/* Hardware marking labels */}
-              <div className="w-[82px] flex justify-between px-1.5 mt-1.5 text-[5px] font-mono font-extrabold text-[#d1faf0]/75 tracking-tight uppercase select-none pointer-events-none relative z-10">
+              <div className="w-[82px] flex justify-between px-1.5 mt-1.5 text-[5px] font-mono font-extrabold tracking-tight uppercase select-none pointer-events-none relative z-10" style={{ color: deviceColor.label, opacity: 0.75 }}>
                 <span>Reset</span>
                 <span>Count</span>
                 <span>Light</span>
@@ -823,7 +852,7 @@ export const TasbihView: React.FC = () => {
                 {/* Reset current toggle */}
                 <button
                   onClick={(e) => handleResetCurrent(e)}
-                  className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-stone-50 via-stone-200 to-stone-400 active:scale-90 transition-all cursor-pointer relative"
+                  data-nocount className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-stone-50 via-stone-200 to-stone-400 active:scale-90 transition-all cursor-pointer relative"
                   style={{
                     border: '0.5px solid #2e2a24', 
                     boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
@@ -834,7 +863,7 @@ export const TasbihView: React.FC = () => {
                 </button>
 
                 {/* Light Led Status */}
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-950/20 border-[0.5px] border-emerald-950/45 flex items-center justify-center animate-pulse">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-950/20 border-[0.5px] border-emerald-950/45 flex items-center justify-center">
                   <div className={`w-1 h-1 rounded-full ${isLightGlow ? 'bg-emerald-400' : 'bg-emerald-800'}`} />
                 </div>
 
@@ -846,7 +875,7 @@ export const TasbihView: React.FC = () => {
                     triggerHaptic(15);
                     setIsLightGlow(!isLightGlow);
                   }}
-                  className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-stone-50 via-stone-200 to-stone-400 active:scale-95 transition-all cursor-pointer relative"
+                  data-nocount className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-stone-50 via-stone-200 to-stone-400 active:scale-95 transition-all cursor-pointer relative"
                   style={{
                     border: '0.5px solid #2e2a24',
                     boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
@@ -859,20 +888,10 @@ export const TasbihView: React.FC = () => {
 
               {/* GOLD METALLIC KEY TRIGGER */}
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleIncrement();
-                }}
-                className={`mt-2.5 w-[46px] h-[46px] rounded-full bg-gradient-to-b from-[#ffebaa] via-[#e5b539] to-[#ac8010] cursor-pointer transform transition-all duration-75 flex items-center justify-center relative z-10 select-none ${
-                  tapEffect ? 'scale-[0.88] translate-y-[1.5px] shadow-inner brightness-[0.93]' : 'scale-100 hover:brightness-[1.04]'
-                }`}
-                style={{
-                  border: '1px solid #7c5c07', 
-                  boxShadow: tapEffect 
-                    ? 'inset 0 4px 6px rgba(0,0,0,0.4), 0 1px 1px rgba(255,255,255,0.2)' 
-                    : 'inset 0 1px 2px rgba(255,255,255,0.65), 0 3px 8px rgba(0,0,0,0.35)',
-                  touchAction: 'manipulation'
-                }}
+                type="button"
+                onTouchStart={() => {}}
+                className="mt-2.5 w-[46px] h-[46px] rounded-full bg-gradient-to-b from-[#ffebaa] via-[#e5b539] to-[#ac8010] cursor-pointer transition-transform duration-75 flex items-center justify-center relative z-10 select-none shadow-[inset_0_1px_2px_rgba(255,255,255,0.65),0_3px_8px_rgba(0,0,0,0.35)] active:scale-[0.88] active:translate-y-[1.5px] active:brightness-[0.93] active:shadow-[inset_0_4px_6px_rgba(0,0,0,0.4),0_1px_1px_rgba(255,255,255,0.2)]"
+                style={{ border: '1px solid #7c5c07', touchAction: 'manipulation' }}
               >
                 <div className="w-[32px] h-[32px] rounded-full bg-gradient-to-tr from-[#dfb02a] via-[#fef2c7] to-white shadow-sm flex items-center justify-center pointer-events-none" style={{ border: '0.5px solid #c59714' }}>
                   <div className="w-[24px] h-[24px] rounded-full bg-gradient-to-b from-[#fffae8] via-[#e5b33a] to-[#b38515] relative overflow-hidden" style={{ border: '0.5px solid #a1780b' }}>
@@ -893,7 +912,7 @@ export const TasbihView: React.FC = () => {
             {/* Clean, elegant white Reset button under counts exactly as shown in the screenshot */}
             <button
               onClick={(e) => handleResetCurrent(e)}
-              className="mt-1 px-6 py-1 select-none text-[10px] font-black tracking-tight text-amber-950 bg-white border border-amber-500/15 hover:bg-stone-50 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 font-urdu relative z-10"
+              data-nocount className="mt-1 px-6 py-1 select-none text-[10px] font-black tracking-tight text-amber-950 bg-white border border-amber-500/15 hover:bg-stone-50 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 font-urdu relative z-10"
               title="تسبیح صفر کریں"
             >
               شروع سے
@@ -904,7 +923,7 @@ export const TasbihView: React.FC = () => {
         /* ================= VIEW 2: STATISTICS & HISTORY ANALYTICS ================= */
         <div 
           onClick={(e) => e.stopPropagation()}
-          className="w-full flex-1 flex flex-col gap-3 relative z-20 mt-2 text-right select-none animate-fadeIn text-amber-950"
+          data-nocount className="w-full flex-1 flex flex-col gap-3 relative z-20 mt-2 text-right select-none animate-fadeIn text-amber-950"
         >
           {/* STATS MATRIX CARDS ROW */}
           <div className="grid grid-cols-4 gap-1.5 font-urdu">
@@ -943,7 +962,7 @@ export const TasbihView: React.FC = () => {
           </div>
 
           {/* LIST OF SAVED DHIKRS WITH THEIR UNIQUE PROGRESS PERCENTAGE ACHIEVEMENTS */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-4 border border-amber-200 flex-1 overflow-y-auto no-scrollbar text-right flex flex-col min-h-0">
+          <div className="bg-white/95 rounded-2xl p-4 border border-amber-200 flex-1 overflow-y-auto no-scrollbar text-right flex flex-col min-h-0">
             <h4 className="text-[11px] font-extrabold text-[#7c2d12] font-urdu mb-3 pb-1.5 border-b border-amber-100/60">
               ہر ذکر کا انفرادی محفوظ ریکارڈ (پروگریس):
             </h4>
@@ -986,7 +1005,7 @@ export const TasbihView: React.FC = () => {
       {showSettingsModal && (
         <div 
           onClick={() => setShowSettingsModal(false)}
-          className="fixed inset-0 bg-black/50 backdrop-blur-[1.5px] z-50 flex items-center justify-center p-3 animate-fadeIn"
+          data-nocount className="fixed inset-0 bg-black/50 backdrop-blur-[1.5px] z-50 flex items-center justify-center p-3 animate-fadeIn"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
@@ -1057,6 +1076,25 @@ export const TasbihView: React.FC = () => {
                 </button>
               </div>
 
+              {/* Counter colour picker */}
+              <div className="border-t border-stone-100 pt-3 space-y-2">
+                <span className="text-[10px] font-bold text-stone-850 block text-right">تسبیح کا رنگ</span>
+                <div className="flex items-center justify-between gap-1.5">
+                  {DEVICE_COLORS.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      title={c.name}
+                      onClick={() => { playClickSound(700, 0.05); triggerHaptic(15); chooseDeviceColor(c.id); }}
+                      className={`w-6 h-6 rounded-full cursor-pointer transition-transform ${
+                        deviceColorId === c.id ? 'ring-2 ring-offset-1 ring-amber-500 scale-110' : ''
+                      }`}
+                      style={{ background: `linear-gradient(to bottom, ${c.top}, ${c.mid} 45%, ${c.bottom})`, border: `1px solid ${c.stroke}` }}
+                    />
+                  ))}
+                </div>
+              </div>
+
               {/* Danger/Reset Total Records Area */}
               <div className="border-t border-stone-100 pt-3 text-center space-y-1">
                 <p className="text-[7.5px] text-stone-400 font-urdu leading-snug">
@@ -1080,7 +1118,7 @@ export const TasbihView: React.FC = () => {
       {showAddDhikrModal && (
         <div 
           onClick={() => setShowAddDhikrModal(false)}
-          className="fixed inset-0 bg-black/50 backdrop-blur-[1.5px] z-50 flex items-center justify-center p-3 animate-fadeIn"
+          data-nocount className="fixed inset-0 bg-black/50 backdrop-blur-[1.5px] z-50 flex items-center justify-center p-3 animate-fadeIn"
         >
           <form 
             onSubmit={handleAddCustomDhikr}
