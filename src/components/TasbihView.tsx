@@ -423,7 +423,7 @@ export const TasbihView: React.FC = () => {
   return (
     <div 
       onClick={handleIncrement}
-      className="fixed inset-x-0 top-0 bottom-[62px] w-full bg-gradient-to-b from-[#fffefe] via-[#fffdf0] to-[#fef2c7] px-3 pt-3 pb-2 flex flex-col items-center select-none overflow-hidden max-w-md mx-auto cursor-pointer active:brightness-[0.99] transition-all duration-150 group touch-manipulation"
+      className="fixed inset-x-0 top-0 bottom-[6px] w-full bg-gradient-to-b from-[#fffefe] via-[#fffdf0] to-[#fef2c7] px-3 pt-3 pb-2 flex flex-col items-center select-none overflow-hidden max-w-md mx-auto cursor-pointer active:brightness-[0.99] transition-all duration-150 group touch-manipulation"
       style={{
         touchAction: 'manipulation'
       }}
@@ -726,7 +726,7 @@ export const TasbihView: React.FC = () => {
 
             {/* THE SEAMLESS GREEN HAND HELD DEVICE TACTILE HOUSINGS */}
             <div 
-              className="relative w-[138px] h-[168px] flex flex-col items-center justify-start z-10 select-none my-1"
+              className="relative w-[138px] h-[168px] shrink-0 flex flex-col items-center justify-start z-10 select-none my-1"
               onClick={(e) => {
                 e.stopPropagation();
                 handleIncrement();
