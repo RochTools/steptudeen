@@ -423,7 +423,7 @@ export const TasbihView: React.FC = () => {
   return (
     <div 
       onClick={handleIncrement}
-      className="relative w-full h-[calc(100vh-112px)] min-h-[510px] bg-gradient-to-b from-[#fffefe] via-[#fffdf0] to-[#fef2c7] p-4 sm:p-5 flex flex-col justify-between items-center select-none overflow-y-auto max-w-md mx-auto no-scrollbar cursor-pointer active:brightness-[0.99] transition-all duration-150 group touch-manipulation"
+      className="fixed inset-x-0 top-0 bottom-[62px] w-full bg-gradient-to-b from-[#fffefe] via-[#fffdf0] to-[#fef2c7] px-3 pt-3 pb-2 flex flex-col items-center select-none overflow-hidden max-w-md mx-auto cursor-pointer active:brightness-[0.99] transition-all duration-150 group touch-manipulation"
       style={{
         touchAction: 'manipulation'
       }}
@@ -523,7 +523,7 @@ export const TasbihView: React.FC = () => {
 
       {/* ================= VIEW 1: MAIN TACTILE COUNTER INTERFACE ================= */}
       {activeTab === 'counter' ? (
-        <div className="w-full flex-1 flex flex-col justify-between items-center relative z-20 mt-2 select-none h-full">
+        <div className="w-full flex-1 flex flex-col justify-between items-center relative z-20 mt-2 select-none min-h-0">
           
           {/* DHIKR BANNER SELECTION TRAY */}
           <div 
@@ -621,7 +621,7 @@ export const TasbihView: React.FC = () => {
           </div>
 
           {/* THE GOLDEN MIHRAB SHAPED CONTAINER CARD FROM USER SCREENSHOT */}
-          <div className="relative w-full max-w-[290px] mx-auto flex flex-col items-center justify-between p-4 sm:p-5 my-auto shrink-0 z-20 min-h-[352px]">
+          <div className="relative w-full max-w-[290px] mx-auto flex flex-col items-center justify-between px-4 pt-3 pb-5 my-1 flex-1 min-h-0 z-20">
             {/* Real SVG backdrop forming the steps and dome shape */}
             <div className="absolute inset-0 pointer-events-none z-0">
               <svg className="w-full h-full drop-shadow-[0_6px_14px_rgba(180,83,9,0.18)]" viewBox="0 0 290 355" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -893,10 +893,10 @@ export const TasbihView: React.FC = () => {
             {/* Clean, elegant white Reset button under counts exactly as shown in the screenshot */}
             <button
               onClick={(e) => handleResetCurrent(e)}
-              className="mt-2.5 px-6 py-1 select-none text-[10px] font-black tracking-tight text-amber-950 bg-white border border-amber-500/15 hover:bg-stone-50 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 font-urdu relative z-10"
+              className="mt-1 px-6 py-1 select-none text-[10px] font-black tracking-tight text-amber-950 bg-white border border-amber-500/15 hover:bg-stone-50 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 font-urdu relative z-10"
               title="تسبیح صفر کریں"
             >
-              شروع سے (Reset)
+              شروع سے
             </button>
           </div>
         </div>
