@@ -1,96 +1,109 @@
 /**
  * CalibrationWizard.tsx — «مسجد کے اصل اوقات سے خودکار کیلیبریشن»
  *
- * امام چند دن (یا پورے مہینے) کے اصل اوقات ٹائپ/پیسٹ کرے
- * → یہ کمپوننٹ خود بہترین طریقہ + مشرب + زاویے + ±منٹ نکال کر دکھاتا ہے۔
+ * نیا بہاؤ (کم سے کم ٹائپنگ):
+ *   1) آج کا دن ایپ کے موجودہ اوقات کے ساتھ پہلے سے بھرا ہوتا ہے
+ *   2) امام مسجد کے وقت سے جو وقت مختلف ہو وہ بدلتا ہے (گھڑی والا ان پٹ، ٹائپنگ نہیں)
+ *      — جو وقت ایپ سے الگ ہو اس کے نیچے فرق (+3 / −2) نظر آتا ہے
+ *   3) «یہ اوقات مسجد کے مطابق ہیں» دبا کر دن کی تصدیق کرتا ہے (بغیر تصدیق دن شمار نہیں ہوتے،
+ *      تاکہ ایپ کے اپنے اوقات غلطی سے «مسجد کے اصل اوقات» نہ بن جائیں)
+ *   4) کیلیبریٹ → نتیجہ سادہ اردو میں: پہلے کتنی غلطی تھی، اب کتنی، کس نماز میں کتنا ±،
+ *      بھروسے کا درجہ، اور اگلا کون سا دن ڈالنا مفید ہے
  *
- * 27 اوپن ڈیٹا سیٹوں پر آزمائش کا نتیجہ: اس طرح پورے سال کی غلطی
- * Sunrise/Zuhr/Maghrib میں ±1 منٹ، عصر ±2 منٹ، فجر/عشاء ±6–8 منٹ رہ جاتی ہے
- * (جبکہ غلط طریقے پر صرف آفسیٹ لگانے سے فجر میں ±42 منٹ تک باقی رہتی ہے)۔
+ * سالانہ ٹیبل پیسٹ والا راستہ پہلے کی طرح موجود ہے (اب 5 اوقات اور 12 گھنٹے والے ٹیبل بھی پڑھتا ہے)۔
  */
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Sparkles, Plus, Trash, ClipboardPaste, Check, AlertCircle, Wand2 } from 'lucide-react';
-import { SampleDays, CalibrationReport, calibrate, DEMO_SAMPLES } from '../../lib/calibrate';
-import { PrayerConfig, PrayerKey, PRAYER_LABELS_UR, ALL_PRAYER_KEYS } from '../../lib/prayerEngine';
+import {
+  SampleDays, CalibrationReport, calibrate, configError, suggestSampleDates,
+  parsePastedTable, to24h, DEMO_SAMPLES, PAKISTAN_METHODS,
+} from '../../lib/calibrate';
+import {
+  PrayerConfig, PrayerKey, PRAYER_LABELS_UR, ALL_PRAYER_KEYS, computeDay, toDateKey, hhmmToMinutes,
+} from '../../lib/prayerEngine';
+
+// پرانی جگہوں سے import چلتا رہے
+export { parsePastedTable };
 
 interface CalibrationWizardProps {
   latitude: number;
   longitude: number;
   timeZone?: string;
-  /** موجودہ سیٹنگ (نتائج کا موازنہ دکھانے کے لیے) */
+  /** موجودہ سیٹنگ (پہلے سے بھرنے اور «پہلے/بعد» دکھانے کے لیے) */
   currentConfig?: PrayerConfig;
   /** «لاگو کریں» دبانے پر نیا config واپس */
   onApply: (config: PrayerConfig, report: CalibrationReport) => void;
   className?: string;
 }
 
-type Rows = { date: string; fajr: string; sunrise: string; zuhr: string; asr: string; maghrib: string; isha: string }[];
+type Times = Record<PrayerKey, string>;
+interface Row { id: number; date: string; times: Times; confirmed: boolean }
 
-const emptyRow = (): Rows[number] => ({ date: '', fajr: '', sunrise: '', zuhr: '', asr: '', maghrib: '', isha: '' });
+const blankTimes = (): Times => ({ fajr: '', sunrise: '', zuhr: '', asr: '', maghrib: '', isha: '' });
+const isoOk = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
 
-/** سالانہ ٹیبل سے پیسٹ کی گئی سطریں پڑھیں:
- *  2026-06-21, 04:20, 05:44, 12:37, 17:09, 19:30, 20:55
- *  یا  21-06-2026  04:20 05:44 12:37 17:09 19:30 20:55
- */
-export function parsePastedTable(text: string): Rows {
-  const out: Rows = [];
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    const cells = line.split(/[,\t;|]+|\s{1,}/).map((c) => c.trim()).filter(Boolean);
-    if (cells.length < 6) continue;
-    // تاریخ
-    let date = '';
-    const iso = cells.find((c) => /^\d{4}-\d{1,2}-\d{1,2}$/.test(c));
-    const dmy = cells.find((c) => /^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(c));
-    if (iso) {
-      const [y, m, d] = iso.split('-').map(Number);
-      date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    } else if (dmy) {
-      const [d, m, y] = dmy.split(/[-/]/).map(Number);
-      date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    }
-    if (!date) continue;
-    const times = cells.filter((c) => /^\d{1,2}:\d{2}$/.test(c));
-    if (times.length < 5) continue;
-    const [fajr, sunrise, zuhr, asr, maghrib, isha] = times;
-    out.push({
-      date,
-      fajr: fajr ?? '',
-      sunrise: sunrise ?? '',
-      zuhr: zuhr ?? (times[1] ?? ''),
-      asr: asr ?? '',
-      maghrib: maghrib ?? '',
-      isha: isha ?? '',
-    });
-  }
-  return out;
-}
+const CONF_UI = {
+  high:   { text: 'بھروسہ: اچھا',    cls: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  medium: { text: 'بھروسہ: درمیانہ', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+  low:    { text: 'بھروسہ: کم',      cls: 'bg-rose-100 text-rose-800 border-rose-200' },
+} as const;
+
+const fmtOffset = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0');
 
 export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
   latitude, longitude, timeZone, currentConfig, onApply, className = '',
 }) => {
-  const [rows, setRows] = useState<Rows>([emptyRow()]);
+  const nextId = useRef(1);
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const [report, setReport] = useState<CalibrationReport | null>(null);
+  const [result, setResult] = useState<{ report: CalibrationReport; before: number | null } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const setCell = (i: number, key: keyof Rows[number], value: string) => {
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+  /** ایپ اس وقت جس config سے اوقات دکھا رہی ہے */
+  const baseConfig = useMemo<PrayerConfig>(
+    () => ({ ...(currentConfig ?? {}), timeZone: timeZone ?? currentConfig?.timeZone }),
+    [currentConfig, timeZone]
+  );
+
+  const appTimesFor = (date: string): Times | null => {
+    if (!isoOk(date)) return null;
+    const [y, m, d] = date.split('-').map(Number);
+    try { return computeDay(latitude, longitude, new Date(y, m - 1, d), baseConfig); } catch { return null; }
   };
-  const addRow = () => setRows((p) => [...p, emptyRow()]);
-  const removeRow = (i: number) => setRows((p) => (p.length === 1 ? [emptyRow()] : p.filter((_, idx) => idx !== i)));
+
+  const makeRow = (date: string, confirmed = false, times?: Times): Row => ({
+    id: nextId.current++, date, confirmed, times: times ?? appTimesFor(date) ?? blankTimes(),
+  });
+
+  const [rows, setRows] = useState<Row[]>(() => [makeRow(toDateKey(new Date()))]);
+
+  const suggestions = useMemo(() => suggestSampleDates(rows.map((r) => r.date)), [rows]);
+
+  // ── قطاروں کی ترمیم ──
+  const setDate = (id: number, date: string) =>
+    setRows((p) => p.map((r) => {
+      if (r.id !== id) return r;
+      // بغیر تصدیق والی قطار نئی تاریخ کے ایپ-اوقات سے دوبارہ بھر جاتی ہے
+      return r.confirmed ? { ...r, date } : { ...r, date, times: appTimesFor(date) ?? r.times };
+    }));
+  const setTime = (id: number, key: PrayerKey, value: string) =>
+    setRows((p) => p.map((r) => (r.id === id ? { ...r, confirmed: true, times: { ...r.times, [key]: value } } : r)));
+  const confirmRow = (id: number) => setRows((p) => p.map((r) => (r.id === id ? { ...r, confirmed: true } : r)));
+  const addRow = (date?: string) => setRows((p) => [...p, makeRow(date ?? suggestions[0] ?? toDateKey(new Date()))]);
+  const removeRow = (id: number) =>
+    setRows((p) => (p.length === 1 ? [makeRow(toDateKey(new Date()))] : p.filter((r) => r.id !== id)));
+
+  const confirmedCount = rows.filter((r) => r.confirmed && isoOk(r.date)).length;
 
   const toSamples = (): SampleDays => {
     const samples: SampleDays = {};
     for (const r of rows) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date)) continue;
+      if (!r.confirmed || !isoOk(r.date)) continue;
       const entry: Partial<Record<PrayerKey, string>> = {};
       for (const key of ALL_PRAYER_KEYS) {
-        const v = (r as any)[key] as string;
-        if (v && /^\d{1,2}:\d{2}$/.test(v)) entry[key] = v;
+        const v = r.times[key];
+        if (v && /^\d{1,2}:\d{2}$/.test(v)) entry[key] = to24h(key, v);
       }
       if (Object.keys(entry).length >= 3) samples[r.date] = entry;
     }
@@ -99,42 +112,51 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
 
   const run = () => {
     setError('');
-    try {
-      const samples = toSamples();
-      if (!Object.keys(samples).length) {
-        setError('کم از کم ایک مکمل تاریخ (yyyy-mm-dd) اور اُس دن کے اوقات درکار ہیں');
-        return;
-      }
-      setBusy(true);
-      // UI کو جواب دینے کا موقع دیں (حساب بھاری نہیں، مگر پھر بھی)
-      setTimeout(() => {
-        try {
-          const rep = calibrate(latitude, longitude, samples, { timeZone });
-          setReport(rep);
-        } catch (e: any) {
-          setError(e?.message ?? 'کیلیبریشن ناکام');
-        } finally {
-          setBusy(false);
-        }
-      }, 30);
-    } catch (e: any) {
-      setError(e?.message ?? 'خرابی');
-      setBusy(false);
+    const samples = toSamples();
+    if (!Object.keys(samples).length) {
+      setError('کم از کم ایک دن کی تصدیق کریں: مسجد کے اوقات سے ملا کر «یہ اوقات مسجد کے مطابق ہیں» دبائیں');
+      return;
     }
+    setBusy(true);
+    // UI کو جواب دینے کا موقع دیں
+    setTimeout(() => {
+      try {
+        const report = calibrate(latitude, longitude, samples, {
+          timeZone,
+          baseConfig,
+          methods: timeZone === 'Asia/Karachi' ? PAKISTAN_METHODS : undefined,
+        });
+        setResult({ report, before: configError(latitude, longitude, samples, baseConfig) });
+      } catch (e: any) {
+        setError(e?.message ?? 'کیلیبریشن ناکام');
+      } finally {
+        setBusy(false);
+      }
+    }, 30);
   };
 
   const loadDemo = () => {
-    const demo = DEMO_SAMPLES;
-    setRows(
-      Object.entries(demo).map(([date, t]) => ({
-        date,
-        fajr: t.fajr ?? '', sunrise: t.sunrise ?? '', zuhr: t.zuhr ?? '',
-        asr: t.asr ?? '', maghrib: t.maghrib ?? '', isha: t.isha ?? '',
-      }))
-    );
+    setRows(Object.entries(DEMO_SAMPLES).map(([date, t]) => makeRow(date, true, { ...blankTimes(), ...(t as Partial<Times>) } as Times)));
+    setResult(null);
   };
 
-  const input = 'w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] font-urdu text-center';
+  const applyPaste = () => {
+    const parsed = parsePastedTable(pasteText);
+    if (!parsed.length) {
+      setError('کوئی سطر نہیں پڑھی گئی — فارمیٹ: تاریخ, فجر, طلوع, ظہر, عصر, مغرب, عشاء (طلوع کے بغیر 5 اوقات بھی چلیں گے)');
+      return;
+    }
+    setError('');
+    setRows(parsed.map((p) => makeRow(p.date, true, {
+      fajr: p.fajr, sunrise: p.sunrise, zuhr: p.zuhr, asr: p.asr, maghrib: p.maghrib, isha: p.isha,
+    })));
+    setPasteMode(false);
+    setPasteText('');
+    setResult(null);
+  };
+
+  const timeInput = 'w-full bg-white border border-slate-200 rounded-lg px-1.5 py-1.5 text-[12px] font-mono text-center';
+  const report = result?.report;
 
   return (
     <div dir="rtl" className={`bg-white rounded-2xl border border-slate-200 p-4 space-y-3 ${className}`}>
@@ -145,7 +167,7 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
         <div className="text-right">
           <p className="text-sm font-bold text-slate-800 font-urdu">خودکار کیلیبریشن</p>
           <p className="text-[11px] text-slate-400 font-urdu">
-            مسجد کے اصل اوقات ڈالیں → ایپ خود طریقہ + زاویہ + پلس/مائنس نکالے گا
+            مسجد کے اوقات سے ملائیں، جو مختلف ہو وہ درست کریں — باقی ایپ خود نکالے گی
           </p>
         </div>
       </div>
@@ -153,109 +175,125 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
       {/* موڈ */}
       <div className="flex gap-2">
         <button type="button" onClick={() => setPasteMode(false)}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold border ${!pasteMode ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 text-slate-600'}`}>
-          دن بہ دن لکھیں
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold font-urdu border ${!pasteMode ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 text-slate-600'}`}>
+          دن بہ دن
         </button>
         <button type="button" onClick={() => setPasteMode(true)}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1 ${pasteMode ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 text-slate-600'}`}>
-          <ClipboardPaste size={13} /> سالانہ ٹیبل پیسٹ کریں
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold font-urdu border flex items-center gap-1 ${pasteMode ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-slate-200 text-slate-600'}`}>
+          <ClipboardPaste size={13} /> ٹیبل پیسٹ کریں
         </button>
       </div>
 
       {!pasteMode ? (
-        <div className="space-y-2">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[10px]">
-              <thead>
-                <tr className="text-slate-400 font-urdu">
-                  <th className="py-1">تاریخ</th>
-                  {ALL_PRAYER_KEYS.map((k) => <th key={k} className="py-1">{PRAYER_LABELS_UR[k]}</th>)}
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i}>
-                    <td className="p-0.5"><input className={input} placeholder="2026-06-21" value={r.date} onChange={(e) => setCell(i, 'date', e.target.value)} /></td>
-                    {ALL_PRAYER_KEYS.map((k) => (
-                      <td className="p-0.5">
-                        <input className={input} placeholder="--:--" value={(r as any)[k]} onChange={(e) => setCell(i, k as any, e.target.value)} />
-                      </td>
-                    ))}
-                    <td className="p-0.5">
-                      <button type="button" onClick={() => removeRow(i)} className="w-7 h-7 rounded-lg bg-slate-50 border border-slate-200 text-slate-400 hover:text-rose-600 flex items-center justify-center">
-                        <Trash size={12} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={addRow} className="text-[11px] font-urdu text-emerald-700 flex items-center gap-1">
+        <div className="space-y-2.5">
+          {rows.map((r) => {
+            const app = appTimesFor(r.date);
+            return (
+              <div key={r.id} className={`rounded-xl border p-2.5 space-y-2 ${r.confirmed ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-200 bg-amber-50/40'}`}>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date" dir="ltr" value={r.date}
+                    onChange={(e) => setDate(r.id, e.target.value)}
+                    className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[12px] font-mono"
+                  />
+                  <span className={`text-[10px] font-urdu font-bold px-2 py-1 rounded-full border ${r.confirmed ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
+                    {r.confirmed ? 'تصدیق شدہ' : 'ایپ کے اوقات'}
+                  </span>
+                  <button type="button" onClick={() => removeRow(r.id)} aria-label="حذف"
+                    className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 flex items-center justify-center">
+                    <Trash size={13} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1.5">
+                  {ALL_PRAYER_KEYS.map((k) => {
+                    const v = r.times[k];
+                    const diff = v && app?.[k] ? hhmmToMinutes(v) - hhmmToMinutes(app[k]) : 0;
+                    return (
+                      <label key={k} className="block text-center">
+                        <span className="block text-[10px] font-urdu text-slate-500 mb-0.5">{PRAYER_LABELS_UR[k]}</span>
+                        <input type="time" dir="ltr" className={timeInput} value={v} onChange={(e) => setTime(r.id, k, e.target.value)} />
+                        <span className={`block h-3.5 text-[10px] font-mono ${diff ? 'text-violet-700 font-bold' : 'text-transparent'}`}>
+                          {diff ? `ایپ سے ${fmtOffset(diff)}` : '·'}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {!r.confirmed && (
+                  <button type="button" onClick={() => confirmRow(r.id)}
+                    className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold font-urdu flex items-center justify-center gap-1">
+                    <Check size={13} /> یہ اوقات مسجد کے مطابق ہیں
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <button type="button" onClick={() => addRow()} className="text-[11px] font-urdu text-emerald-700 flex items-center gap-1">
               <Plus size={13} /> ایک اور دن
             </button>
             <button type="button" onClick={loadDemo} className="text-[11px] font-urdu text-slate-500 flex items-center gap-1">
-              <Sparkles size={13} /> نمونہ ڈالیں (ٹیسٹ)
+              <Sparkles size={13} /> نمونہ (ٹیسٹ)
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 font-urdu">
-            مشورہ: سال میں 4 دن ڈالیں — مارچ، جون، ستمبر، دسمبر (لمبے/چھوٹے دن)۔ جتنے زیادہ دن، اتنی بہتر کیلیبریشن۔
+          <p className="text-[10px] text-slate-400 font-urdu leading-relaxed">
+            ایک دن کافی ہے تو صرف ±منٹ درست ہوں گے۔ فجر/عشاء پورے سال ٹھیک رکھنے کے لیے کم از کم دو ایسے دن ڈالیں جن میں دو ماہ سے زیادہ فاصلہ ہو (مثلاً جون اور دسمبر)۔
           </p>
         </div>
       ) : (
         <div className="space-y-2">
           <textarea
-            dir="ltr"
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            rows={5}
-            placeholder={'2026-06-21, 04:20, 05:44, 12:37, 17:09, 19:30, 20:55\n2026-12-21, 05:52, 07:10, 12:31, 15:30, 17:52, 19:10'}
+            dir="ltr" value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={5}
+            placeholder={'2026-06-21, 04:20, 05:44, 12:37, 17:09, 19:30, 20:55\n21-12-2026  5:52  12:31  3:30  5:52  7:10   (5 اوقات، 12 گھنٹے بھی چلے گا)'}
             className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-[11px] font-mono"
           />
-          <button
-            type="button"
-            onClick={() => {
-              const parsed = parsePastedTable(pasteText);
-              if (parsed.length) { setRows(parsed); setPasteMode(false); setPasteText(''); }
-              else setError('کوئی سطر نہیں پڑھی گئی — فارمیٹ دیکھیں: تاریخ, فجر, طلوع, ظہر, عصر, مغرب, عشاء');
-            }}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white"
-          >
+          <button type="button" onClick={applyPaste}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold font-urdu bg-emerald-600 text-white">
             پیسٹ کریں ({parsePastedTable(pasteText).length} دن)
           </button>
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={run}
-        disabled={busy}
-        className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold font-urdu disabled:opacity-60"
-      >
-        {busy ? 'حساب ہو رہا ہے…' : 'کیلیبریٹ کریں'}
+      <button type="button" onClick={run} disabled={busy || confirmedCount === 0}
+        className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold font-urdu disabled:opacity-50">
+        {busy ? 'حساب ہو رہا ہے…' : confirmedCount ? `کیلیبریٹ کریں (${confirmedCount} دن)` : 'پہلے ایک دن کی تصدیق کریں'}
       </button>
 
       {error && (
-        <p className="text-[11px] text-rose-600 font-urdu flex items-center gap-1">
-          <AlertCircle size={13} /> {error}
+        <p className="text-[11px] text-rose-600 font-urdu flex items-start gap-1">
+          <AlertCircle size={13} className="shrink-0 mt-0.5" /> {error}
         </p>
       )}
 
       {report && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
-          <p className="text-xs font-bold text-emerald-800 font-urdu">
-            نتیجہ: {report.method} · {report.madhab === 'hanafi' ? 'حنفی' : 'شافعی'} · {report.samples} نمونہ دن
-          </p>
-          <p className="text-[11px] text-emerald-900 font-urdu">
-            پورے سال کی متوقع غلطی: <b>زیادہ سے زیادہ ±{report.overallWorst} منٹ</b> · اوسط ±{report.overallRmse} منٹ
-          </p>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-emerald-800 font-urdu">
+              {report.method} · {report.madhab === 'hanafi' ? 'حنفی' : 'شافعی'} · {report.samples} دن
+            </p>
+            <span className={`text-[10px] font-urdu font-bold px-2 py-0.5 rounded-full border ${CONF_UI[report.confidence].cls}`}>
+              {CONF_UI[report.confidence].text}
+            </span>
+          </div>
+
+          {result?.before != null && (
+            <p className="text-[11px] text-emerald-900 font-urdu">
+              {result.before <= 1 && report.overallWorst <= 1
+                ? 'موجودہ سیٹنگ پہلے ہی مسجد کے مطابق ہے۔'
+                : <>موجودہ سیٹنگ کی غلطی: <b>±{result.before} منٹ</b> ← کیلیبریشن کے بعد: <b>±{report.overallWorst} منٹ</b></>}
+            </p>
+          )}
+
           <div className="overflow-x-auto">
-            <table className="w-full text-[10px] font-urdu">
+            <table className="w-full text-[11px] font-urdu">
               <thead>
                 <tr className="text-emerald-800/70">
-                  <th className="text-right py-1">نماز</th><th>بہترین ±</th><th>اوسط غلطی</th><th>زیادہ سے زیادہ</th>
+                  <th className="text-right py-1 font-normal">نماز</th>
+                  <th className="font-normal">ایپ کے وقت میں</th>
+                  <th className="font-normal">باقی فرق</th>
                 </tr>
               </thead>
               <tbody>
@@ -264,16 +302,54 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
                   if (!r) return null;
                   return (
                     <tr key={k} className="border-t border-emerald-100 text-emerald-950">
-                      <td className="text-right py-0.5 font-bold">{PRAYER_LABELS_UR[k]}</td>
-                      <td className="text-center">{r.offset > 0 ? `+${r.offset}` : r.offset}</td>
-                      <td className="text-center">±{r.meanErr}</td>
-                      <td className="text-center">±{r.worstErr}</td>
+                      <td className="text-right py-1 font-bold">{PRAYER_LABELS_UR[k]}</td>
+                      <td className="text-center font-mono" dir="ltr">
+                        {r.offset === 0 ? 'کوئی تبدیلی نہیں' : `${fmtOffset(r.offset)} منٹ`}
+                      </td>
+                      <td className="text-center">±{r.worstErr} منٹ</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+
+          {report.anglesTuned && (
+            <p className="text-[10px] font-urdu text-emerald-900/70">
+              فجر/عشاء کا زاویہ بھی مسجد کے مطابق ایڈجسٹ ہوا ({report.config.fajrAngle ? `فجر ${report.config.fajrAngle}°` : ''}{report.config.fajrAngle && report.config.ishaAngle ? ' · ' : ''}{report.config.ishaAngle ? `عشاء ${report.config.ishaAngle}°` : ''}).
+            </p>
+          )}
+
+          {report.warnings.map((w) => (
+            <p key={w} className="text-[11px] text-amber-800 font-urdu flex items-start gap-1">
+              <AlertCircle size={13} className="shrink-0 mt-0.5" /> {w}
+            </p>
+          ))}
+
+          {report.suspects.length > 0 && (
+            <ul className="text-[11px] text-rose-700 font-urdu space-y-0.5">
+              {report.suspects.map((s) => (
+                <li key={`${s.date}-${s.prayer}`}>
+                  <span dir="ltr" className="font-mono">{s.date}</span> کی {PRAYER_LABELS_UR[s.prayer]}: باقی دنوں سے {s.errorMinutes} منٹ ہٹی ہوئی — کیا وقت درست لکھا ہے؟
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {report.confidence !== 'high' && suggestions.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-urdu text-emerald-900/70">نتیجہ بہتر کرنے کے لیے ان میں سے کوئی دن بھی شامل کریں:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.map((d) => (
+                  <button key={d} type="button" onClick={() => { setPasteMode(false); addRow(d); }}
+                    className="px-2 py-1 rounded-lg bg-white border border-emerald-200 text-[11px] font-mono text-emerald-800 flex items-center gap-1">
+                    <Plus size={11} /> {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {report.comparedMethods.length > 1 && (
             <details className="text-[10px] font-urdu text-emerald-900/80">
               <summary className="cursor-pointer">دوسرے طریقوں کا موازنہ</summary>
@@ -286,11 +362,9 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
               </ul>
             </details>
           )}
-          <button
-            type="button"
-            onClick={() => onApply(report.config, report)}
-            className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-urdu flex items-center justify-center gap-1"
-          >
+
+          <button type="button" onClick={() => onApply(report.config, report)}
+            className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-urdu flex items-center justify-center gap-1">
             <Check size={14} /> یہ سیٹنگ لاگو کریں
           </button>
         </div>
