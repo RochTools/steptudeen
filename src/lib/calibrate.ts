@@ -1,14 +1,3 @@
-/**
- * calibrate.ts — «اپنی مسجد کے مطابق خودکار کیلیبریشن»
- *
- * امام چند دن کے اصل اوقات ٹائپ کرتا ہے → یہ فنکشن خود بہترین
- * (طریقہ + مشرب + Fajr/Isha کا زاویہ + فی نماز ±منٹ) نکال کر دیتا ہے۔
- *
- * یہ اسی تجربے پر بنا ہے جو 27 اوپن ڈیٹا سیٹوں پر آزمایا گیا:
- *   - Sunrise / Zuhr / Maghrib: ایک ہی آفسیٹ پورے سال ±0.5–1 منٹ تک ٹھیک بیٹھتا ہے
- *   - Fajr / Isha: صرف آفسیٹ سے کام نہیں چلتا، زاویہ بھی بدلنا پڑتا ہے (±6–7 منٹ)
- *   - Asr: مشرب (حنفی/شافعی) غلط ہو تو 29–75 منٹ کا فرق — اکیلے آفسیٹ سے نہیں بنتا
- */
 import * as adhan from 'adhan';
 import {
   ALL_PRAYER_KEYS, PrayerConfig, PrayerKey, MethodKey, MadhabKey, HighLatKey,
@@ -17,6 +6,15 @@ import {
 
 /** نمونہ: { '2026-06-17': { fajr: '03:20', zuhr: '12:30', ... } } */
 export type SampleDays = Record<string, Partial<Record<PrayerKey, string>>>;
+
+export type Confidence = 'high' | 'medium' | 'low';
+
+export interface SuspectEntry {
+  date: string;
+  prayer: PrayerKey;
+  /** باقی دنوں کے رجحان سے کتنے منٹ ہٹ کر ہے */
+  errorMinutes: number;
+}
 
 export interface CalibrationReport {
   config: PrayerConfig;
@@ -31,7 +29,22 @@ export interface CalibrationReport {
   overallRmse: number;
   samples: number;
   comparedMethods: { method: MethodKey; madhab: MadhabKey; worst: number }[];
+  /** نتیجے پر کتنا بھروسہ کیا جائے */
+  confidence: Confidence;
+  /** اردو انتباہات (امام کو دکھانے کے لیے) */
+  warnings: string[];
+  /** وہ اندراجات جو باقی دنوں سے بے میل لگتے ہیں (غالباً ٹائپو) */
+  suspects: SuspectEntry[];
+  /** کیا زاویے بھی ٹیون ہوئے؟ (false = صرف آفسیٹ) */
+  anglesTuned: boolean;
+  /** پہلے اور آخری نمونہ دن کے درمیان دن */
+  spanDays: number;
 }
+
+/** پاکستان کی مساجد میں عام طور پر یہی طریقے چلتے ہیں — حساب ہلکا اور اوور فٹنگ کم */
+export const PAKISTAN_METHODS: MethodKey[] = [
+  'Karachi', 'MuslimWorldLeague', 'Egyptian', 'MoonsightingCommittee',
+];
 
 const adhanKeyOf: Record<PrayerKey, keyof adhan.PrayerTimes> = {
   fajr: 'fajr', sunrise: 'sunrise', zuhr: 'dhuhr', asr: 'asr', maghrib: 'maghrib', isha: 'isha',
@@ -39,16 +52,101 @@ const adhanKeyOf: Record<PrayerKey, keyof adhan.PrayerTimes> = {
 
 const HIGH_LAT_CANDIDATES: HighLatKey[] = ['SeventhOfTheNight', 'MiddleOfTheNight', 'TwilightAngle'];
 
+/** اتنے دن کا فرق ہو تو ہی زاویہ ٹیون کرنا بامعنی ہے (فجر/عشاء موسم کے ساتھ بدلتے ہیں) */
+const MIN_SPAN_FOR_ANGLES = 60;
+
+// ── وقت کی صفائی ──────────────────────────────────────────────────────────
+/**
+ * مساجد کے کیلنڈر اکثر 12 گھنٹے والے ہوتے ہیں اور AM/PM نہیں لکھتے:
+ * ظہر "1:15"، عصر "5:09"، مغرب "7:30"، عشاء "8:55"۔ انہیں 24 گھنٹے میں بدلتا ہے۔
+ * پہلے سے 24 گھنٹے والی قدر (13 یا اس سے اوپر) ویسی ہی رہتی ہے۔
+ */
+export function to24h(key: PrayerKey, value: string): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((value ?? '').trim());
+  if (!m) return value;
+  let h = Number(m[1]);
+  const min = m[2];
+  if (key === 'zuhr' && h >= 1 && h <= 6) h += 12;
+  else if ((key === 'asr' || key === 'maghrib' || key === 'isha') && h >= 1 && h <= 11) h += 12;
+  return `${String(h).padStart(2, '0')}:${min}`;
+}
+
+const isValidHHMM = (v: unknown): v is string => {
+  if (typeof v !== 'string') return false;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+  return !!m && Number(m[1]) <= 23 && Number(m[2]) <= 59;
+};
+
+function cleanSamples(samples: SampleDays): SampleDays {
+  const out: SampleDays = {};
+  for (const [date, v] of Object.entries(samples)) {
+    if (!/^\d{4}-\d{1,2}-\d{1,2}$/.test(date)) continue;
+    const entry: Partial<Record<PrayerKey, string>> = {};
+    for (const key of ALL_PRAYER_KEYS) {
+      const val = v[key];
+      if (isValidHHMM(val)) entry[key] = to24h(key, val.trim());
+    }
+    if (Object.keys(entry).length) out[date] = entry;
+  }
+  return out;
+}
+
+// ── پیسٹ شدہ ٹیبل پڑھنا ──────────────────────────────────────────────────
+export type PastedRow = { date: string; fajr: string; sunrise: string; zuhr: string; asr: string; maghrib: string; isha: string };
+
+/**
+ * سالانہ ٹیبل سے پیسٹ کی گئی سطریں پڑھیں:
+ *  2026-06-21, 04:20, 05:44, 12:37, 17:09, 19:30, 20:55          (6 اوقات: فجر، طلوع، ظہر، عصر، مغرب، عشاء)
+ *  21-06-2026  4:20 12:37 5:09 7:30 8:55                         (5 اوقات: طلوع کے بغیر؛ 12 گھنٹے بھی چلے گا)
+ */
+export function parsePastedTable(text: string): PastedRow[] {
+  const out: PastedRow[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const cells = line.split(/[,\t;|]+|\s+/).map((c) => c.trim()).filter(Boolean);
+    if (cells.length < 6) continue;
+
+    let date = '';
+    const iso = cells.find((c) => /^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(c));
+    const dmy = cells.find((c) => /^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(c));
+    if (iso) {
+      const [y, m, d] = iso.split(/[-/]/).map(Number);
+      date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    } else if (dmy) {
+      const [d, m, y] = dmy.split(/[-/]/).map(Number);
+      date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    if (!date) continue;
+
+    const times = cells.filter(isValidHHMM);
+    if (times.length < 5) continue;
+    // 5 اوقات = طلوع کے بغیر (پہلے یہ حالت طلوع کی جگہ ظہر ڈال دیتی تھی)
+    const keys: PrayerKey[] =
+      times.length === 5 ? ['fajr', 'zuhr', 'asr', 'maghrib', 'isha'] : ['fajr', 'sunrise', 'zuhr', 'asr', 'maghrib', 'isha'];
+    const row: PastedRow = { date, fajr: '', sunrise: '', zuhr: '', asr: '', maghrib: '', isha: '' };
+    keys.forEach((k, i) => { row[k] = to24h(k, times[i]); });
+    out.push(row);
+  }
+  return out;
+}
+
+// ── اندرونی حساب ──────────────────────────────────────────────────────────
+/** فرق کو (-12گھنٹے، +12گھنٹے) میں رکھیں تاکہ آدھی رات پار کرنے والا وقت 1440 منٹ کا فرق نہ بنے */
+const wrapDiff = (x: number) => ((((x + 720) % 1440) + 1440) % 1440) - 720;
+
+type Diff = { date: string; d: number };
+
 /** ایک config کے تحت، نمونہ دنوں کا فرق (حساب − مسجد) فی نماز */
 function sampleDiffs(
   latitude: number,
   longitude: number,
   samples: SampleDays,
   config: PrayerConfig
-): Partial<Record<PrayerKey, number[]>> {
+): Partial<Record<PrayerKey, Diff[]>> {
   const coords = new adhan.Coordinates(latitude, longitude);
   const params = buildParams(config);
-  const out: Partial<Record<PrayerKey, number[]>> = {};
+  const out: Partial<Record<PrayerKey, Diff[]>> = {};
   for (const [dateKey, expected] of Object.entries(samples)) {
     const [y, m, d] = dateKey.split('-').map(Number);
     const noon = new Date(y, m - 1, d, 12, 0, 0);
@@ -57,7 +155,7 @@ function sampleDiffs(
       const exp = expected[key];
       if (!exp) continue;
       const computed = minutesOf(pt[adhanKeyOf[key]] as Date, config.timeZone);
-      (out[key] ||= []).push(computed - hhmmToMinutes(exp));
+      (out[key] ||= []).push({ date: dateKey, d: wrapDiff(computed - hhmmToMinutes(exp)) });
     }
   }
   return out;
@@ -83,12 +181,7 @@ function bestOffset(diffs: number[], maxAbs = 90, step = 1) {
   };
 }
 
-function evaluate(
-  latitude: number,
-  longitude: number,
-  samples: SampleDays,
-  config: PrayerConfig
-) {
+function evaluate(latitude: number, longitude: number, samples: SampleDays, config: PrayerConfig) {
   const diffs = sampleDiffs(latitude, longitude, samples, config);
   const perPrayer: CalibrationReport['perPrayer'] = {};
   const offsets: Partial<Record<PrayerKey, number>> = {};
@@ -96,7 +189,7 @@ function evaluate(
   for (const key of ALL_PRAYER_KEYS) {
     const list = diffs[key];
     if (!list?.length) continue;
-    const fit = bestOffset(list);
+    const fit = bestOffset(list.map((x) => x.d));
     perPrayer[key] = fit;
     offsets[key] = fit.offset;
     worst = Math.max(worst, fit.worstErr);
@@ -105,80 +198,187 @@ function evaluate(
   return { perPrayer, offsets, worst, rmse: n ? Math.sqrt(se / n) : 0 };
 }
 
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+const dayNumber = (dateKey: string) => {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return Date.UTC(y, m - 1, d) / 86400000;
+};
+
 /**
- * مکمل کیلیبریشن: تمام طریقے × دونوں مشرب × بلند عرض بلد کے قواعد → پھر زاویوں کی بہتری۔
+ * موجودہ config (اپنے آفسیٹ سمیت) کی غلطی: نمونہ دنوں پر سب سے بڑا فرق، منٹوں میں۔
+ * کیلیبریشن سے «پہلے» کی حالت دکھانے کے لیے۔ (دوبارہ فٹ نہیں کرتا۔)
+ */
+export function configError(
+  latitude: number,
+  longitude: number,
+  samples: SampleDays,
+  config: PrayerConfig
+): number | null {
+  const clean = cleanSamples(samples);
+  if (!Object.keys(clean).length) return null;
+  const diffs = sampleDiffs(latitude, longitude, clean, config);
+  let worst = 0;
+  for (const key of ALL_PRAYER_KEYS) {
+    for (const x of diffs[key] ?? []) worst = Math.max(worst, Math.abs(x.d + (config.offsets?.[key] ?? 0)));
+  }
+  return Math.round(worst * 10) / 10;
+}
+
+/** اگلے نمونہ دن کی تجویز: سال کے چار موسمی نقطوں (21 مارچ/جون/ستمبر/دسمبر) میں سے جو ابھی خالی ہوں */
+export function suggestSampleDates(existing: string[], today: Date = new Date()): string[] {
+  const have = existing.filter((d) => /^\d{4}-\d{1,2}-\d{1,2}$/.test(d)).map(dayNumber);
+  const todayN = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) / 86400000;
+  const anchors: [number, number][] = [[2, 21], [5, 21], [8, 21], [11, 21]];
+  const cands: { key: string; n: number }[] = [];
+  for (const year of [today.getFullYear(), today.getFullYear() + 1]) {
+    for (const [m, d] of anchors) {
+      const n = Date.UTC(year, m, d) / 86400000;
+      if (have.some((h) => Math.abs(h - n) < 45 || Math.abs(Math.abs(h - n) - 365) < 45)) continue;
+      cands.push({ key: `${year}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`, n });
+    }
+  }
+  return cands
+    .sort((a, b) => Math.abs(a.n - todayN) - Math.abs(b.n - todayN))
+    .slice(0, 3)
+    .map((c) => c.key);
+}
+
+// ── مکمل کیلیبریشن ────────────────────────────────────────────────────────
+/**
+ * اگر نمونے کافی ہوں (کم از کم 2 دن، اور 60 دن کا فاصلہ): تمام طریقے × دونوں مشرب
+ * (× بلند عرض بلد کے قواعد) → پھر فجر/عشاء کے زاویوں کی بہتری۔
+ * ورنہ: صرف ±منٹ، `opts.baseConfig` کا طریقہ/مشرب/زاویہ ویسا ہی رہتا ہے۔
  */
 export function calibrate(
   latitude: number,
   longitude: number,
   samples: SampleDays,
-  opts: { timeZone?: string; methods?: MethodKey[] } = {}
+  opts: { timeZone?: string; methods?: MethodKey[]; baseConfig?: PrayerConfig } = {}
 ): CalibrationReport {
-  const cleanSamples: SampleDays = {};
-  for (const [k, v] of Object.entries(samples)) {
-    const filtered = Object.fromEntries(
-      Object.entries(v).filter(([, val]) => typeof val === 'string' && /^\d{1,2}:\d{2}$/.test(val as string))
-    ) as Partial<Record<PrayerKey, string>>;
-    if (Object.keys(filtered).length) cleanSamples[k] = filtered;
-  }
-  if (!Object.keys(cleanSamples).length) throw new Error('کم از کم ایک نمونہ دن درکار ہے');
+  const clean = cleanSamples(samples);
+  const dates = Object.keys(clean).sort();
+  if (!dates.length) throw new Error('کم از کم ایک نمونہ دن درکار ہے');
 
-  const methods: MethodKey[] = opts.methods?.length
-    ? opts.methods
-    : (Object.keys(adhan.CalculationMethod) as MethodKey[]).filter((m) => m !== 'Other');
+  const n = dates.length;
+  const spanDays = Math.round(dayNumber(dates[n - 1]) - dayNumber(dates[0]));
+  const tunable = n >= 2 && spanDays >= MIN_SPAN_FOR_ANGLES;
+  const warnings: string[] = [];
 
-  const leaderboard: { method: MethodKey; madhab: MadhabKey; worst: number }[] = [];
-  let best: { config: PrayerConfig; res: ReturnType<typeof evaluate>; method: MethodKey; madhab: MadhabKey; highLat: HighLatKey } | null = null;
+  type Cand = { config: PrayerConfig; res: ReturnType<typeof evaluate> };
+  const better = (a: Cand['res'], b: Cand['res']) =>
+    a.worst < b.worst - 1e-9 || (Math.abs(a.worst - b.worst) <= 1e-9 && a.rmse < b.rmse - 1e-9);
 
-  for (const method of methods) {
-    for (const madhab of ['hanafi', 'shafi'] as MadhabKey[]) {
-      for (const highLatitudeRule of HIGH_LAT_CANDIDATES) {
-        const base: PrayerConfig = { method, madhab, highLatitudeRule, timeZone: opts.timeZone };
-        const res = evaluate(latitude, longitude, cleanSamples, base);
-        if (!best || res.worst < best.res.worst - 1e-9) {
-          best = { config: base, res, method, madhab, highLat: highLatitudeRule };
+  const board = new Map<string, { method: MethodKey; madhab: MadhabKey; worst: number }>();
+  let best: Cand | null = null;
+  let anglesTuned = false;
+
+  if (tunable) {
+    const available = (m: MethodKey) => (adhan.CalculationMethod as Record<string, unknown>)[m] !== undefined;
+    const methods: MethodKey[] = (opts.methods?.length
+      ? opts.methods.filter(available)
+      : (Object.keys(adhan.CalculationMethod) as MethodKey[]).filter((m) => m !== 'Other'));
+    if (!methods.length) throw new Error('کوئی درست طریقہ نہیں ملا');
+    const highLats: HighLatKey[] = Math.abs(latitude) >= 48 ? HIGH_LAT_CANDIDATES : ['SeventhOfTheNight'];
+
+    for (const method of methods) {
+      for (const madhab of ['hanafi', 'shafi'] as MadhabKey[]) {
+        for (const highLatitudeRule of highLats) {
+          const cfg: PrayerConfig = { method, madhab, highLatitudeRule, timeZone: opts.timeZone };
+          const res = evaluate(latitude, longitude, clean, cfg);
+          if (!best || better(res, best.res)) best = { config: cfg, res };
+          const k = `${method}|${madhab}`;
+          const prev = board.get(k);
+          if (!prev || res.worst < prev.worst) board.set(k, { method, madhab, worst: res.worst });
         }
-        leaderboard.push({ method, madhab, worst: res.worst });   // highLat کے بغیر نمایاں کرنے کے لیے
       }
     }
+    if (!best) throw new Error('کیلیبریشن ناکام');
+
+    // ── زاویوں کی بہتری: فجر کا زاویہ صرف فجر کی غلطی دیکھ کر، عشاء کا صرف عشاء کی ──
+    const tune = (which: 'fajrAngle' | 'ishaAngle', prayer: PrayerKey) => {
+      const cur = best!.res.perPrayer[prayer];
+      if (!cur) return;
+      let bestAngle: number | undefined;
+      let bestWorst = cur.worstErr;
+      for (let angle = 12; angle <= 20.001; angle += 0.5) {
+        const res = evaluate(latitude, longitude, clean, { ...best!.config, [which]: angle });
+        const w = res.perPrayer[prayer]?.worstErr;
+        // کم از کم آدھے منٹ کی حقیقی بہتری ہو، ورنہ طریقے کا اپنا زاویہ رہنے دیں
+        if (w !== undefined && w < bestWorst - 0.5) { bestWorst = w; bestAngle = angle; }
+      }
+      if (bestAngle !== undefined) {
+        const cfg: PrayerConfig = { ...best!.config, [which]: bestAngle };
+        best = { config: cfg, res: evaluate(latitude, longitude, clean, cfg) };
+        anglesTuned = true;
+      }
+    };
+    tune('fajrAngle', 'fajr');
+    tune('ishaAngle', 'isha');
+  } else {
+    const base = opts.baseConfig ?? {};
+    const cfg: PrayerConfig = {
+      ...base,
+      method: base.method ?? 'Karachi',
+      madhab: base.madhab ?? 'hanafi',
+      highLatitudeRule: base.highLatitudeRule ?? 'SeventhOfTheNight',
+      timeZone: opts.timeZone ?? base.timeZone,
+    };
+    delete cfg.offsets;
+    best = { config: cfg, res: evaluate(latitude, longitude, clean, cfg) };
+    warnings.push(
+      n < 2
+        ? 'صرف ایک دن کا ڈیٹا ہے: صرف ±منٹ ایڈجسٹ ہوئے ہیں، طریقہ اور زاویہ نہیں بدلے گئے۔ موسم بدلنے پر فجر/عشاء میں فرق آ سکتا ہے۔'
+        : 'سارے دن ایک ہی موسم کے ہیں: صرف ±منٹ ایڈجسٹ ہوئے ہیں، طریقہ اور زاویہ نہیں بدلے گئے۔ کم از کم 2 ماہ کے فاصلے پر ایک اور دن شامل کریں۔'
+    );
   }
-  if (!best) throw new Error('کیلیبریشن ناکام');
 
-  // ── زاویوں کی بہتری (Fajr، پھر Isha) ──
-  const tuneAngle = (which: 'fajrAngle' | 'ishaAngle') => {
-    let bestAngle = best!.config[which];
-    let bestWorst = best!.res.worst;
-    for (let angle = 12; angle <= 20.001; angle += 0.5) {
-      const cfg: PrayerConfig = { ...best!.config, [which]: angle };
-      const res = evaluate(latitude, longitude, cleanSamples, cfg);
-      if (res.worst < bestWorst - 1e-9) { bestWorst = res.worst; bestAngle = angle; }
+  const final = best as Cand;
+  const finalConfig: PrayerConfig = { ...final.config, offsets: final.res.offsets };
+
+  // ── مشکوک اندراجات: باقی دنوں کے رجحان سے بہت ہٹے ہوئے ──
+  const suspects: SuspectEntry[] = [];
+  const finalDiffs = sampleDiffs(latitude, longitude, clean, finalConfig);
+  for (const key of ALL_PRAYER_KEYS) {
+    const list = finalDiffs[key];
+    if (!list || list.length < 3) continue;
+    const center = median(list.map((x) => x.d));
+    const devs = list.map((x) => ({ date: x.date, dev: Math.abs(x.d - center) }));
+    const mad = median(devs.map((x) => x.dev));
+    const floor = key === 'fajr' || key === 'isha' ? 12 : 5;
+    for (const x of devs) {
+      if (x.dev > Math.max(floor, 3 * mad)) suspects.push({ date: x.date, prayer: key, errorMinutes: Math.round(x.dev) });
     }
-    if (typeof bestAngle === 'number') {
-      const cfg: PrayerConfig = { ...best!.config, [which]: bestAngle };
-      const res = evaluate(latitude, longitude, cleanSamples, cfg);
-      best = { ...best!, config: cfg, res };
-    }
-  };
-  tuneAngle('fajrAngle');
-  tuneAngle('ishaAngle');
+  }
+  if (suspects.length) warnings.push('کچھ اندراجات باقی دنوں سے میل نہیں کھاتے — شاید وقت غلط لکھا گیا ہو۔ نیچے دیکھ لیں۔');
 
-  const finalConfig: PrayerConfig = { ...best.config, offsets: best.res.offsets };
+  const overallWorst = Math.round(final.res.worst * 10) / 10;
+  if (overallWorst > 10) warnings.push('باقی غلطی 10 منٹ سے زیادہ ہے — اوقات یا تاریخیں ایک بار دوبارہ دیکھ لیں۔');
 
-  const board = leaderboard
-    .sort((a, b) => a.worst - b.worst)
-    .filter((row, i, arr) => arr.findIndex((x) => x.method === row.method && x.madhab === row.madhab) === i)
-    .slice(0, 6);
+  let confidence: Confidence = !tunable ? 'low' : n >= 4 && spanDays >= 150 ? 'high' : 'medium';
+  if ((overallWorst > 10 || suspects.length) && confidence !== 'low') confidence = confidence === 'high' ? 'medium' : 'low';
+
+  const leaderboard = [...board.values()].sort((a, b) => a.worst - b.worst).slice(0, 6);
 
   return {
     config: finalConfig,
-    method: best.method,
-    madhab: best.madhab,
-    highLatitudeRule: best.highLat,
-    perPrayer: best.res.perPrayer,
-    overallWorst: Math.round(best.res.worst * 10) / 10,
-    overallRmse: Math.round(best.res.rmse * 10) / 10,
-    samples: Object.keys(cleanSamples).length,
-    comparedMethods: board,
+    method: final.config.method as MethodKey,
+    madhab: final.config.madhab as MadhabKey,
+    highLatitudeRule: final.config.highLatitudeRule as HighLatKey,
+    perPrayer: final.res.perPrayer,
+    overallWorst,
+    overallRmse: Math.round(final.res.rmse * 10) / 10,
+    samples: n,
+    comparedMethods: leaderboard,
+    confidence,
+    warnings,
+    suspects,
+    anglesTuned,
+    spanDays,
   };
 }
 
