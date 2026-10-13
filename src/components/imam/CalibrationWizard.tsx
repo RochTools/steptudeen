@@ -155,7 +155,7 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
     setResult(null);
   };
 
-  const timeInput = 'w-full bg-white border border-slate-200 rounded-lg px-1.5 py-1.5 text-[12px] font-mono text-center';
+  const timeInput = 'w-full min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-2 text-[14px] font-mono text-center';
   const report = result?.report;
 
   return (
@@ -205,16 +205,16 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {ALL_PRAYER_KEYS.map((k) => {
                     const v = r.times[k];
-                    const diff = v && app?.[k] ? hhmmToMinutes(v) - hhmmToMinutes(app[k]) : 0;
+                    const diff = v && app?.[k] ? hhmmToMinutes(to24h(k, v)) - hhmmToMinutes(app[k]) : 0;
                     return (
                       <label key={k} className="block text-center">
                         <span className="block text-[10px] font-urdu text-slate-500 mb-0.5">{PRAYER_LABELS_UR[k]}</span>
                         <input type="time" dir="ltr" className={timeInput} value={v} onChange={(e) => setTime(r.id, k, e.target.value)} />
-                        <span className={`block h-3.5 text-[10px] font-mono ${diff ? 'text-violet-700 font-bold' : 'text-transparent'}`}>
-                          {diff ? `ایپ سے ${fmtOffset(diff)}` : '·'}
+                        <span className={`block h-4 text-[10px] font-urdu ${Math.abs(diff) >= 90 ? 'text-rose-600 font-bold' : diff ? 'text-violet-700 font-bold' : 'text-transparent'}`}>
+                          {diff ? (Math.abs(diff) >= 90 ? 'AM/PM دیکھیں' : `ایپ سے ${fmtOffset(diff)} منٹ`) : '·'}
                         </span>
                       </label>
                     );
