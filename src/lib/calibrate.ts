@@ -1,3 +1,22 @@
+/**
+ * calibrate.ts — «اپنی مسجد کے مطابق خودکار کیلیبریشن»
+ *
+ * امام چند دن کے اصل اوقات دیتا ہے → یہ فنکشن خود بہترین
+ * (طریقہ + مشرب + Fajr/Isha کا زاویہ + فی نماز ±منٹ) نکال کر دیتا ہے۔
+ *
+ * تجربہ (27 اوپن ڈیٹا سیٹ):
+ *   - Sunrise / Zuhr / Maghrib: ایک ہی آفسیٹ پورے سال ±0.5–1 منٹ تک ٹھیک بیٹھتا ہے
+ *   - Fajr / Isha: صرف آفسیٹ سے کام نہیں چلتا، زاویہ بھی بدلنا پڑتا ہے (±6–7 منٹ)
+ *   - Asr: مشرب (حنفی/شافعی) غلط ہو تو 29–75 منٹ کا فرق — اکیلے آفسیٹ سے نہیں بنتا
+ *
+ * اس ورژن میں نیا کیا ہے (پرانا API ویسا ہی چلتا ہے، رپورٹ میں صرف نئے خانے بڑھے ہیں):
+ *   1) 12 گھنٹے کے اوقات ("5:09" عصر) خود 24 گھنٹے میں بدلتے ہیں
+ *   2) فجر اور عشاء کا زاویہ اب ہر ایک اپنی غلطی پر الگ ٹیون ہوتا ہے
+ *      (پہلے پوری سب سے بڑی غلطی دیکھی جاتی تھی، تو اکثر زاویہ بدلتا ہی نہیں تھا)
+ *   3) کم ڈیٹا (ایک دن، یا ایک ہی موسم) پر طریقہ/زاویہ نہیں چھیڑتا، صرف ±منٹ نکالتا ہے
+ *   4) بھروسے کا درجہ، انتباہات اور مشکوک اندراجات (ٹائپو) کی نشاندہی
+ *   5) عرض بلد 48° سے کم ہو تو بلند عرض بلد کے قاعدے آزمانے کی ضرورت نہیں (3 گنا کم حساب)
+ */
 import * as adhan from 'adhan';
 import {
   ALL_PRAYER_KEYS, PrayerConfig, PrayerKey, MethodKey, MadhabKey, HighLatKey,
@@ -66,7 +85,8 @@ export function to24h(key: PrayerKey, value: string): string {
   if (!m) return value;
   let h = Number(m[1]);
   const min = m[2];
-  if (key === 'zuhr' && h >= 1 && h <= 6) h += 12;
+  if (key === 'zuhr' && h === 0) h = 12;           // "12:24 AM" غلطی سے منتخب ہو جائے تو بھی ظہر دوپہر ہی ہے
+  else if (key === 'zuhr' && h >= 1 && h <= 6) h += 12;
   else if ((key === 'asr' || key === 'maghrib' || key === 'isha') && h >= 1 && h <= 11) h += 12;
   return `${String(h).padStart(2, '0')}:${min}`;
 }
@@ -329,7 +349,23 @@ export function calibrate(
       timeZone: opts.timeZone ?? base.timeZone,
     };
     delete cfg.offsets;
-    best = { config: cfg, res: evaluate(latitude, longitude, clean, cfg) };
+    let res0 = evaluate(latitude, longitude, clean, cfg);
+
+    // عصر کا وقت 15–75 منٹ الگ ہو تو اصل وجہ عموماً مشرب ہے (آفسیٹ سے نہیں بنتا، موسم کے ساتھ فرق بدلتا ہے)
+    const asrNow = res0.perPrayer.asr;
+    if (asrNow) {
+      const alt: MadhabKey = cfg.madhab === 'hanafi' ? 'shafi' : 'hanafi';
+      const altCfg: PrayerConfig = { ...cfg, madhab: alt };
+      const altRes = evaluate(latitude, longitude, clean, altCfg);
+      const rawNow = Math.abs(sampleDiffs(latitude, longitude, clean, cfg).asr?.[0]?.d ?? 0);
+      const rawAlt = Math.abs(sampleDiffs(latitude, longitude, clean, altCfg).asr?.[0]?.d ?? 0);
+      if (rawNow >= 15 && rawAlt <= 6 && rawAlt < rawNow - 10) {
+        cfg.madhab = alt;
+        res0 = altRes;
+        warnings.push(`عصر کا وقت ${alt === 'shafi' ? 'شافعی' : 'حنفی'} مشرب سے ملتا ہے، اس لیے عصر کا مشرب بدل دیا گیا۔`);
+      }
+    }
+    best = { config: cfg, res: res0 };
     warnings.push(
       n < 2
         ? 'صرف ایک دن کا ڈیٹا ہے: صرف ±منٹ ایڈجسٹ ہوئے ہیں، طریقہ اور زاویہ نہیں بدلے گئے۔ موسم بدلنے پر فجر/عشاء میں فرق آ سکتا ہے۔'
