@@ -13,7 +13,8 @@
  * سالانہ ٹیبل پیسٹ والا راستہ پہلے کی طرح موجود ہے (اب 5 اوقات اور 12 گھنٹے والے ٹیبل بھی پڑھتا ہے)۔
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { Sparkles, Plus, Trash, ClipboardPaste, Check, AlertCircle, Wand2 } from 'lucide-react';
+import { Sparkles, Plus, Trash, ClipboardPaste, Check, AlertCircle, Wand2, Clock } from 'lucide-react';
+import { ClockPicker, formatTo12Hour } from './ClockPicker';
 import {
   SampleDays, CalibrationReport, calibrate, configError, suggestSampleDates,
   parsePastedTable, to24h, DEMO_SAMPLES, PAKISTAN_METHODS,
@@ -59,6 +60,7 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
   const [result, setResult] = useState<{ report: CalibrationReport; before: number | null } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [picker, setPicker] = useState<{ rowId: number; key: PrayerKey } | null>(null);
 
   /** ایپ اس وقت جس config سے اوقات دکھا رہی ہے */
   const baseConfig = useMemo<PrayerConfig>(
@@ -155,7 +157,6 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
     setResult(null);
   };
 
-  const timeInput = 'w-full min-w-0 bg-white border border-slate-200 rounded-lg px-2 py-2 text-[14px] font-mono text-center';
   const report = result?.report;
 
   return (
@@ -210,13 +211,16 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
                     const v = r.times[k];
                     const diff = v && app?.[k] ? hhmmToMinutes(to24h(k, v)) - hhmmToMinutes(app[k]) : 0;
                     return (
-                      <label key={k} className="block text-center">
+                      <div key={k} className="block text-center">
                         <span className="block text-[10px] font-urdu text-slate-500 mb-0.5">{PRAYER_LABELS_UR[k]}</span>
-                        <input type="time" dir="ltr" className={timeInput} value={v} onChange={(e) => setTime(r.id, k, e.target.value)} />
+                        <button type="button" onClick={() => setPicker({ rowId: r.id, key: k })}
+                          className={`w-full py-2 active:scale-95 border rounded-xl text-xs text-center font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${diff ? 'bg-blue-50 border-blue-200 text-slate-900' : 'bg-white hover:bg-blue-50 border-slate-200 text-slate-800'}`}>
+                          <Clock size={13} className="text-black shrink-0" /><span dir="ltr">{formatTo12Hour(v)}</span>
+                        </button>
                         <span className={`block h-4 text-[10px] font-urdu ${Math.abs(diff) >= 90 ? 'text-rose-600 font-bold' : diff ? 'text-violet-700 font-bold' : 'text-transparent'}`}>
                           {diff ? (Math.abs(diff) >= 90 ? 'AM/PM دیکھیں' : `ایپ سے ${fmtOffset(diff)} منٹ`) : '·'}
                         </span>
-                      </label>
+                      </div>
                     );
                   })}
                 </div>
@@ -369,6 +373,20 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
           </button>
         </div>
       )}
+
+      {picker && (() => {
+        const row = rows.find((x) => x.id === picker.rowId);
+        if (!row) return null;
+        return (
+          <ClockPicker
+            label={PRAYER_LABELS_UR[picker.key]}
+            value={row.times[picker.key]}
+            defaultPm={picker.key !== 'fajr' && picker.key !== 'sunrise'}
+            onCancel={() => setPicker(null)}
+            onSave={(v) => { setTime(picker.rowId, picker.key, v); setPicker(null); }}
+          />
+        );
+      })()}
     </div>
   );
 };
