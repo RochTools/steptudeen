@@ -45,6 +45,9 @@ export function UserDashboard({
 
 
   const [toast, setToast] = useState('');
+  const [confirmRemove, setConfirmRemove] = useState<
+    { kind: 'hadith'; num: any; book: string } | { kind: 'mosque'; id: string } | null
+  >(null);
 
 
   const [lastSeenQuran, setLastSeenQuran] = useState<LastSeenQuran | null>(() => {
@@ -194,6 +197,13 @@ export function UserDashboard({
         .ud .ud-btn:active { transform:translateY(1px); }
         .ud button:focus-visible { outline:3px solid #1674de; outline-offset:4px; }
         .ud .ud-icon-btn { padding:10px; flex-shrink:0; }
+        .ud .ud-btn.ud-btn-light { background:#fff; color:var(--ink); border:1px solid #00000020; box-shadow:none; }
+        .ud .ud-modal-bg { position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(0,0,0,.55); backdrop-filter:blur(3px); }
+        .ud .ud-modal { width:100%; max-width:320px; background:#fff; border:1px solid #0000000d; border-radius:23px; padding:24px 20px 20px; text-align:center; box-shadow:0 20px 60px #00000040; }
+        .ud .ud-modal h3 { font-size:16px; font-weight:800; line-height:1.4; }
+        .ud .ud-modal .ud-muted { margin-top:8px; }
+        .ud .ud-modal-actions { display:flex; gap:10px; margin-top:20px; }
+        .ud .ud-modal-actions .ud-btn { flex:1; }
         .ud .ud-btn.ud-btn-sm { min-height:34px; padding:7px 12px; font-size:11px; gap:6px; border-radius:10px; }
         .ud .ud-profile-top { flex:0 0 100%; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:2px; }
         .ud .ud-profile-top .ud-actions { margin-left:auto; }
@@ -286,9 +296,8 @@ export function UserDashboard({
             <div className="ud-heading"><div className="ud-row"><span className="ud-symbol"><Bookmark size={19}/></span><div><h2>Saved Hadiths</h2><p className="ud-sub">Words to return to.</p></div></div><span className="ud-count">{savedHadiths.length}</span></div>
             {savedHadiths.length === 0 ? <div className="ud-empty"><Bookmark size={27}/><strong>No hadiths saved yet</strong><p className="ud-muted">Tap Save on any hadith to keep it here.</p></div> : <div className="ud-list">
               {savedHadiths.map((h,i) => <article className="ud-item" key={`${h.book}-${h.num}-${i}`}>
-                <div className="ud-row ud-spread"><div><strong style={{fontSize:12}}>{h.bookName}</strong><p className="ud-sub">Hadith {h.num}</p></div><button className="ud-btn ud-icon-btn" aria-label={`Remove hadith ${h.num}`} onClick={() => handleRemoveHadith(h.num,h.book)}><X size={14}/></button></div>
-                <hr className="ud-divider"/><p className="ud-arabic" dir="rtl">{h.ar}</p>{h.ur && <p className="ud-muted" style={{textAlign:'right',marginTop:8}} dir="rtl">{h.ur}</p>}
-                {onGoToSavedHadith && h.chapterKey && <button className="ud-btn ud-full" onClick={() => onGoToSavedHadith(h.book,h.chapterKey,h.chapterName || '',h.from || 0,h.to || 0,h.num)}>Open hadith <ArrowUpRight size={15}/></button>}
+                <div className="ud-row ud-spread" style={{alignItems:'flex-start'}}><div style={{minWidth:0}}><h3 className="ud-reading" style={{marginTop:0}}>{h.bookName}</h3><p className="ud-muted">Hadith {h.num}</p></div><button className="ud-btn ud-icon-btn" aria-label={`Remove hadith ${h.num}`} onClick={() => setConfirmRemove({ kind: 'hadith', num: h.num, book: h.book })}><X size={14}/></button></div>
+                {onGoToSavedHadith && h.chapterKey && <><hr className="ud-divider"/><button className="ud-btn ud-full" style={{marginTop:0}} onClick={() => onGoToSavedHadith(h.book,h.chapterKey,h.chapterName || '',h.from || 0,h.to || 0,h.num)}>Open hadith <ArrowUpRight size={15}/></button></>}
               </article>)}
             </div>}
           </section>
@@ -296,7 +305,7 @@ export function UserDashboard({
             <div className="ud-heading"><div className="ud-row"><span className="ud-symbol"><MapPin size={19}/></span><div><h2>Saved Mosques</h2><p className="ud-sub">Your places of prayer, together.</p></div></div><span className="ud-count">{savedMosques.length}</span></div>
             {savedMosques.length === 0 ? <div className="ud-empty"><Heart size={27}/><strong>No mosques saved yet</strong><p className="ud-muted">Tap the heart icon next to a mosque to save it.</p></div> : <div className="ud-list">
               {savedMosques.map(mosque => <article className="ud-item" key={mosque.id}>
-                <div className="ud-row ud-spread"><div><h3 style={{fontSize:15,fontWeight:700}}>{mosque.name}</h3>{mosque.address && <p className="ud-muted" style={{marginTop:5}}>{mosque.address}</p>}</div><button className="ud-btn ud-icon-btn" aria-label={`Remove ${mosque.name} from saved mosques`} onClick={() => handleRemoveMosque(mosque.id)}><X size={15}/></button></div>
+                <div className="ud-row ud-spread"><div><h3 style={{fontSize:15,fontWeight:700}}>{mosque.name}</h3>{mosque.address && <p className="ud-muted" style={{marginTop:5}}>{mosque.address}</p>}</div><button className="ud-btn ud-icon-btn" aria-label={`Remove ${mosque.name} from saved mosques`} onClick={() => setConfirmRemove({ kind: 'mosque', id: mosque.id })}><X size={15}/></button></div>
                 <button className="ud-btn ud-full" onClick={() => onOpenMosque(mosque)}><MapPin size={15}/> View Prayer Times <ArrowUpRight size={15}/></button>
               </article>)}
             </div>}
@@ -304,6 +313,22 @@ export function UserDashboard({
         </div>
         <footer className="ud-footer"><p className="ud-muted">A little progress, every day.</p></footer>
       </div>
+      {confirmRemove && (
+        <div className="ud-modal-bg" role="presentation" onClick={() => setConfirmRemove(null)}>
+          <div className="ud-modal" role="alertdialog" aria-modal="true" aria-labelledby="ud-confirm-title" onClick={(e) => e.stopPropagation()}>
+            <h3 id="ud-confirm-title">Are you sure you want to remove this?</h3>
+            <p className="ud-muted">{confirmRemove.kind === 'hadith' ? 'This hadith will be removed from your saved list.' : 'This mosque will be removed from your saved list.'}</p>
+            <div className="ud-modal-actions">
+              <button className="ud-btn ud-btn-light" onClick={() => setConfirmRemove(null)}>No</button>
+              <button className="ud-btn" onClick={() => {
+                if (confirmRemove.kind === 'hadith') handleRemoveHadith(confirmRemove.num, confirmRemove.book);
+                else handleRemoveMosque(confirmRemove.id);
+                setConfirmRemove(null);
+              }}>Yes</button>
+            </div>
+          </div>
+        </div>
+      )}
       {toast && <div className="ud-toast" role="status" aria-live="polite"><Check size={18} style={{flexShrink:0,color:'#0870df'}}/><span>{toast}</span></div>}
     </main>
   );
