@@ -16,6 +16,8 @@ import {
 import { Mosque } from '../types';
 import { useJamaatTimesForMany, mosqueJumuah } from '../hooks/useJamaatTimes';
 import type { PrayerKey } from '../hooks/useJamaatTimes';
+import { mosqueDate, mosqueTimeZone } from '../lib/mosqueTimes';
+import { formatHHMMInZone, viewerTimeZone, zonedInstant } from '../lib/zonedTime';
 import { createPortal } from 'react-dom';
 import { setMosqueFollow, getFollowedMosques } from '../utils/fcm';
 import './MosqueFinderView.css';
@@ -77,10 +79,6 @@ const format12 = (raw?: string, fallback = ''): string => {
   return raw || fallback;
 };
 
-const secondsOfDay = (ms: number): number => {
-  const d = new Date(ms);
-  return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
-};
 
 interface LiveState {
   curIdx: number;       // اب جس نماز کا دور ہے
@@ -89,27 +87,31 @@ interface LiveState {
   progress: number;     // موجودہ اور اگلی کے درمیان کتنا وقت گزر چکا (0..1)
 }
 
-/** پانچوں جماعت کے اوقات (دن کے سیکنڈ) سے «اب کون سی نماز» اور «کتنا باقی» */
-const computeLive = (secs: (number | null)[], nowSec: number): LiveState | null => {
-  if (secs.length !== 5) return null;
+/**
+ * پانچوں جماعت کے اصل لمحوں (ملی سیکنڈ) سے «اب کون سی نماز» اور «کتنا باقی»۔
+ * حساب اصل لمحوں پر ہے، اس لیے دیکھنے والا (مثلاً سعودی عرب میں) کسی بھی ٹائم زون میں ہو، کاؤنٹ ڈاؤن درست رہتا ہے۔
+ */
+const computeLive = (instants: (number | null)[], nowMs: number): LiveState | null => {
+  if (instants.length !== 5) return null;
   const s: number[] = [];
-  for (const v of secs) {
+  for (const v of instants) {
     if (v === null) return null;
     s.push(v);
   }
   for (let i = 1; i < 5; i++) if (s[i] <= s[i - 1]) return null; // بے ترتیب ڈیٹا ہو تو نہ دکھائیں
 
+  const DAY = 86400000;
   let cur = -1;
-  for (let i = 0; i < 5; i++) if (s[i] <= nowSec) cur = i;
+  for (let i = 0; i < 5; i++) if (s[i] <= nowMs) cur = i;
 
-  const start = cur === -1 ? s[4] - 86400 : s[cur];
-  const end = cur === 4 ? s[0] + 86400 : cur === -1 ? s[0] : s[cur + 1];
+  const start = cur === -1 ? s[4] - DAY : s[cur];
+  const end = cur === 4 ? s[0] + DAY : cur === -1 ? s[0] : s[cur + 1];
   const span = end - start;
   return {
     curIdx: cur === -1 ? 4 : cur,
     nextIdx: (cur + 1) % 5,
-    remaining: Math.max(0, end - nowSec),
-    progress: span > 0 ? Math.min(1, Math.max(0, (nowSec - start) / span)) : 0,
+    remaining: Math.max(0, Math.ceil((end - nowMs) / 1000)),
+    progress: span > 0 ? Math.min(1, Math.max(0, (nowMs - start) / span)) : 0,
   };
 };
 
@@ -175,9 +177,9 @@ const DigitalClock: React.FC = () => {
 const RING_R = 38;
 const RING_C = 2 * Math.PI * RING_R;
 
-const LivePanel: React.FC<{ secs: (number | null)[]; raws: string[] }> = ({ secs, raws }) => {
+const LivePanel: React.FC<{ instants: (number | null)[]; raws: string[] }> = ({ instants, raws }) => {
   const now = useContext(NowContext);
-  const live = computeLive(secs, secondsOfDay(now));
+  const live = computeLive(instants, now);
   if (!live) return null;
 
   const cur = PRAYERS[live.curIdx];
@@ -248,9 +250,9 @@ interface StripItem {
  * پانچ نمازیں ایک ہی قطار میں (سکرول کے بغیر، سب نظر آئیں)؛ موجودہ نماز چمکتی ہے۔
  * جمعہ اس کے نیچے الگ چوڑی پٹی میں۔
  */
-const PrayerStrip: React.FC<{ items: StripItem[]; secs: (number | null)[] }> = ({ items, secs }) => {
+const PrayerStrip: React.FC<{ items: StripItem[]; instants: (number | null)[] }> = ({ items, instants }) => {
   const now = useContext(NowContext);
-  const live = computeLive(secs, secondsOfDay(now));
+  const live = computeLive(instants, now);
   const curIdx = live ? live.curIdx : -1;
 
   const prayers = items.filter((i) => i.kind === 'prayer');
@@ -317,10 +319,23 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
   onToggleSave,
 }) => {
   const [infoOpen, setInfoOpen] = useState(false);
+  // مسجد کی تاریخ بدلنے پر (آدھی رات) اوقات نئی تاریخ سے دوبارہ نکلیں
+  const [, setMinuteTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setMinuteTick((n) => n + 1), 60000);
+    return () => window.clearInterval(id);
+  }, []);
 
-  // ── پانچوں نمازوں کے جماعت اوقات (حساب وہی پرانا، صرف دکھانے کا انداز نیا) ──
+  // ── جماعت کے اوقات: ہمیشہ مسجد کا اپنا وقت، جو امام نے لگایا — دیکھنے والا کسی بھی ملک میں ہو، کوئی تبدیلی نہیں ──
+  // instants صرف «اب کون سی نماز» اور کاؤنٹ ڈاؤن کے لیے ہیں (مسجد کے ٹائم زون کے حساب سے اصل لمحے)
+  const mosqueTz = mosqueTimeZone(mosque);
+  const viewerTz = viewerTimeZone();
+  const { dateKey } = mosqueDate(new Date(), mosqueTz);
   const raws = PRAYERS.map((p) => getJamaat(mosque, p.key));
-  const secs = raws.map((r) => parseToSeconds(r));
+  const instants = raws.map((r) => zonedInstant(dateKey, r, mosqueTz));
+  const toViewer = (raw?: string) => raw ?? '';   // اوقات جوں کے توں
+  // دیکھنے والے کی گھڑی مسجد سے مختلف ہو تو صرف وضاحت دکھائیں
+  const timesShifted = formatHHMMInZone(Date.now(), mosqueTz) !== formatHHMMInZone(Date.now(), viewerTz);
 
   const stripItems: StripItem[] = PRAYERS.map((p, i) => ({
     key: p.key,
@@ -330,7 +345,7 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
     prayerIdx: i,
   }));
   if (mosque.jumah) {
-    stripItems.push({ key: 'jumuah', label: 'جمعہ', raw: mosque.jumah, kind: 'jumuah', prayerIdx: -1 });
+    stripItems.push({ key: 'jumuah', label: 'جمعہ', raw: toViewer(mosque.jumah), kind: 'jumuah', prayerIdx: -1 });
   }
 
   const jumuahSlots = mosqueJumuah(mosque);
@@ -387,10 +402,17 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
       )}
 
       {/* لائیو نماز + گول کاؤنٹ ڈاؤن */}
-      <LivePanel secs={secs} raws={raws} />
+      <LivePanel instants={instants} raws={raws} />
 
       {/* چھ نمازوں کی پٹی */}
-      <PrayerStrip items={stripItems} secs={secs} />
+      <PrayerStrip items={stripItems} instants={instants} />
+
+      {/* مسجد اور دیکھنے والا الگ ٹائم زون میں ہوں تو وضاحت */}
+      {timesShifted && (
+        <p style={{ fontSize: 11, opacity: 0.7, margin: '6px 4px 0', textAlign: 'center' }}>
+          یہ اوقات مسجد کے اپنے مقامی وقت کے مطابق ہیں (مسجد میں ابھی <span dir="ltr">{format12(formatHHMMInZone(Date.now(), mosqueTz))}</span>)
+        </p>
+      )}
 
       {/* جمعہ: ایک سے زیادہ جماعتیں ہوں تو الگ حصہ */}
       {jumuahSlots.length > 1 && (
@@ -399,7 +421,7 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
           {jumuahSlots.map((slot, i) => (
             <div className="mfv-jumuah-row" key={`${slot.label}-${i}`}>
               <span>{slot.label}</span>
-              <b>{format12(slot.time)}</b>
+              <b>{format12(toViewer(slot.time))}</b>
             </div>
           ))}
         </section>
@@ -414,13 +436,13 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
               {mosque.sehri && (
                 <div className="mfv-special-item">
                   <span>سحری</span>
-                  <b>{format12(mosque.sehri, '04:30')}</b>
+                  <b>{format12(toViewer(mosque.sehri), '04:30')}</b>
                 </div>
               )}
               {mosque.iftar && (
                 <div className="mfv-special-item">
                   <span>افطار</span>
-                  <b>{format12(mosque.iftar, '18:30')}</b>
+                  <b>{format12(toViewer(mosque.iftar), '18:30')}</b>
                 </div>
               )}
             </div>
@@ -431,11 +453,11 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
           <div className="mfv-special-items">
             <div className="mfv-special-item">
               <span>عیدالفطر</span>
-              <b>{format12(mosque.eidFitr, '07:00')}</b>
+              <b>{format12(toViewer(mosque.eidFitr || '07:00'), '07:00')}</b>
             </div>
             <div className="mfv-special-item">
               <span>عیدالاضحیٰ</span>
-              <b>{format12(mosque.eidAdha, '07:15')}</b>
+              <b>{format12(toViewer(mosque.eidAdha || '07:15'), '07:15')}</b>
             </div>
           </div>
         </section>
