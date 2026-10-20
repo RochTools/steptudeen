@@ -118,7 +118,7 @@ const MosqueCard = React.memo(({
           type="button"
           aria-label="مسجد میں ترمیم کریں"
           onClick={() => onEdit(mosque)}
-          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white hover:bg-blue-50 border border-slate-200 text-slate-500 hover:text-black transition-all cursor-pointer"
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#75b5ff] text-white border border-transparent transition-all cursor-pointer"
         >
           <Pencil size={14} />
         </button>
@@ -126,7 +126,7 @@ const MosqueCard = React.memo(({
           type="button"
           aria-label="مسجد حذف کریں"
           onClick={() => onDelete(mosque.id)}
-          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white hover:bg-blue-50 border border-slate-200 text-slate-500 hover:text-black transition-all cursor-pointer"
+          className="imam-btn-red w-8 h-8 flex items-center justify-center rounded-xl border border-transparent transition-all cursor-pointer"
         >
           <Trash size={14} />
         </button>
@@ -619,11 +619,11 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
 
   // ── تھیمز (اب ایک ہی متفقہ، صاف رنگ سکیم) ──
   const PRAYER_THEMES: Record<string, { bg: string; border: string; text: string; btn: string; solidBg: string }> = {
-    fajr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
-    zuhr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
-    asr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
-    maghrib: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
-    isha: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'border-slate-200 text-black', solidBg: 'bg-[#75b5ff]' },
+    fajr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'bg-[#75b5ff] text-white border-transparent', solidBg: 'bg-[#75b5ff]' },
+    zuhr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'bg-[#75b5ff] text-white border-transparent', solidBg: 'bg-[#75b5ff]' },
+    asr: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'bg-[#75b5ff] text-white border-transparent', solidBg: 'bg-[#75b5ff]' },
+    maghrib: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'bg-[#75b5ff] text-white border-transparent', solidBg: 'bg-[#75b5ff]' },
+    isha: { bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-800', btn: 'bg-[#75b5ff] text-white border-transparent', solidBg: 'bg-[#75b5ff]' },
   };
 
   const PRAYER_LABELS: Record<string, string> = {
@@ -655,7 +655,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           <button
             type="button"
             onClick={() => onChange(Math.max(OFFSET_MIN, offset - 1))}
-            className={`w-7 h-7 rounded-lg bg-white border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0 ${atMin ? 'opacity-40 cursor-not-allowed' : ''}`}
+            className={`w-7 h-7 rounded-lg border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0 ${atMin ? 'opacity-40 cursor-not-allowed' : ''}`}
             disabled={atMin}
           >−</button>
           <span dir="ltr" className={`w-9 text-center font-mono font-bold text-xs ${theme.text}`}>
@@ -664,7 +664,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           <button
             type="button"
             onClick={() => onChange(Math.min(OFFSET_MAX, offset + 1))}
-            className={`w-7 h-7 rounded-lg bg-white border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0 ${atMax ? 'opacity-40 cursor-not-allowed' : ''}`}
+            className={`w-7 h-7 rounded-lg border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0 ${atMax ? 'opacity-40 cursor-not-allowed' : ''}`}
             disabled={atMax}
           >+</button>
         </div>
@@ -719,6 +719,11 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
         .imam-dashboard [class*="bg-[#75b5ff]"]{background:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%)!important;color:#fff!important}
         .imam-dashboard [class*="bg-[#75b5ff]"] *{color:#fff!important}
         .imam-dashboard button[class*="bg-[#75b5ff]"]{box-shadow:0 4px 12px #1a63d847}
+        /* سرخ بٹن: ڈیلیٹ اور لاگ آؤٹ — سرخ بیک گراؤنڈ + سفید لکھائی */
+        .imam-dashboard .imam-btn-red{background:linear-gradient(135deg,#ef4444 0%,#c81e1e 100%)!important;color:#fff!important;border-color:transparent!important}
+        .imam-dashboard .imam-btn-red *{color:#fff!important}
+        .imam-dashboard button.imam-btn-red{box-shadow:0 4px 12px #c81e1e47}
+        .imam-dashboard .imam-btn-red:hover{filter:brightness(1.08)}
         .imam-dashboard [class*="bg-[#75b5ff]"]:hover{filter:brightness(1.08)}
         .imam-dashboard button:not(:disabled):hover{box-shadow:0 5px 12px #00000012}
         .imam-dashboard button:disabled{opacity:.45;cursor:not-allowed}
@@ -797,7 +802,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
             {myMosques.length > 0 && (
               <div className="px-4 space-y-1.5 animate-fadeIn">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-xs text-black font-urdu font-bold bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">{myMosques.length} مسجد</span>
+                  <span className="text-xs text-white font-urdu font-bold bg-[#75b5ff] px-2.5 py-1 rounded-full border border-transparent">{myMosques.length} مسجد</span>
                   <span className="text-xs font-bold text-slate-500 font-urdu flex items-center gap-1">
                     <MapPin size={13} className="text-black" /> رجسٹر مساجد
                   </span>
@@ -994,7 +999,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
             </div>
 
             <div className="pt-1 pb-2 select-none px-4">
-              <button type="button" onClick={() => setShowLogoutConfirm(true)} className="w-full py-2.5 bg-white hover:bg-blue-50 text-black font-urdu font-bold text-sm rounded-xl border border-slate-200 hover:border-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <button type="button" onClick={() => setShowLogoutConfirm(true)} className="imam-btn-red w-full py-2.5 font-urdu font-bold text-sm rounded-xl border border-transparent transition-all flex items-center justify-center gap-2 cursor-pointer">
                 لاگ آؤٹ کریں
               </button>
             </div>
