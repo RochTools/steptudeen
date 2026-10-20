@@ -184,7 +184,7 @@ export function UserDashboard({
   return (
     <main className="ud" dir="ltr">
       <style>{`
-        .ud { --blue:#75b5ff; --ink:#080808; box-sizing:border-box; min-height:100vh; background:#fff; color:var(--ink); padding:28px 20px 40px; font-family:inherit; }
+        .ud { --blue:#2b77ec; --ink:#080808; box-sizing:border-box; min-height:100vh; background:#fff; color:var(--ink); padding:28px 20px 40px; font-family:inherit; }
         .ud *, .ud *::before, .ud *::after { box-sizing:border-box; }
         .ud .ud-shell { max-width:1080px; margin:auto; }
         .ud h1,.ud h2,.ud h3,.ud p { margin:0; }
@@ -194,15 +194,18 @@ export function UserDashboard({
         .ud .ud-btn:active { transform:translateY(1px); }
         .ud button:focus-visible { outline:3px solid #1674de; outline-offset:4px; }
         .ud .ud-icon-btn { padding:10px; flex-shrink:0; }
+        .ud .ud-btn.ud-btn-sm { min-height:34px; padding:7px 12px; font-size:11px; gap:6px; border-radius:10px; }
+        .ud .ud-profile-top { flex:0 0 100%; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:2px; }
+        .ud .ud-profile-top .ud-actions { margin-left:auto; }
         .ud .ud-top,.ud .ud-actions,.ud .ud-row { display:flex; align-items:center; gap:12px; }
         .ud .ud-top { justify-content:space-between; flex-wrap:wrap; margin-bottom:26px; }
         .ud .ud-actions { flex-wrap:wrap; margin-left:auto; justify-content:flex-end; }
         .ud .ud-symbol { display:grid; place-items:center; width:38px; height:38px; border:1px solid #00000010; border-radius:12px; color:#0870df; background:#fff; flex-shrink:0; }
         .ud .ud-card { background:#fff; border:1px solid #0000000d; border-radius:23px; box-shadow:0 12px 32px #00000008,0 3px 7px #00000006; }
-        .ud .ud-profile { padding:30px; display:flex; align-items:center; gap:23px; position:relative; overflow:hidden; margin-bottom:24px; border-top:3px solid var(--blue); }
+        .ud .ud-profile { padding:30px; display:flex; flex-wrap:wrap; align-items:center; gap:23px; position:relative; overflow:hidden; margin-bottom:24px; border-top:3px solid var(--blue); }
         .ud .ud-avatar { width:92px; height:92px; flex-shrink:0; border-radius:25px; padding:5px; border:1px solid #00000012; box-shadow:0 5px 16px #0000000c; background:#fff; }
         .ud .ud-avatar img { width:100%;height:100%;object-fit:cover;border-radius:19px;display:block; }
-        .ud .ud-initials { height:100%; display:grid;place-items:center;background:var(--blue);border-radius:19px;font-size:26px;font-weight:800; }
+        .ud .ud-initials { height:100%; display:grid;place-items:center;background:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%);color:#fff;border-radius:19px;font-size:26px;font-weight:800; }
         .ud .ud-kicker { font-size:10px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;opacity:.55;margin-bottom:8px; }
         .ud h1 { font-size:clamp(24px,4vw,34px);font-weight:800;letter-spacing:-.04em;line-height:1.2;overflow-wrap:anywhere; }
         .ud .ud-muted { font-size:12px;line-height:1.7;opacity:.58; }
@@ -238,16 +241,15 @@ export function UserDashboard({
         @media(prefers-reduced-motion:reduce) { .ud .ud-btn{transition:none}.ud .ud-btn:hover{transform:none} }
       `}</style>
       <div className="ud-shell">
-        <header className="ud-top">
-          <button className="ud-btn" onClick={onClose}><ArrowLeft size={16}/> Back to App</button>
-          <nav className="ud-actions" aria-label="Account actions">
-            {isImamLoggedIn
-              ? <button className="ud-btn" onClick={onImamDashboard}><LayoutDashboard size={15}/> Imam Dashboard</button>
-              : <button className="ud-btn" onClick={onImamLogin}><LogIn size={15}/> Imam Login</button>}
-          </nav>
-        </header>
-
         <section className="ud-card ud-profile" aria-label="Your profile">
+          <div className="ud-profile-top">
+            <button className="ud-btn ud-btn-sm" onClick={onClose}><ArrowLeft size={14}/> Back to App</button>
+            <nav className="ud-actions" aria-label="Account actions">
+              {isImamLoggedIn
+                ? <button className="ud-btn ud-btn-sm" onClick={onImamDashboard}><LayoutDashboard size={14}/> Imam Dashboard</button>
+                : <button className="ud-btn ud-btn-sm" onClick={onImamLogin}><LogIn size={14}/> Imam Login</button>}
+            </nav>
+          </div>
           <div className="ud-avatar">
             {!imageFailed ? <img src={profileImageSrc} alt={`${userName}'s profile`} onError={() => setImageFailed(true)}/> : <span className="ud-initials" aria-label={userName}>{userName.trim().slice(0,2).toUpperCase() || 'GU'}</span>}
           </div>
