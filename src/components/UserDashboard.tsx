@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowUpRight, BookOpen, Check, Heart, MapPin, LogIn, LayoutDashboard, LogOut, Bookmark, Clock, Layers, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, BookOpen, Check, Heart, MapPin, LogIn, LayoutDashboard, Bookmark, Clock, Layers, X } from 'lucide-react';
 import type { Mosque } from '../types';
 
 interface UserDashboardProps {
@@ -34,11 +34,9 @@ export function UserDashboard({
   onImamLogin,
   onImamDashboard,
   isImamLoggedIn,
-  onImamLogout,
   onGoToQuran,
   isGuest = false,
   userPhone,
-  onLogout,
   profileImageSrc = '/profile.jpg'
 }: UserDashboardProps) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -191,16 +189,15 @@ export function UserDashboard({
         .ud .ud-shell { max-width:1080px; margin:auto; }
         .ud h1,.ud h2,.ud h3,.ud p { margin:0; }
         .ud button { font:inherit; cursor:pointer; }
-        .ud .ud-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:10px 16px; border:1px solid #00000012; border-radius:12px; background:var(--blue); color:#000; font-size:12px; font-weight:700; box-shadow:0 3px 0 #00000012; transition:transform .18s,background .18s,box-shadow .18s; text-decoration:none; }
-        .ud .ud-btn:hover { background:#96c7ff; transform:translateY(-2px); box-shadow:0 6px 12px #00000010; }
+        .ud .ud-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:10px 16px; border:1px solid transparent; border-radius:12px; background:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%); color:#fff; font-size:12px; font-weight:700; box-shadow:0 4px 12px #1a63d847; transition:transform .18s,filter .18s,box-shadow .18s; text-decoration:none; white-space:nowrap; }
+        .ud .ud-btn:hover { filter:brightness(1.08); transform:translateY(-2px); box-shadow:0 6px 14px #1a63d859; }
         .ud .ud-btn:active { transform:translateY(1px); }
         .ud button:focus-visible { outline:3px solid #1674de; outline-offset:4px; }
         .ud .ud-icon-btn { padding:10px; flex-shrink:0; }
         .ud .ud-top,.ud .ud-actions,.ud .ud-row { display:flex; align-items:center; gap:12px; }
         .ud .ud-top { justify-content:space-between; flex-wrap:wrap; margin-bottom:26px; }
-        .ud .ud-actions { flex-wrap:wrap; }
-        .ud .ud-brand { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:800; letter-spacing:.04em; }
-        .ud .ud-brand-mark,.ud .ud-symbol { display:grid; place-items:center; width:38px; height:38px; border:1px solid #00000010; border-radius:12px; color:#0870df; background:#fff; flex-shrink:0; }
+        .ud .ud-actions { flex-wrap:wrap; margin-left:auto; justify-content:flex-end; }
+        .ud .ud-symbol { display:grid; place-items:center; width:38px; height:38px; border:1px solid #00000010; border-radius:12px; color:#0870df; background:#fff; flex-shrink:0; }
         .ud .ud-card { background:#fff; border:1px solid #0000000d; border-radius:23px; box-shadow:0 12px 32px #00000008,0 3px 7px #00000006; }
         .ud .ud-profile { padding:30px; display:flex; align-items:center; gap:23px; position:relative; overflow:hidden; margin-bottom:24px; border-top:3px solid var(--blue); }
         .ud .ud-avatar { width:92px; height:92px; flex-shrink:0; border-radius:25px; padding:5px; border:1px solid #00000012; box-shadow:0 5px 16px #0000000c; background:#fff; }
@@ -242,13 +239,11 @@ export function UserDashboard({
       `}</style>
       <div className="ud-shell">
         <header className="ud-top">
-          <div className="ud-brand"><span className="ud-brand-mark"><LayoutDashboard size={19}/></span> MY DASHBOARD</div>
+          <button className="ud-btn" onClick={onClose}><ArrowLeft size={16}/> Back to App</button>
           <nav className="ud-actions" aria-label="Account actions">
-            {isImamLoggedIn ? <>
-              <button className="ud-btn" onClick={onImamDashboard}><LayoutDashboard size={15}/> Go to Imam Dashboard</button>
-              <button className="ud-btn" onClick={onImamLogout}><LogOut size={15}/> Imam Logout</button>
-            </> : <button className="ud-btn" onClick={onImamLogin}><LogIn size={15}/> Imam Login</button>}
-            {!isGuest && onLogout && <button className="ud-btn" onClick={onLogout}><LogOut size={15}/> Logout</button>}
+            {isImamLoggedIn
+              ? <button className="ud-btn" onClick={onImamDashboard}><LayoutDashboard size={15}/> Imam Dashboard</button>
+              : <button className="ud-btn" onClick={onImamLogin}><LogIn size={15}/> Imam Login</button>}
           </nav>
         </header>
 
@@ -305,7 +300,7 @@ export function UserDashboard({
             </div>}
           </section>
         </div>
-        <footer className="ud-footer"><p className="ud-muted">A little progress, every day.</p><button className="ud-btn" onClick={onClose}><ArrowLeft size={16}/> Back to App</button></footer>
+        <footer className="ud-footer"><p className="ud-muted">A little progress, every day.</p></footer>
       </div>
       {toast && <div className="ud-toast" role="status" aria-live="polite"><Check size={18} style={{flexShrink:0,color:'#0870df'}}/><span>{toast}</span></div>}
     </main>
