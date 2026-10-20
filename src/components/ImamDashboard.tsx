@@ -707,7 +707,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   return (
     <div className="imam-dashboard">
       <style>{`
-        .imam-dashboard{--imam-blue:#75b5ff;background:#fff;color:#080808;min-height:100vh;padding:20px 0 0}
+        .imam-dashboard{--imam-blue:#2f7ff0;background:#fff;color:#080808;min-height:100vh;padding:20px 0 0}
         .imam-dashboard .imam-shell{max-width:960px;margin:0 auto}
         .imam-dashboard .imam-card,.imam-dashboard .imam-prayer-card{background:#fff;border:1px solid #0000000d;box-shadow:0 12px 30px #00000008,0 3px 7px #00000006}
         .imam-dashboard .imam-profile{border-top:3px solid var(--imam-blue);border-radius:24px;margin:0 16px 24px;padding:24px 22px}
@@ -715,35 +715,21 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
         .imam-dashboard .imam-prayer-card{border-radius:18px;padding:16px 10px;border-top:3px solid var(--imam-blue)}
         .imam-dashboard button{color:#080808;transition:background .18s,box-shadow .18s,transform .18s}
         .imam-dashboard button[class*="bg-white"],.imam-dashboard button[class*="bg-slate"],.imam-dashboard button[class*="bg-blue-50"]{background:#cfe5ff;color:#000}
-        .imam-dashboard button[class*="bg-[#75b5ff]"]{background:#75b5ff;color:#000;box-shadow:0 3px 0 #00000010}
+        /* نیلے کارڈ/بٹن: گہرا خوبصورت نیلا + سفید لکھائی */
+        .imam-dashboard [class*="bg-[#75b5ff]"]{background:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%)!important;color:#fff!important}
+        .imam-dashboard [class*="bg-[#75b5ff]"] *{color:#fff!important}
+        .imam-dashboard button[class*="bg-[#75b5ff]"]{box-shadow:0 4px 12px #1a63d847}
+        .imam-dashboard [class*="bg-[#75b5ff]"]:hover{filter:brightness(1.08)}
         .imam-dashboard button:not(:disabled):hover{box-shadow:0 5px 12px #00000012}
         .imam-dashboard button:disabled{opacity:.45;cursor:not-allowed}
         .imam-dashboard button:focus-visible,.imam-dashboard input:focus-visible,.imam-dashboard select:focus-visible,.imam-dashboard textarea:focus-visible{outline:2px solid #1680ef;outline-offset:3px}
         .imam-dashboard input:not([type="range"]):not([type="file"]),.imam-dashboard textarea,.imam-dashboard select{background:#fff;color:#080808;border-color:#00000020;box-shadow:inset 0 2px 4px #00000003}
         .imam-dashboard input[type="range"]{accent-color:#1680ef}
-        .imam-dashboard .imam-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 16px 24px}
-        .imam-dashboard .imam-summary>div{padding:18px 12px;border-radius:18px;text-align:center}
-        .imam-dashboard .imam-summary strong{display:block;font-size:21px;margin-bottom:6px;line-height:1.7}
-        .imam-dashboard .imam-summary span{font-size:11px;color:#0009}
-        .imam-dashboard .imam-title{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 20px 22px}
-        .imam-dashboard .imam-title h1{font-size:23px;font-weight:800;line-height:1.8;margin:0}
-        .imam-dashboard .imam-title p{font-size:12px;color:#0009;margin:4px 0 0}
-        .imam-dashboard .imam-title-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:#75b5ff;flex-shrink:0}
-        /* Scope the existing prayer-settings and calibration child components to this dashboard. */
-        .imam-dashboard [class*="text-emerald-"],.imam-dashboard [class*="text-violet-"],.imam-dashboard [class*="text-rose-"],.imam-dashboard [class*="text-amber-"]{color:#080808!important}
-        .imam-dashboard [class*="bg-emerald-"],.imam-dashboard [class*="bg-violet-"]{background-color:#fff!important}
-        .imam-dashboard [class*="border-emerald-"],.imam-dashboard [class*="border-violet-"]{border-color:#bfdbfe!important}
-        .imam-dashboard button[class*="bg-emerald-"],.imam-dashboard button[class*="bg-violet-"]{background:#75b5ff!important;color:#000!important;border-color:#1680ef!important;box-shadow:0 3px 0 #00000010}
         .imam-dashboard .imam-form [dir="rtl"][class*="rounded-2xl"]{box-shadow:0 6px 20px #00000006}
-        @media(max-width:480px){.imam-dashboard .imam-form>div{padding:15px 12px}.imam-dashboard .imam-profile{padding:20px 16px}.imam-dashboard .imam-prayer-card{padding:12px 5px}.imam-dashboard .imam-summary{gap:8px}.imam-dashboard .imam-summary strong{font-size:17px}}
+        @media(max-width:480px){.imam-dashboard .imam-form>div{padding:15px 12px}.imam-dashboard .imam-profile{padding:20px 16px}.imam-dashboard .imam-prayer-card{padding:12px 5px}}
         @media(prefers-reduced-motion:reduce){.imam-dashboard *{animation:none!important;transition:none!important}}
       `}</style>
       <div className="imam-shell space-y-4 pb-20 animate-fadeIn">
-        <header className="imam-title" dir="rtl">
-          <div><h1 className="font-urdu">امام ڈش بورڈ</h1><p className="font-urdu">آپ کی مسجد، اوقات اور اعلانات — ایک جگہ</p></div>
-          <span className="imam-title-icon"><LayoutDashboard size={22} /></span>
-        </header>
-
         {!isAuthenticated ? (
           <div className="mx-4 mt-8 bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
             <div className="w-14 h-14 mx-auto rounded-full bg-white border border-slate-200 flex items-center justify-center">
@@ -758,11 +744,6 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
               <div className="imam-card imam-profile bg-white pt-5 pb-4 px-4 text-center">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                   {onMyDashboard && <button type="button" onClick={onMyDashboard} className="flex items-center gap-2 rounded-xl bg-[#75b5ff] px-3 py-2 text-xs font-bold text-black"><LayoutDashboard size={15} /> My Dashboard</button>}
-                  <button
-                    type="button"
-                    onClick={() => setShowLogoutConfirm(true)}
-                    className="text-xs font-urdu text-black hover:text-black bg-blue-50 hover:bg-blue-50 px-3 py-1 rounded-full border border-blue-200 transition-all cursor-pointer"
-                  >لاگ آؤٹ</button>
                   <span className="text-[11px] font-urdu flex items-center gap-1 text-black bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
                     <span className="w-1.5 h-1.5 bg-[#75b5ff] rounded-full animate-pulse"></span>
                     {isRealFirebase ? 'لائیو' : 'آف لائن'}
@@ -813,15 +794,9 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
               </div>
             </div>
 
-            <div className="imam-summary font-urdu" dir="rtl">
-              <div className="imam-card"><strong>{myMosques.length}</strong><span>رجسٹر مساجد</span></div>
-              <div className="imam-card"><strong>{editId ? 'ترمیم' : 'نیا ریکارڈ'}</strong><span>موجودہ فارم</span></div>
-              <div className="imam-card"><strong>{isRealFirebase ? 'کلاؤڈ' : 'مقامی'}</strong><span>ڈیٹا کنکشن</span></div>
-            </div>
-
             {myMosques.length > 0 && (
-              <div className="px-4 space-y-2 animate-fadeIn">
-                <div className="flex items-center justify-between px-1 mb-1">
+              <div className="px-4 space-y-1.5 animate-fadeIn">
+                <div className="flex items-center justify-between px-1">
                   <span className="text-xs text-black font-urdu font-bold bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">{myMosques.length} مسجد</span>
                   <span className="text-xs font-bold text-slate-500 font-urdu flex items-center gap-1">
                     <MapPin size={13} className="text-black" /> رجسٹر مساجد
