@@ -841,7 +841,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                       type="button"
                       onClick={handleAutoGrabLocation}
                       disabled={isGrabbingLocation}
-                      className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all font-urdu flex items-center gap-1.5 cursor-pointer ${isGrabbingLocation ? 'bg-white border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-50 hover:bg-[#96c7ff] hover:text-black text-black active:scale-95 border-blue-200'}`}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all font-urdu flex items-center gap-1.5 cursor-pointer ${isGrabbingLocation ? 'bg-white border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-[#75b5ff] text-white active:scale-95 border-transparent'}`}
                     >
                       {isGrabbingLocation ? (
                         <>
@@ -948,13 +948,13 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="space-y-1.5">
                         <span className="text-xs text-slate-600 font-bold font-urdu block text-right">عید الفطر جماعت</span>
-                        <button type="button" onClick={() => openCustomTimePicker('eidFitr', 'عید الفطر جماعت', eidFitr)} className="w-full py-2 bg-white hover:bg-blue-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                        <button type="button" onClick={() => openCustomTimePicker('eidFitr', 'عید الفطر جماعت', eidFitr)} className="w-full py-2 bg-[#75b5ff] active:scale-95 rounded-xl text-xs text-center font-mono font-bold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer">
                           <Clock size={13} className="text-black shrink-0" /><span>{formatTo12HourString(eidFitr)}</span>
                         </button>
                       </div>
                       <div className="space-y-1.5">
                         <span className="text-xs text-slate-600 font-bold font-urdu block text-right">عید الاضحی جماعت</span>
-                        <button type="button" onClick={() => openCustomTimePicker('eidAdha', 'عید الاضحی جماعت', eidAdha)} className="w-full py-2 bg-white hover:bg-blue-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                        <button type="button" onClick={() => openCustomTimePicker('eidAdha', 'عید الاضحی جماعت', eidAdha)} className="w-full py-2 bg-[#75b5ff] active:scale-95 rounded-xl text-xs text-center font-mono font-bold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer">
                           <Clock size={13} className="text-black shrink-0" /><span>{formatTo12HourString(eidAdha)}</span>
                         </button>
                       </div>
@@ -965,13 +965,13 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="space-y-1.5">
                         <span className="text-xs text-slate-600 font-bold font-urdu flex items-center justify-end gap-1"><Moon size={12} className="text-black" /> سحری کا وقت</span>
-                        <button type="button" onClick={() => openCustomTimePicker('sehri', 'سحری کا وقت', sehri)} className="w-full py-2 bg-white hover:bg-blue-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                        <button type="button" onClick={() => openCustomTimePicker('sehri', 'سحری کا وقت', sehri)} className="w-full py-2 bg-[#75b5ff] active:scale-95 rounded-xl text-xs text-center font-mono font-bold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer">
                           <Clock size={13} className="text-black shrink-0" /><span>{formatTo12HourString(sehri)}</span>
                         </button>
                       </div>
                       <div className="space-y-1.5">
                         <span className="text-xs text-slate-600 font-bold font-urdu flex items-center justify-end gap-1"><Sunrise size={12} className="text-black" /> افطاری کا وقت</span>
-                        <button type="button" onClick={() => openCustomTimePicker('iftar', 'افطاری کا وقت', iftar)} className="w-full py-2 bg-white hover:bg-blue-50 active:scale-95 border border-slate-200 rounded-xl text-xs text-center font-mono font-bold text-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                        <button type="button" onClick={() => openCustomTimePicker('iftar', 'افطاری کا وقت', iftar)} className="w-full py-2 bg-[#75b5ff] active:scale-95 rounded-xl text-xs text-center font-mono font-bold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer">
                           <Clock size={13} className="text-black shrink-0" /><span>{formatTo12HourString(iftar)}</span>
                         </button>
                       </div>
