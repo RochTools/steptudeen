@@ -74,6 +74,27 @@ function computeLocally(lat: number, lng: number, dateKey: string, timeZone: str
   return { fajr: t.fajr, maghrib: t.maghrib, timeZone, source: 'local' };
 }
 
+/** فوری (انتظار کے بغیر) جواب: آج کا کیش شدہ API وقت، نہ ہو تو null — رینڈر کے دوران استعمال کے لیے */
+export function peekAdhanDay(
+  latitude: number,
+  longitude: number,
+  opts: { now?: Date; timeZone?: string } = {}
+): AdhanDay | null {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  const dateKey = dateKeyInZone(opts.now ?? new Date(), opts.timeZone || DEFAULT_TIME_ZONE);
+  return readCache(latitude, longitude, dateKey);
+}
+
+/** فوری مقامی حساب (کراچی طریقہ، حنفی) — API کے انتظار میں خالی کارڈ سے بہتر */
+export function localAdhanDay(
+  latitude: number,
+  longitude: number,
+  opts: { now?: Date; timeZone?: string } = {}
+): AdhanDay {
+  const tz = opts.timeZone || DEFAULT_TIME_ZONE;
+  return computeLocally(latitude, longitude, dateKeyInZone(opts.now ?? new Date(), tz), tz);
+}
+
 const inflight = new Map<string, Promise<AdhanDay>>();
 
 /**
