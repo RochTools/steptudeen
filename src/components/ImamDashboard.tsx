@@ -555,6 +555,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     const finalAsr = getJamaatTime('asr') || DEFAULT_FIXED.asr;
     const finalMaghrib = getJamaatTime('maghrib') || '19:05';
     const finalIsha = getJamaatTime('isha') || DEFAULT_FIXED.isha;
+    const existingMosque = mosques.find((m) => m.id === editId);
 
     setTimeout(async () => {
       // ✅ انٹروال کلئیر کریں
@@ -590,6 +591,10 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           maghribOffset,
           // مسجد کا ٹائم زون (الاذان API سے) — تاکہ دوسرے ملک کے صارف کو اس کے اپنے وقت میں دکھایا جا سکے
           prayerConfig: { method: 'Karachi', madhab: 'hanafi', timeZone: apiTimes?.timeZone ?? DEFAULT_TIME_ZONE },
+          // پرانا ڈیٹا (جمعہ کے ایک سے زیادہ سلاٹ وغیرہ) محفوظ کرتے وقت ضائع نہ ہو
+          ...(existingMosque?.iqamaSchedule ? { iqamaSchedule: existingMosque.iqamaSchedule } : {}),
+          ...(existingMosque?.iqamaHistory ? { iqamaHistory: existingMosque.iqamaHistory } : {}),
+          ...(existingMosque?.jumuah ? { jumuah: existingMosque.jumuah } : {}),
         });
         setIsSaving(false);
         setSuccessMessage(editId
