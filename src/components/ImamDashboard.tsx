@@ -7,11 +7,13 @@ import {
 import { Mosque } from '../types';
 import { firebaseSignIn, firebaseSignUp, firebaseSignOut } from '../firebase';
 import { Auth } from 'firebase/auth';
-import { PrayerSettingsCard } from './imam/PrayerSettingsCard';
-import { CalibrationWizard } from './imam/CalibrationWizard';
-import { DEFAULT_PRAYER_CONFIG, PrayerConfig } from '../lib/prayerEngine';
-import { IqamaSchedule } from '../lib/iqama';
-import { calculateMosqueTimes, mosqueDate, scheduleWithOffsets } from '../lib/mosqueTimes';
+import { getAdhanDay } from '../lib/aladhan';
+import type { AdhanDay } from '../lib/aladhan';
+import { buildJamaat, DEFAULT_FIXED, DEFAULT_OFFSETS, DEFAULT_TIME_ZONE, OFFSET_MAX, OFFSET_MIN } from '../lib/mosqueTimes';
+import { dateKeyInZone } from '../lib/zonedTime';
+
+// وہ اوقات جو امام گھڑی (ٹائم پکر) سے چنتا ہے
+type TimePickerKey = 'jumah' | 'eidFitr' | 'eidAdha' | 'sehri' | 'iftar' | 'zuhr' | 'asr' | 'isha';
 
 // ── انٹرفیسز ──
 interface ImamDashboardProps {
@@ -189,18 +191,14 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   const [latitude, setLatitude] = useState<number | null>(null); // ✅ null استعمال کریں
   const [longitude, setLongitude] = useState<number | null>(null); // ✅ null استعمال کریں
 
-  // ── جماعت offsets ──
-  const [fajrOffset, setFajrOffset] = useState<number>(15);
-  const [zuhrOffset, setZuhrOffset] = useState<number>(15);
-  const [asrOffset, setAsrOffset] = useState<number>(15);
-  const [maghribOffset, setMaghribOffset] = useState<number>(5);
-  const [ishaOffset, setIshaOffset] = useState<number>(15);
+  // ── فجر اور مغرب: الاذان API کا وقت + امام کا ± منٹ ──
+  const [fajrOffset, setFajrOffset] = useState<number>(DEFAULT_OFFSETS.fajr);
+  const [maghribOffset, setMaghribOffset] = useState<number>(DEFAULT_OFFSETS.maghrib);
 
-  // ── نیا: اذان کی کیلیبریشن + جماعت کا شیڈول ──
-  const [prayerConfig, setPrayerConfig] = useState<PrayerConfig>(DEFAULT_PRAYER_CONFIG);
-  const [iqamaSchedule, setIqamaSchedule] = useState<IqamaSchedule>({
-    effectiveFrom: mosqueDate().dateKey,
-  });
+  // ── ظہر، عصر، عشاء: مقررہ وقت (امام بدلے تو بدلے، ورنہ وہی رہتا ہے) ──
+  const [zuhrTime, setZuhrTime] = useState<string>(DEFAULT_FIXED.zuhr);
+  const [asrTime, setAsrTime] = useState<string>(DEFAULT_FIXED.asr);
+  const [ishaTime, setIshaTime] = useState<string>(DEFAULT_FIXED.isha);
 
   // ── manual اوقات ──
   const [jumah, setJumah] = useState('13:30');
@@ -210,35 +208,46 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   const [iftar, setIftar] = useState('18:30');
   const [announcement, setAnnouncement] = useState('');
 
-  // Refresh the date while the dashboard stays open, without an API dependency.
+  // تاریخ بدلنے پر اگلے دن کا وقت خود آ جائے
   const [calculationNow, setCalculationNow] = useState(() => new Date());
   useEffect(() => {
     const timer = window.setInterval(() => setCalculationNow(new Date()), 60000);
     return () => window.clearInterval(timer);
   }, []);
-  const effectivePrayerConfig = useMemo(() => ({
-    ...prayerConfig, timeZone: prayerConfig.timeZone || 'Asia/Karachi',
-  }), [prayerConfig]);
-  const effectiveIqamaSchedule = useMemo(() => scheduleWithOffsets(iqamaSchedule, {
-    fajr: fajrOffset, zuhr: zuhrOffset, asr: asrOffset, maghrib: maghribOffset, isha: ishaOffset,
-  }), [iqamaSchedule, fajrOffset, zuhrOffset, asrOffset, maghribOffset, ishaOffset]);
-  const existingMosque = mosques.find(m => m.id === editId);
-  const timingPreview = useMemo(() => {
-    if (latitude === null || longitude === null) return null;
-    try {
-      return calculateMosqueTimes({ latitude, longitude, prayerConfig: effectivePrayerConfig,
-        iqamaSchedule: effectiveIqamaSchedule, iqamaHistory: existingMosque?.iqamaHistory,
-        fajrOffset, zuhrOffset, asrOffset, maghribOffset, ishaOffset,
-      }, calculationNow);
-    } catch { return null; }
-  }, [latitude, longitude, effectivePrayerConfig, effectiveIqamaSchedule, existingMosque?.iqamaHistory,
-      fajrOffset, zuhrOffset, asrOffset, maghribOffset, ishaOffset, calculationNow]);
-  const apiTimes = timingPreview?.adhan ?? null;
-  const apiLoading = false;
-  const apiError = latitude !== null && longitude !== null && !timingPreview;
+  const todayKey = dateKeyInZone(calculationNow, DEFAULT_TIME_ZONE);
+
+  // ── اذانِ فجر اور مغرب: الاذان API (نہ چلے تو مقامی حساب) ──
+  const [adhanApi, setAdhanApi] = useState<AdhanDay | null>(null);
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState(false);
+  useEffect(() => {
+    if (latitude === null || longitude === null) {
+      setAdhanApi(null);
+      setApiError(false);
+      setApiLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setApiLoading(true);
+    // کوآرڈینیٹس ٹائپ ہو رہے ہوں تو ہر ہندسے پر API نہ بلائیں
+    const timer = window.setTimeout(() => {
+      getAdhanDay(latitude, longitude, { now: new Date() })
+        .then((day) => { if (!cancelled) { setAdhanApi(day); setApiError(false); } })
+        .catch(() => { if (!cancelled) { setAdhanApi(null); setApiError(true); } })
+        .finally(() => { if (!cancelled) setApiLoading(false); });
+    }, 600);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [latitude, longitude, todayKey]);
+  const apiTimes = adhanApi;
+  const jamaatPreview = useMemo(
+    () => (adhanApi
+      ? buildJamaat({ fajrOffset, maghribOffset, zuhr: zuhrTime, asr: asrTime, isha: ishaTime }, adhanApi)
+      : null),
+    [adhanApi, fajrOffset, maghribOffset, zuhrTime, asrTime, ishaTime]
+  );
 
   const [activePicker, setActivePicker] = useState<{
-    prayerKey: 'jumah' | 'eidFitr' | 'eidAdha' | 'sehri' | 'iftar';
+    prayerKey: TimePickerKey;
     label: string;
     hour: number;
     minute: number;
@@ -295,9 +304,9 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   }, [activePicker]);
 
   // ── جماعت کا فائنل وقت ──
-  const getJamaatTime = useCallback((prayerKey: 'fajr' | 'zuhr' | 'asr' | 'maghrib' | 'isha', _offset: number): string | null => {
-    return timingPreview?.jamaat[prayerKey] ?? null;
-  }, [timingPreview]);
+  const getJamaatTime = useCallback((prayerKey: 'fajr' | 'zuhr' | 'asr' | 'maghrib' | 'isha'): string | null => {
+    return jamaatPreview?.[prayerKey] ?? null;
+  }, [jamaatPreview]);
 
   // ── فارمیٹ ہیلپرز ──
   const formatTo12HourString = (timeStr: string) => {
@@ -313,7 +322,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
   };
 
   const openCustomTimePicker = (
-    prayerKey: 'jumah' | 'eidFitr' | 'eidAdha' | 'sehri' | 'iftar',
+    prayerKey: TimePickerKey,
     label: string,
     currentTimeString: string
   ) => {
@@ -338,6 +347,9 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     else if (prayerKey === 'eidAdha') setEidAdha(newTimeValue);
     else if (prayerKey === 'sehri') setSehri(newTimeValue);
     else if (prayerKey === 'iftar') setIftar(newTimeValue);
+    else if (prayerKey === 'zuhr') setZuhrTime(newTimeValue);
+    else if (prayerKey === 'asr') setAsrTime(newTimeValue);
+    else if (prayerKey === 'isha') setIshaTime(newTimeValue);
     setActivePicker(null);
   };
 
@@ -448,13 +460,11 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     setSehri('04:30');
     setIftar('18:30');
     setAnnouncement('');
-    setFajrOffset(15);
-    setZuhrOffset(15);
-    setAsrOffset(15);
-    setMaghribOffset(5);
-    setIshaOffset(15);
-    setPrayerConfig(DEFAULT_PRAYER_CONFIG);
-    setIqamaSchedule({ effectiveFrom: mosqueDate().dateKey });
+    setFajrOffset(DEFAULT_OFFSETS.fajr);
+    setMaghribOffset(DEFAULT_OFFSETS.maghrib);
+    setZuhrTime(DEFAULT_FIXED.zuhr);
+    setAsrTime(DEFAULT_FIXED.asr);
+    setIshaTime(DEFAULT_FIXED.isha);
   };
 
   // ── مسجد ایڈٹ ──
@@ -471,24 +481,12 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     setSehri(mosque.sehri || '04:30');
     setIftar(mosque.iftar || '18:30');
     setAnnouncement(mosque.announcement || '');
-    setFajrOffset(mosque.fajrOffset ?? 15);
-    setZuhrOffset(mosque.zuhrOffset ?? 15);
-    setAsrOffset(mosque.asrOffset ?? 15);
-    setMaghribOffset(mosque.maghribOffset ?? 5);
-    setIshaOffset(mosque.ishaOffset ?? 15);
-
-    // نئی سیٹنگ لوڈ کریں (نہ ہو تو پرانے offsets کو شیڈول میں ڈھال دیں)
-    setPrayerConfig(mosque.prayerConfig ?? DEFAULT_PRAYER_CONFIG);
-    setIqamaSchedule(mosque.iqamaSchedule ?? {
-      effectiveFrom: mosqueDate().dateKey,
-      iqama: {
-        fajr: { delay: mosque.fajrOffset ?? 15 },
-        zuhr: { delay: mosque.zuhrOffset ?? 15 },
-        asr: { delay: mosque.asrOffset ?? 15 },
-        maghrib: { delay: mosque.maghribOffset ?? 5 },
-        isha: { delay: mosque.ishaOffset ?? 15 },
-      },
-    });
+    setFajrOffset(mosque.fajrOffset ?? DEFAULT_OFFSETS.fajr);
+    setMaghribOffset(mosque.maghribOffset ?? DEFAULT_OFFSETS.maghrib);
+    // پرانی مساجد میں محفوظ ظہر/عصر/عشاء کا وقت اب مقررہ وقت بن جاتا ہے
+    setZuhrTime(mosque.zuhr || DEFAULT_FIXED.zuhr);
+    setAsrTime(mosque.asr || DEFAULT_FIXED.asr);
+    setIshaTime(mosque.isha || DEFAULT_FIXED.isha);
   };
 
   // ── پینسل آئیکن پر کلک: مسجد لوڈ کریں اور نام/پتہ کا چھوٹا ماڈل کھولیں ──
@@ -525,7 +523,7 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
       return;
     }
     if (!apiTimes) {
-      setErrorMessage('اوقات کا حساب نہیں ہو سکا۔ مسجد کے کوآرڈینیٹس اور نماز کی سیٹنگ چیک کریں۔');
+      setErrorMessage('اذان کے اوقات نہیں مل سکے۔ مسجد کے کوآرڈینیٹس اور انٹرنیٹ چیک کریں۔');
       return;
     }
 
@@ -552,11 +550,11 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
       });
     }, 1000);
 
-    const finalFajr = getJamaatTime('fajr', fajrOffset) || '05:30';
-    const finalZuhr = getJamaatTime('zuhr', zuhrOffset) || '13:30';
-    const finalAsr = getJamaatTime('asr', asrOffset) || '16:30';
-    const finalMaghrib = getJamaatTime('maghrib', maghribOffset) || '19:05';
-    const finalIsha = getJamaatTime('isha', ishaOffset) || '20:30';
+    const finalFajr = getJamaatTime('fajr') || '05:30';
+    const finalZuhr = getJamaatTime('zuhr') || DEFAULT_FIXED.zuhr;
+    const finalAsr = getJamaatTime('asr') || DEFAULT_FIXED.asr;
+    const finalMaghrib = getJamaatTime('maghrib') || '19:05';
+    const finalIsha = getJamaatTime('isha') || DEFAULT_FIXED.isha;
 
     setTimeout(async () => {
       // ✅ انٹروال کلئیر کریں
@@ -589,15 +587,9 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           iftar,
           announcement,
           fajrOffset,
-          zuhrOffset,
-          asrOffset,
           maghribOffset,
-          ishaOffset,
-
-          // ── نیا: امام کی کیلیبریشن → Firebase → تمام صارفین ──
-          prayerConfig: effectivePrayerConfig,
-          iqamaSchedule: effectiveIqamaSchedule,
-          ...(existingMosque?.iqamaHistory ? { iqamaHistory: existingMosque.iqamaHistory } : {}),
+          // مسجد کا ٹائم زون (الاذان API سے) — تاکہ دوسرے ملک کے صارف کو اس کے اپنے وقت میں دکھایا جا سکے
+          prayerConfig: { method: 'Karachi', madhab: 'hanafi', timeZone: apiTimes?.timeZone ?? DEFAULT_TIME_ZONE },
         });
         setIsSaving(false);
         setSuccessMessage(editId
@@ -633,23 +625,18 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
     fajr: 'فجر', zuhr: 'ظہر', asr: 'عصر', maghrib: 'مغرب', isha: 'عشاء',
   };
 
-  // ── JamaatCard کمپوننٹ ──
+  // ── JamaatCard: فجر اور مغرب — الاذان API کا وقت + امام کا ± منٹ ──
   const JamaatCard = ({
     prayerKey, offset, onChange
   }: {
-    prayerKey: 'fajr' | 'zuhr' | 'asr' | 'maghrib' | 'isha';
+    prayerKey: 'fajr' | 'maghrib';
     offset: number; onChange: (v: number) => void;
   }) => {
     const theme = PRAYER_THEMES[prayerKey];
     const apiVal = apiTimes?.[prayerKey];
-    const jamaatVal = getJamaatTime(prayerKey, offset);
-
-    // ✅ منفی آفسیٹ کو روکیں
-    const handleDecrement = () => {
-      if (offset > 0) {
-        onChange(offset - 1);
-      }
-    };
+    const jamaatVal = getJamaatTime(prayerKey);
+    const atMin = offset <= OFFSET_MIN;
+    const atMax = offset >= OFFSET_MAX;
 
     return (
       <div className={`imam-prayer-card flex flex-col items-center gap-1.5 ${theme.bg} border ${theme.border} rounded-2xl p-3`}>
@@ -662,17 +649,18 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={handleDecrement}
-            className={`w-7 h-7 rounded-lg bg-white border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0 ${offset === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
-            disabled={offset === 0}
+            onClick={() => onChange(Math.max(OFFSET_MIN, offset - 1))}
+            className={`w-7 h-7 rounded-lg bg-white border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0 ${atMin ? 'opacity-40 cursor-not-allowed' : ''}`}
+            disabled={atMin}
           >−</button>
-          <span className={`w-9 text-center font-mono font-bold text-xs ${theme.text}`}>
+          <span dir="ltr" className={`w-9 text-center font-mono font-bold text-xs ${theme.text}`}>
             {offset > 0 ? `+${offset}` : offset}
           </span>
           <button
             type="button"
-            onClick={() => onChange(offset + 1)}
-            className={`w-7 h-7 rounded-lg bg-white border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0`}
+            onClick={() => onChange(Math.min(OFFSET_MAX, offset + 1))}
+            className={`w-7 h-7 rounded-lg bg-white border ${theme.btn} font-bold text-base flex items-center justify-center active:scale-95 cursor-pointer shrink-0 ${atMax ? 'opacity-40 cursor-not-allowed' : ''}`}
+            disabled={atMax}
           >+</button>
         </div>
         <span className="text-[9px] text-slate-400 font-mono -mt-1">منٹ</span>
@@ -681,6 +669,31 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
           {jamaatVal ? to12Hour(jamaatVal) : '—:—'}
         </div>
         <span className="text-[9px] text-slate-400 font-urdu">جماعت کا وقت</span>
+      </div>
+    );
+  };
+
+  // ── FixedCard: ظہر، عصر، عشاء — مقررہ وقت، امام گھڑی سے بدلے ──
+  const FixedCard = ({
+    prayerKey, value, onPick
+  }: {
+    prayerKey: 'zuhr' | 'asr' | 'isha';
+    value: string; onPick: () => void;
+  }) => {
+    const theme = PRAYER_THEMES[prayerKey];
+    return (
+      <div className={`imam-prayer-card flex flex-col items-center gap-1.5 ${theme.bg} border ${theme.border} rounded-2xl p-3`}>
+        <span className={`text-sm font-bold font-urdu ${theme.text}`}>{PRAYER_LABELS[prayerKey]}</span>
+        <div className="text-[10px] font-urdu text-slate-400 leading-tight text-center">مقررہ وقت</div>
+        <button
+          type="button"
+          onClick={onPick}
+          className={`w-full text-sm font-mono font-bold text-black ${theme.solidBg} rounded-lg px-1.5 py-1.5 text-center leading-tight cursor-pointer flex items-center justify-center gap-1`}
+        >
+          <Clock size={12} className="shrink-0" />
+          <span dir="ltr">{to12Hour(value)}</span>
+        </button>
+        <span className="text-[9px] text-slate-400 font-urdu">جماعت کا وقت (بدلنے کے لیے دبائیں)</span>
       </div>
     );
   };
@@ -920,33 +933,23 @@ export const ImamDashboard: React.FC<ImamDashboardProps> = ({
                     </div>
                   ) : null}
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <JamaatCard prayerKey="fajr" offset={fajrOffset} onChange={setFajrOffset} />
-                    <JamaatCard prayerKey="zuhr" offset={zuhrOffset} onChange={setZuhrOffset} />
-                    <JamaatCard prayerKey="asr" offset={asrOffset} onChange={setAsrOffset} />
-                  </div>
+                  {/* فجر اور مغرب: الاذان API کا وقت + امام کا ± منٹ */}
                   <div className="grid grid-cols-2 gap-2">
+                    <JamaatCard prayerKey="fajr" offset={fajrOffset} onChange={setFajrOffset} />
                     <JamaatCard prayerKey="maghrib" offset={maghribOffset} onChange={setMaghribOffset} />
-                    <JamaatCard prayerKey="isha" offset={ishaOffset} onChange={setIshaOffset} />
                   </div>
 
-                  {/* ── نیا: اذان کے اوقات کی کیلیبریشن (طریقہ/مشرب/زاویہ/±منٹ) ── */}
-                  <PrayerSettingsCard
-                    config={prayerConfig}
-                    onChange={setPrayerConfig}
-                    latitude={Number(latitude) || 31.5204}
-                    longitude={Number(longitude) || 74.3587}
-                    timeZone="Asia/Karachi"
-                  />
+                  {/* ظہر، عصر، عشاء: مقررہ وقت — صرف امام بدلے تو بدلے */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <FixedCard prayerKey="zuhr" value={zuhrTime} onPick={() => openCustomTimePicker('zuhr', 'ظہر', zuhrTime)} />
+                    <FixedCard prayerKey="asr" value={asrTime} onPick={() => openCustomTimePicker('asr', 'عصر', asrTime)} />
+                    <FixedCard prayerKey="isha" value={ishaTime} onPick={() => openCustomTimePicker('isha', 'عشاء', ishaTime)} />
+                  </div>
 
-                  {/* ── نیا: مسجد کے اصل اوقات سے خودکار کیلیبریشن ── */}
-                  <CalibrationWizard
-                    latitude={Number(latitude) || 31.5204}
-                    longitude={Number(longitude) || 74.3587}
-                    timeZone="Asia/Karachi"
-                    currentConfig={prayerConfig}
-                    onApply={(cfg) => setPrayerConfig(cfg)}
-                  />
+                  <p className="text-[10px] text-slate-400 font-urdu leading-relaxed text-right">
+                    فجر اور مغرب: الاذان کا وقت + آپ کے منٹ (منفی بھی چل سکتا ہے)۔ ظہر، عصر، عشاء: آپ کا مقرر کردہ وقت، جب تک آپ خود نہ بدلیں۔
+                    {apiTimes?.source === 'local' && ' (انٹرنیٹ نہ ہونے کی وجہ سے ابھی اذان مقامی حساب سے نکالی گئی ہے۔)'}
+                  </p>
                 </div>
 
                 <div className="space-y-3 pt-3 border-t border-slate-100">
