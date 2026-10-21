@@ -544,17 +544,26 @@ export const HadithView: React.FC<HadithViewProps> = ({
         .hadith-translation[dir='rtl']{font-family:'Scheherazade New','Noto Naskh Arabic',serif;font-weight:700;line-height:2;text-align:right}
         .hadith-translation[data-lang='ben']{font-family:'Noto Sans Bengali',sans-serif}
         .hadith-translation[data-lang='tam']{font-family:'Noto Sans Tamil',sans-serif}
-        .hadith-brand span{display:inline-block;animation:hadith-bounce 1.1s ease-in-out infinite;background:linear-gradient(180deg,#75b5ff,#080808);-webkit-background-clip:text;background-clip:text;color:transparent}
+        .hadith-brand span{display:inline-block;animation:hadith-bounce 1.1s ease-in-out infinite;background:linear-gradient(180deg,#3b8bff,#1a63d8);-webkit-background-clip:text;background-clip:text;color:transparent}
+        /* نیلے کارڈ/بٹن: گہرا خوبصورت نیلا + سفید لکھائی (صرف وہ عناصر جن پر سیدھا bg-[#75b5ff] ہو) */
+        .hadith-view [class~="bg-[#75b5ff]"]{background:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%)!important;color:#fff!important}
+        .hadith-view [class~="bg-[#75b5ff]"] *{color:#fff!important}
+        .hadith-view button[class~="bg-[#75b5ff]"]{box-shadow:0 4px 12px #1a63d847}
+        .hadith-view button[class~="bg-[#75b5ff]"]:not(:disabled):hover{filter:brightness(1.08)}
+        .hadith-view button[class*="hover:bg-[#75b5ff]"]:hover{background:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%);color:#fff}
         .hadith-view button:focus-visible{outline:2px solid #1680ef;outline-offset:3px}
         .hadith-view button:disabled{cursor:not-allowed}
         @media(prefers-reduced-motion:reduce){.hadith-view .hadith-brand span{animation:none}.hadith-view *{scroll-behavior:auto!important;transition:none!important}}
         @keyframes hadith-bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}}
-        .hadith-target-highlight{box-shadow:0 0 0 3px rgba(117,181,255,.85),0 0 24px rgba(0,0,0,.10)!important;background:#fff!important}
+        .hadith-target-highlight{box-shadow:0 0 0 3px rgba(43,119,236,.85),0 0 24px rgba(0,0,0,.10)!important;background:#fff!important}
       `}</style>
 
       {screen === 'books' && (
         <>
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="sticky top-0 z-30 mb-3 flex items-center justify-start gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm">
+            <button onClick={onBack} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Back</button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             {BOOKS.map((book, index) => (
               <button
                 key={book.key}
@@ -568,7 +577,6 @@ export const HadithView: React.FC<HadithViewProps> = ({
               </button>
             ))}
           </div>
-          <button onClick={onBack} className="mx-auto mt-5 flex items-center gap-2 rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black"><ArrowLeft size={14} /> Back</button>
         </>
       )}
 
