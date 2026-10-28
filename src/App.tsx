@@ -101,6 +101,28 @@ const MosquePrayerGrid: React.FC<{ mosque: Mosque }> = ({ mosque }) => {
   );
 };
 
+/** Branded page loader (same look as the Hadith / Duas loaders), centered ~5px above middle. */
+const PageLoader: React.FC = () => (
+  <div className="flex flex-1 min-h-[300px] items-center justify-center" style={{ paddingBottom: 10 }}>
+    <style>{`
+      .app-brand-loader{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+      .app-brand-loader .app-brand-word{display:flex;justify-content:center;font-family:ui-serif,Georgia,Cambria,"Times New Roman",serif;font-size:24px;font-weight:700;letter-spacing:.05em}
+      .app-brand-loader .app-brand-word span{display:inline-block;animation:app-brand-wave 1.1s ease-in-out infinite;background:linear-gradient(180deg,#3b8bff,#1a63d8);-webkit-background-clip:text;background-clip:text;color:transparent}
+      .app-brand-loader p{margin:0;font-size:12px;color:#64748b}
+      @keyframes app-brand-wave{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}}
+      @media(prefers-reduced-motion:reduce){.app-brand-loader .app-brand-word span{animation:none}}
+    `}</style>
+    <div className="app-brand-loader" role="status" aria-live="polite" dir="ltr">
+      <div className="app-brand-word" aria-hidden="true">
+        {'steptudeen'.split('').map((letter, i) => (
+          <span key={i} style={{ animationDelay: `${i * 0.08}s` }}>{letter}</span>
+        ))}
+      </div>
+      <p>Loading...</p>
+    </div>
+  </div>
+);
+
 // ============ ERROR BOUNDARY ============
 class ErrorBoundary extends Component<
   { children: React.ReactNode; fallback?: React.ReactNode },
@@ -297,11 +319,7 @@ export default function App() {
         {currentView !== 'login-splash' && (
           <>
             {/* FIX: Suspense fallback for lazy-loaded pages */}
-            <Suspense fallback={
-              <div className="flex items-center justify-center flex-1 min-h-[300px]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
-              </div>
-            }>
+            <Suspense fallback={<PageLoader />}>
             <div className={`flex-1 min-h-[500px] flex flex-col ${currentView === 'tasbih' ? 'bg-[#fef2c7]' : 'bg-slate-50'}`}>
 
               {currentView === 'home' && (
