@@ -174,7 +174,7 @@ interface HomeCardConfig {
 
 const HOME_CARDS: HomeCardConfig[] = [
   { theme: 'green',  urdu: 'القرآن الکریم',   label: 'Quran',            desc: 'Read, listen and explore the Quran.', decor: 'lotus',   nav: 'quran' },
-  { theme: 'purple', urdu: 'نماز کا طریقہ',   label: 'Prayer',           desc: 'Prayer times, Qibla and more.',       decor: 'mosque',  nav: 'namaz' },
+  { theme: 'purple', urdu: 'نماز کا طریقہ',   label: 'Prayer Guide',     desc: 'Learn how to pray, step by step.',     decor: 'mosque',  nav: 'namaz' },
   { theme: 'pink',   urdu: 'مسنون دعائیں',    label: 'Duas',             desc: 'Daily duas for a better life.',       decor: 'lotus',   nav: 'duas' },
   { theme: 'amber',  urdu: 'تسبیح کاؤنٹر',   label: 'Tasbih',           desc: 'Remember Allah with every breath.',   decor: 'beads',   nav: 'tasbih' },
   { theme: 'blue',   urdu: 'قبلہ رخ سمت',     label: 'Qibla',            desc: 'Find the right direction.',           decor: 'compass', nav: 'qibla' },
@@ -663,7 +663,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         .sth-home .sth-link-btn{display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:4px 0;font-size:13px;font-weight:600;color:#1976f2}
         .sth-home .sth-small-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#1559cc;color:#fff;border:0;border-radius:10px;min-height:35px;padding:8px 10px;font-size:10px;font-weight:700;flex-shrink:0}
         .sth-home .sth-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 16px}
-        .sth-home .sth-feature{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;align-items:start;text-align:left;min-width:0;min-height:128px;overflow:hidden;border:1px solid var(--bd);border-radius:18px;padding:14px 12px;background:linear-gradient(135deg,var(--bg1) 0%,#fff 100%);box-shadow:0 8px 22px #0f172a0d,0 2px 5px #0f172a08;color:var(--ink)}
+        .sth-home .sth-feature{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;align-items:start;text-align:left;min-width:0;min-height:0;overflow:hidden;border:1px solid var(--bd);border-radius:18px;padding:12px 12px 14px;background:linear-gradient(135deg,var(--bg1) 0%,#fff 100%);box-shadow:0 8px 22px #0f172a0d,0 2px 5px #0f172a08;color:var(--ink)}
         .sth-home .sth-t-green{--ac:#16a36b;--g1:#46c485;--g2:#12905f;--bg1:#ecfbf3;--bg2:#cdf1de;--ink:#0b2a4a;--bd:#d3f0e1}
         .sth-home .sth-t-purple{--ac:#6d4af0;--g1:#8b6dff;--g2:#5a36d6;--bg1:#f1ecff;--bg2:#e0d6ff;--ink:#0b2a4a;--bd:#e0d8fb}
         .sth-home .sth-t-pink{--ac:#e0245f;--g1:#f0568a;--g2:#c81f5a;--bg1:#fff0f5;--bg2:#ffd9e6;--ink:#0b2a4a;--bd:#fadbe6}
@@ -673,14 +673,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
         .sth-home .sth-t-coral{--ac:#ef5a3c;--g1:#ff8466;--g2:#e04a2c;--bg1:#fff1ec;--bg2:#ffd9cd;--ink:#0b2a4a;--bd:#fad6cb}
         .sth-home .sth-t-teal{--ac:#0d9aa8;--g1:#35c0ce;--g2:#0a8794;--bg1:#e9fafb;--bg2:#c8eef2;--ink:#0b2a4a;--bd:#cdeaee}
         .sth-home .sth-t-rose{--ac:#b83280;--g1:#d8569f;--g2:#a02a70;--bg1:#fdf0f8;--bg2:#f8d4e8;--ink:#0b2a4a;--bd:#f2d3e5}
-        .sth-home .sth-card-decor{position:absolute;left:0;bottom:0;width:64%;height:auto;color:var(--ac);opacity:.12;pointer-events:none}
+        .sth-home .sth-card-decor{position:absolute;left:0;bottom:0;width:48%;height:auto;color:var(--ac);opacity:.12;pointer-events:none}
         .sth-home .sth-t-purple .sth-card-decor,.sth-home .sth-t-white .sth-card-decor{left:auto;right:0}
         .sth-home .sth-feature:hover{transform:translateY(-2px);box-shadow:0 14px 28px #0f172a14}
         .sth-home .sth-feature:active{transform:translateY(0)}
-        .sth-home .sth-feature-icon{position:relative;display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,var(--g1),var(--g2));color:#fff;box-shadow:0 6px 12px color-mix(in srgb,var(--g2) 35%,transparent),inset 0 1px 0 #ffffff55}
-        .sth-home .sth-feature-body{position:relative;display:flex;flex-direction:column;gap:3px;min-width:0;padding-right:22px}
-        .sth-home .sth-feature-label{font-size:14px;font-weight:800;line-height:1.25;letter-spacing:-.01em;color:#0b1f4d}
-        .sth-home .sth-feature-desc{font-size:10.5px;font-weight:500;line-height:1.45;color:#5b6b86}
+        .sth-home .sth-feature-icon{position:relative;display:grid;place-items:center;width:40px;height:40px;border-radius:13px;background:linear-gradient(145deg,var(--g1),var(--g2));color:#fff;box-shadow:0 6px 12px color-mix(in srgb,var(--g2) 35%,transparent),inset 0 1px 0 #ffffff55}
+        .sth-home .sth-feature-body{display:contents}
+        .sth-home .sth-feature-label{grid-column:2;grid-row:1;align-self:center;position:relative;padding-right:26px;font-size:14px;font-weight:800;line-height:1.25;letter-spacing:-.01em;color:#0b1f4d}
+        .sth-home .sth-feature-desc{grid-column:1/-1;grid-row:2;position:relative;margin-top:9px;font-size:11px;font-weight:500;line-height:1.45;color:#5b6b86}
         .sth-home .sth-feature-desc.home-card-urdu-title{font-size:13px;line-height:1.9!important;font-weight:700;color:var(--ink)}
         .sth-home .sth-feature-arrow{position:absolute;top:12px;right:10px;display:grid;place-items:center;width:24px;height:24px;border-radius:999px;background:var(--bg2);color:var(--ac)}
         .sth-home .sth-panel{background:#fff;color:#080808;border:1px solid #0000000d;border-radius:12px!important;padding:19px!important}
@@ -997,21 +997,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <section aria-label="Explore the app">
-          <div className="sth-explore-head">
-            <svg className="sth-explore-skyline" viewBox="0 0 220 110" aria-hidden="true">
-              <g fill="currentColor">
-                <rect x="170" y="14" width="12" height="96" rx="4" />
-                <path d="M176 0c5 5 7 10 7 14h-14c0-4 2-9 7-14z" />
-                <path d="M92 110c0-34 20-54 46-54s46 20 46 54z" />
-                <rect x="136" y="38" width="4" height="18" />
-                <path d="M138 18a9 9 0 1 0 7 15 7 7 0 1 1-7-15z" />
-                <path d="M40 110c0-20 12-30 28-30s28 10 28 30z" />
-                <rect x="30" y="64" width="7" height="46" rx="3" />
-              </g>
-            </svg>
-            <h2>Explore Your Deen</h2>
-            <p>Quran, Hadith, and more — all in one place.</p>
-          </div>
           <div className="sth-grid">{HOME_CARDS.filter(card => !card.hadithBook).map(card => <HomeCard key={card.label} config={card} onClick={() => handleCardClick(card)}/>)}</div>
         </section>
         <section aria-label="Hadith collections">
