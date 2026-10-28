@@ -781,9 +781,9 @@ export const QuranView: React.FC<QuranViewProps> = () => {
       <style>{`
         @font-face{font-family:'KFGQPC Hafs';src:url('https://cdn.jsdelivr.net/gh/mustafa0x/qpc-fonts@f93bf5f3/various-woff2/UthmanicHafs1%20Ver09.woff2') format('woff2');font-display:swap}
         .quran-hafs{font-family:'KFGQPC Hafs','Noto Naskh Arabic',serif;font-weight:700;color:#111;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
-        .quran-brand-loader span{animation:quran-bounce 1.1s ease-in-out infinite;background:linear-gradient(180deg,#b8860b,#14532d);-webkit-background-clip:text;background-clip:text;color:transparent}
+        .quran-brand-loader span{animation:quran-bounce 1.1s ease-in-out infinite;background:linear-gradient(180deg,#3b8bff,#1a63d8);-webkit-background-clip:text;background-clip:text;color:transparent}
         @keyframes quran-bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}}
-        .quran-last-seen-highlight{background:rgba(224,178,58,.22)!important;box-shadow:0 0 0 3px rgba(184,134,11,.55),0 0 22px rgba(20,83,45,.25)!important;border-radius:12px}
+        .quran-last-seen-highlight{background:rgba(224,178,58,.22)!important;box-shadow:0 0 0 3px rgba(184,134,11,.55),0 0 22px rgba(37,99,235,.25)!important;border-radius:12px}
       `}</style>
 
       {/* Search with Blogger-style three-dot menu */}
@@ -793,29 +793,29 @@ export const QuranView: React.FC<QuranViewProps> = () => {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search by surah name or number..."
-          className="w-full rounded-xl border border-[#d8e4da] bg-white py-3 pl-10 pr-14 text-sm outline-none transition focus:border-[#14532d]"
+          className="w-full rounded-xl border border-[#d4e2fb] bg-white py-3 pl-10 pr-14 text-sm outline-none transition focus:border-[#2563eb]"
         />
         <button
           type="button"
           onClick={() => setMenuOpen((value) => !value)}
-          className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-[#14532d] text-white"
+          className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-[#2563eb] text-white"
           aria-label="Quran settings"
         >
           <MoreVertical size={17} />
         </button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-[calc(100%+6px)] z-40 w-[min(320px,92vw)] overflow-hidden rounded-xl border border-[#d8e4da] bg-white shadow-2xl">
-            <button onClick={openLastSeen} className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-[#f0f7f1]">
-              <Bookmark size={17} className="mt-0.5 text-[#14532d]" />
+          <div className="absolute right-0 top-[calc(100%+6px)] z-40 w-[min(320px,92vw)] overflow-hidden rounded-xl border border-[#d4e2fb] bg-white shadow-2xl">
+            <button onClick={openLastSeen} className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-[#eef4ff]">
+              <Bookmark size={17} className="mt-0.5 text-[#2563eb]" />
               <span><strong className="block text-sm">Last Seen</strong><small className="block text-[11px] text-slate-500">{lastSeen ? `${lastSeen.surahName} - Ayah ${lastSeen.ayah}` : 'No ayah saved yet'}</small></span>
             </button>
-            <button onClick={() => { setPicker('quran'); setMenuOpen(false); }} className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-[#f0f7f1]">
-              <Languages size={17} className="mt-0.5 text-[#14532d]" />
+            <button onClick={() => { setPicker('quran'); setMenuOpen(false); }} className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-[#eef4ff]">
+              <Languages size={17} className="mt-0.5 text-[#2563eb]" />
               <span><strong className="block text-sm">Select Quran language</strong><small className="block text-[11px] text-slate-500">{currentLanguage.native}</small></span>
             </button>
-            <button onClick={() => { setPicker('tafsir'); setMenuOpen(false); }} className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-[#f0f7f1]">
-              <BookOpen size={17} className="mt-0.5 text-[#14532d]" />
+            <button onClick={() => { setPicker('tafsir'); setMenuOpen(false); }} className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-[#eef4ff]">
+              <BookOpen size={17} className="mt-0.5 text-[#2563eb]" />
               <span><strong className="block text-sm">Select Tafsir</strong><small className="block text-[11px] text-slate-500">{currentTafsir.name} - {currentTafsir.language}</small></span>
             </button>
             <button
@@ -825,9 +825,9 @@ export const QuranView: React.FC<QuranViewProps> = () => {
                 if (offline.status === 'downloading') { setOfflineOpen(true); return; }
                 startOfflineDownload(language);
               }}
-              className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-[#f0f7f1]"
+              className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-[#eef4ff]"
             >
-              {offlineDoneLang === language ? <CheckCircle2 size={17} className="mt-0.5 text-[#14532d]" /> : <Download size={17} className="mt-0.5 text-[#14532d]" />}
+              {offlineDoneLang === language ? <CheckCircle2 size={17} className="mt-0.5 text-[#2563eb]" /> : <Download size={17} className="mt-0.5 text-[#2563eb]" />}
               <span>
                 <strong className="block text-sm">Download for offline</strong>
                 <small className="block text-[11px] text-slate-500">
@@ -845,7 +845,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
 
       {/* Background download pill (popup closed but download still running) */}
       {!offlineOpen && offline.status === 'downloading' && (
-        <button onClick={() => setOfflineOpen(true)} className="mb-3 flex w-full items-center justify-between gap-2 rounded-xl border border-[#d8e4da] bg-[#f0f7f1] px-3 py-2 text-left text-[11px] font-bold text-[#14532d]">
+        <button onClick={() => setOfflineOpen(true)} className="mb-3 flex w-full items-center justify-between gap-2 rounded-xl border border-[#d4e2fb] bg-[#eef4ff] px-3 py-2 text-left text-[11px] font-bold text-[#2563eb]">
           <span className="flex items-center gap-2"><Download size={14} className="animate-pulse" /> Saving Quran offline... {Math.round((offline.done / offline.total) * 100)}%</span>
           <ChevronRight size={13} />
         </button>
@@ -861,9 +861,9 @@ export const QuranView: React.FC<QuranViewProps> = () => {
               onClick={() => setSelectedSurah(surah.n)}
               className="rounded-lg bg-white px-3 py-4 text-center shadow-[0_3px_10px_rgba(0,0,0,.12)] transition active:scale-[.97]"
             >
-              <span className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#f0f7f1] text-xs font-bold text-[#14532d]">{surah.n}</span>
+              <span className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#eef4ff] text-xs font-bold text-[#2563eb]">{surah.n}</span>
               <div className="quran-hafs text-[23px] leading-relaxed" dir="rtl">{surah.ar}</div>
-              <div className="text-[13px] font-semibold text-[#14532d]">{surah.en}</div>
+              <div className="text-[13px] font-semibold text-[#2563eb]">{surah.en}</div>
               <div className="mt-1 text-[11px] text-slate-500">{surah.ayahs} verses</div>
             </button>
           ))}
@@ -876,8 +876,8 @@ export const QuranView: React.FC<QuranViewProps> = () => {
       {selectedSurah && selectedMeta && (
         <div dir="ltr" className="fixed inset-0 z-50 flex items-end justify-center bg-black/55" onMouseDown={(event) => { if (event.target === event.currentTarget) closeReader(); }}>
           <div dir="ltr" className="flex max-h-[88vh] w-full max-w-[700px] flex-col overflow-hidden rounded-t-[18px] bg-white shadow-2xl">
-            <div className="flex items-center justify-between gap-3 border-b border-[#d8e4da] px-4 py-3">
-              <h3 dir="ltr" className="truncate text-sm font-bold text-[#14532d]">Surah {selectedMeta.en} <span dir="rtl">({selectedMeta.ar})</span></h3>
+            <div className="flex items-center justify-between gap-3 border-b border-[#d4e2fb] px-4 py-3">
+              <h3 dir="ltr" className="truncate text-sm font-bold text-[#2563eb]">Surah {selectedMeta.en} <span dir="rtl">({selectedMeta.ar})</span></h3>
               <button onClick={closeReader} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100" aria-label="Close"><X size={17} /></button>
             </div>
 
@@ -888,34 +888,34 @@ export const QuranView: React.FC<QuranViewProps> = () => {
                 <div className="flex flex-col items-center gap-3 py-12 text-center">
                   <AlertTriangle className="text-rose-600" size={30} />
                   <p className="max-w-sm text-sm text-slate-500">Could not load this surah. Please check your connection.</p>
-                  <button onClick={() => setRetryToken((value) => value + 1)} className="flex items-center gap-2 rounded-full bg-[#14532d] px-4 py-2 text-xs font-bold text-white"><RefreshCw size={14} /> Retry Surah</button>
+                  <button onClick={() => setRetryToken((value) => value + 1)} className="flex items-center gap-2 rounded-full bg-[#2563eb] px-4 py-2 text-xs font-bold text-white"><RefreshCw size={14} /> Retry Surah</button>
                 </div>
               )}
 
               {surahData && (
                 <>
-                  <div className="mb-4 border-b-2 border-[#f0f7f1] pb-4 text-center">
+                  <div className="mb-4 border-b-2 border-[#eef4ff] pb-4 text-center">
                     <div className="quran-hafs text-[32px]" dir="rtl">{surahData.name || selectedMeta.ar}</div>
-                    <div className="mt-1 text-sm font-semibold text-[#14532d]">{selectedMeta.en}</div>
+                    <div className="mt-1 text-sm font-semibold text-[#2563eb]">{selectedMeta.en}</div>
                     <div className="mt-1 text-xs text-slate-500">{String(surahData.type || '').toLowerCase() === 'meccan' ? 'Meccan' : 'Medinan'} surah | {verses.length} verses</div>
-                    {selectedSurah !== 1 && selectedSurah !== 9 && <div className="quran-hafs mt-4 border-t border-dashed border-[#d8e4da] pt-4 text-[29px]" dir="rtl">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>}
-                    <button onClick={loadTafsir} className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-[#d8e4da] bg-[#f0f7f1] px-4 py-2.5 text-sm font-bold text-[#14532d]"><BookOpen size={16} /> {tafsirOpen ? 'Hide Tafsir' : 'View Full Surah Tafsir'}</button>
+                    {selectedSurah !== 1 && selectedSurah !== 9 && <div className="quran-hafs mt-4 border-t border-dashed border-[#d4e2fb] pt-4 text-[29px]" dir="rtl">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>}
+                    <button onClick={loadTafsir} className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-[#d4e2fb] bg-[#eef4ff] px-4 py-2.5 text-sm font-bold text-[#2563eb]"><BookOpen size={16} /> {tafsirOpen ? 'Hide Tafsir' : 'View Full Surah Tafsir'}</button>
 
                     {tafsirOpen && (
                       <div className="mt-3 max-h-[60vh] overflow-y-auto rounded-lg border-l-[3px] border-[#b8860b] bg-[#faf9f5] p-3 text-left">
                         {tafsirLoading && <BrandLoader label="Loading tafsir" />}
-                        {tafsirError && <div className="py-6 text-center text-xs text-rose-600"><p>{tafsirError}</p><button onClick={() => { setTafsirOpen(false); window.setTimeout(loadTafsir, 0); }} className="mt-3 rounded-full bg-[#14532d] px-4 py-2 font-bold text-white">Retry Tafsir</button></div>}
+                        {tafsirError && <div className="py-6 text-center text-xs text-rose-600"><p>{tafsirError}</p><button onClick={() => { setTafsirOpen(false); window.setTimeout(loadTafsir, 0); }} className="mt-3 rounded-full bg-[#2563eb] px-4 py-2 font-bold text-white">Retry Tafsir</button></div>}
                         {!tafsirLoading && !tafsirError && currentTafsirPage.map((block, index) => (
-                          <div key={`${block.from}-${block.to}-${index}`} className="mb-4 border-b border-dashed border-[#d8e4da] pb-4 last:mb-0 last:border-0 last:pb-0">
+                          <div key={`${block.from}-${block.to}-${index}`} className="mb-4 border-b border-dashed border-[#d4e2fb] pb-4 last:mb-0 last:border-0 last:pb-0">
                             <span className="mb-2 inline-block rounded-full border border-[#b8860b] bg-white px-2.5 py-1 text-[10px] font-bold text-[#b8860b]">{block.from === block.to ? `Ayah ${block.from}` : `Ayahs ${block.from}-${block.to}`}</span>
                             <div className={`whitespace-pre-wrap text-[15px] leading-8 text-slate-800 ${currentTafsir.language === 'Urdu' ? 'text-right font-urdu text-[18px] font-bold' : ''}`} dir={['Urdu','Arabic'].includes(currentTafsir.language) ? 'rtl' : 'ltr'}>{block.text}</div>
                           </div>
                         ))}
                         {tafsirPages.length > 1 && !tafsirLoading && !tafsirError && (
-                          <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-[#d8e4da] bg-white p-2">
-                            <button disabled={tafsirPage === 0} onClick={() => setTafsirPage((value) => value - 1)} className="rounded-full bg-[#14532d] px-3 py-2 text-[11px] font-bold text-white disabled:opacity-30">Previous</button>
+                          <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-[#d4e2fb] bg-white p-2">
+                            <button disabled={tafsirPage === 0} onClick={() => setTafsirPage((value) => value - 1)} className="rounded-full bg-[#2563eb] px-3 py-2 text-[11px] font-bold text-white disabled:opacity-30">Previous</button>
                             <span className="text-[10px] text-slate-500">Section {tafsirPage + 1} of {tafsirPages.length}</span>
-                            <button disabled={tafsirPage >= tafsirPages.length - 1} onClick={() => setTafsirPage((value) => value + 1)} className="rounded-full bg-[#14532d] px-3 py-2 text-[11px] font-bold text-white disabled:opacity-30">Next</button>
+                            <button disabled={tafsirPage >= tafsirPages.length - 1} onClick={() => setTafsirPage((value) => value + 1)} className="rounded-full bg-[#2563eb] px-3 py-2 text-[11px] font-bold text-white disabled:opacity-30">Next</button>
                           </div>
                         )}
                       </div>
@@ -930,12 +930,12 @@ export const QuranView: React.FC<QuranViewProps> = () => {
                       const playing = isCurrentAudio && audioState?.status === 'playing';
                       const loadingAudio = isCurrentAudio && audioState?.status === 'loading';
                       return (
-                        <article id={`app-ayah-${selectedSurah}-${ayah}`} key={ayah} className={`border-b border-slate-100 py-4 transition ${playing ? 'rounded-xl bg-[#f0f7f1] px-3' : ''}`}>
+                        <article id={`app-ayah-${selectedSurah}-${ayah}`} key={ayah} className={`border-b border-slate-100 py-4 transition ${playing ? 'rounded-xl bg-[#eef4ff] px-3' : ''}`}>
                           <div className="mb-2 flex items-center justify-between gap-2">
-                            <button onClick={() => saveLastSeen(ayah)} className="rounded-full bg-[#f0f7f1] px-2.5 py-1 text-[11px] font-bold text-[#14532d]">Ayah {ayah}</button>
+                            <button onClick={() => saveLastSeen(ayah)} className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[11px] font-bold text-[#2563eb]">Ayah {ayah}</button>
                             <div className="flex items-center gap-2">
-                              <button onClick={() => saveLastSeen(ayah)} className={`flex h-8 w-8 items-center justify-center rounded-full border ${saved ? 'border-[#14532d] bg-[#14532d] text-white' : 'border-[#d8e4da] text-slate-500'}`} aria-label="Save last seen"><Bookmark size={14} fill={saved ? 'currentColor' : 'none'} /></button>
-                              <button onClick={() => setAudioChoiceAyah(ayah)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold ${playing ? 'border-[#14532d] bg-[#14532d] text-white' : 'border-[#d8e4da] bg-[#f0f7f1] text-[#14532d]'}`}><Volume2 size={14} /> {loadingAudio ? 'Loading' : playing ? 'Playing' : 'Listen'}</button>
+                              <button onClick={() => saveLastSeen(ayah)} className={`flex h-8 w-8 items-center justify-center rounded-full border ${saved ? 'border-[#2563eb] bg-[#2563eb] text-white' : 'border-[#d4e2fb] text-slate-500'}`} aria-label="Save last seen"><Bookmark size={14} fill={saved ? 'currentColor' : 'none'} /></button>
+                              <button onClick={() => setAudioChoiceAyah(ayah)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold ${playing ? 'border-[#2563eb] bg-[#2563eb] text-white' : 'border-[#d4e2fb] bg-[#eef4ff] text-[#2563eb]'}`}><Volume2 size={14} /> {loadingAudio ? 'Loading' : playing ? 'Playing' : 'Listen'}</button>
                             </div>
                           </div>
                           <div className="quran-hafs mb-2 text-right text-[29px] leading-[2.15]" dir="rtl">{verse.text}</div>
@@ -957,7 +957,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
           <div dir="ltr" className="flex max-h-[84vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3">
               <div>
-                <h3 className="text-sm font-bold text-[#14532d]">{picker === 'tafsir' ? 'Select Tafsir' : 'Select Quran language'}</h3>
+                <h3 className="text-sm font-bold text-[#2563eb]">{picker === 'tafsir' ? 'Select Tafsir' : 'Select Quran language'}</h3>
                 {showWelcome && <p className="mt-1 text-[11px] text-slate-500">Which language do you want to read the Quran in?</p>}
               </div>
               {!showWelcome && <button onClick={() => setPicker(null)} className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100"><X size={15} /></button>}
@@ -970,7 +970,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
                   <button
                     key={isTafsir ? item.slug : item.code}
                     onClick={() => isTafsir ? chooseTafsir(item.slug) : (showWelcome ? setPendingLanguage(item.code) : chooseQuranLanguage(item.code))}
-                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left ${active ? 'bg-[#f0f7f1] text-[#14532d]' : 'hover:bg-slate-50'}`}
+                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left ${active ? 'bg-[#eef4ff] text-[#2563eb]' : 'hover:bg-slate-50'}`}
                   >
                     <span>
                       <strong className="block text-sm" dir="auto">{isTafsir ? item.name : item.native}</strong>
@@ -986,7 +986,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
                 <p className="mb-2 text-center text-[10px] text-slate-500">Continue saves the whole Quran on your device for offline reading.</p>
                 <div className="flex gap-2">
                   <button onClick={skipWelcome} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600">Skip for now</button>
-                  <button onClick={continueWelcome} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#14532d] py-2.5 text-xs font-bold text-white"><Check size={14} /> Continue</button>
+                  <button onClick={continueWelcome} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#2563eb] py-2.5 text-xs font-bold text-white"><Check size={14} /> Continue</button>
                 </div>
               </div>
             )}
@@ -1000,8 +1000,8 @@ export const QuranView: React.FC<QuranViewProps> = () => {
           <div dir="ltr" className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl">
             {offline.status === 'done' ? (
               <>
-                <CheckCircle2 className="mx-auto mb-3 text-[#14532d]" size={44} />
-                <h3 className="text-base font-bold text-[#14532d]">Quran is ready for offline use!</h3>
+                <CheckCircle2 className="mx-auto mb-3 text-[#2563eb]" size={44} />
+                <h3 className="text-base font-bold text-[#2563eb]">Quran is ready for offline use!</h3>
                 <p className="mt-2 text-xs text-slate-500">All 114 surahs are saved on your device.</p>
               </>
             ) : offline.status === 'error' ? (
@@ -1012,21 +1012,21 @@ export const QuranView: React.FC<QuranViewProps> = () => {
               </>
             ) : (
               <>
-                <Download className="mx-auto mb-3 animate-pulse text-[#14532d]" size={38} />
-                <h3 className="text-base font-bold text-[#14532d]">Preparing your Quran for offline use...</h3>
-                <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-[#f0f7f1]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((offline.done / offline.total) * 100)}>
-                  <div className="h-full rounded-full bg-[#14532d] transition-all duration-300" style={{ width: `${Math.round((offline.done / offline.total) * 100)}%` }} />
+                <Download className="mx-auto mb-3 animate-pulse text-[#2563eb]" size={38} />
+                <h3 className="text-base font-bold text-[#2563eb]">Preparing your Quran for offline use...</h3>
+                <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-[#eef4ff]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((offline.done / offline.total) * 100)}>
+                  <div className="h-full rounded-full bg-[#2563eb] transition-all duration-300" style={{ width: `${Math.round((offline.done / offline.total) * 100)}%` }} />
                 </div>
-                <p className="mt-2 text-sm font-bold text-[#14532d]">{Math.round((offline.done / offline.total) * 100)}%</p>
+                <p className="mt-2 text-sm font-bold text-[#2563eb]">{Math.round((offline.done / offline.total) * 100)}%</p>
                 <p className="mt-1 text-xs text-slate-500">{offline.done} of {offline.total} surahs downloaded</p>
               </>
             )}
             <p className="mt-3 text-[10px] text-slate-400">Saved only on your device. Nothing is sent to any server.</p>
             <div className="mt-4 flex gap-2">
               {offline.status === 'error' && (
-                <button onClick={() => startOfflineDownload(offline.lang || language)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#14532d] py-2.5 text-xs font-bold text-white"><RefreshCw size={13} /> Try again</button>
+                <button onClick={() => startOfflineDownload(offline.lang || language)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#2563eb] py-2.5 text-xs font-bold text-white"><RefreshCw size={13} /> Try again</button>
               )}
-              <button onClick={() => setOfflineOpen(false)} className={`flex-1 rounded-xl py-2.5 text-xs font-bold ${offline.status === 'done' ? 'bg-[#14532d] text-white' : 'border border-slate-200 text-slate-600'}`}>
+              <button onClick={() => setOfflineOpen(false)} className={`flex-1 rounded-xl py-2.5 text-xs font-bold ${offline.status === 'done' ? 'bg-[#2563eb] text-white' : 'border border-slate-200 text-slate-600'}`}>
                 {offline.status === 'done' ? 'Done' : offline.status === 'error' ? 'Close' : 'Continue in background'}
               </button>
             </div>
@@ -1039,16 +1039,16 @@ export const QuranView: React.FC<QuranViewProps> = () => {
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setAudioChoiceAyah(null); }}>
           <div dir="ltr" className="relative w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl">
             <button onClick={() => setAudioChoiceAyah(null)} className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100"><X size={15} /></button>
-            <Volume2 className="mx-auto mb-3 mt-2 text-[#14532d]" size={28} />
-            <h3 className="text-lg font-bold text-[#14532d]">Choose Recitation</h3>
+            <Volume2 className="mx-auto mb-3 mt-2 text-[#2563eb]" size={28} />
+            <h3 className="text-lg font-bold text-[#2563eb]">Choose Recitation</h3>
             <p className="mb-4 mt-1 text-xs text-slate-500">Surah {selectedMeta.en} - Ayah {audioChoiceAyah}</p>
-            <button onClick={() => startAudio('surah')} className="mb-2 flex w-full items-center justify-between rounded-xl border border-[#d8e4da] p-3 text-left hover:bg-[#f0f7f1]"><span><strong className="block text-sm">Full Surah Recitation</strong><small className="text-[10px] text-slate-500">Play all ayahs from the beginning</small></span><ChevronRight size={14} /></button>
-            <button onClick={() => startAudio('ayah')} className="mb-2 flex w-full items-center justify-between rounded-xl border border-[#d8e4da] p-3 text-left hover:bg-[#f0f7f1]"><span><strong className="block text-sm">Single Ayah Recitation</strong><small className="text-[10px] text-slate-500">Play Ayah {audioChoiceAyah} only</small></span><ChevronRight size={14} /></button>
+            <button onClick={() => startAudio('surah')} className="mb-2 flex w-full items-center justify-between rounded-xl border border-[#d4e2fb] p-3 text-left hover:bg-[#eef4ff]"><span><strong className="block text-sm">Full Surah Recitation</strong><small className="text-[10px] text-slate-500">Play all ayahs from the beginning</small></span><ChevronRight size={14} /></button>
+            <button onClick={() => startAudio('ayah')} className="mb-2 flex w-full items-center justify-between rounded-xl border border-[#d4e2fb] p-3 text-left hover:bg-[#eef4ff]"><span><strong className="block text-sm">Single Ayah Recitation</strong><small className="text-[10px] text-slate-500">Play Ayah {audioChoiceAyah} only</small></span><ChevronRight size={14} /></button>
             {currentTranslationAudio && (
               <>
                 <div className="my-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400"><span className="h-px flex-1 bg-slate-200" /> Arabic + {currentLanguage.english} <span className="h-px flex-1 bg-slate-200" /></div>
-                <button onClick={() => startAudio('surah-translation')} className="mb-2 flex w-full items-center justify-between rounded-xl border border-[#d8e4da] p-3 text-left hover:bg-[#f0f7f1]"><span><strong className="block text-sm">Full Surah with Translation</strong><small className="text-[10px] text-slate-500">Each ayah, then its {currentLanguage.english} translation ({currentTranslationAudio.name})</small></span><ChevronRight size={14} /></button>
-                <button onClick={() => startAudio('ayah-translation')} className="flex w-full items-center justify-between rounded-xl border border-[#d8e4da] p-3 text-left hover:bg-[#f0f7f1]"><span><strong className="block text-sm">This Ayah with Translation</strong><small className="text-[10px] text-slate-500">Ayah {audioChoiceAyah}, then its {currentLanguage.english} translation</small></span><ChevronRight size={14} /></button>
+                <button onClick={() => startAudio('surah-translation')} className="mb-2 flex w-full items-center justify-between rounded-xl border border-[#d4e2fb] p-3 text-left hover:bg-[#eef4ff]"><span><strong className="block text-sm">Full Surah with Translation</strong><small className="text-[10px] text-slate-500">Each ayah, then its {currentLanguage.english} translation ({currentTranslationAudio.name})</small></span><ChevronRight size={14} /></button>
+                <button onClick={() => startAudio('ayah-translation')} className="flex w-full items-center justify-between rounded-xl border border-[#d4e2fb] p-3 text-left hover:bg-[#eef4ff]"><span><strong className="block text-sm">This Ayah with Translation</strong><small className="text-[10px] text-slate-500">Ayah {audioChoiceAyah}, then its {currentLanguage.english} translation</small></span><ChevronRight size={14} /></button>
               </>
             )}
           </div>
@@ -1057,16 +1057,16 @@ export const QuranView: React.FC<QuranViewProps> = () => {
 
       {/* Compact audio player */}
       {audioState && (
-        <div dir="ltr" className="fixed bottom-3 left-3 right-3 z-[90] mx-auto flex max-w-lg items-center justify-between gap-3 rounded-2xl border border-[#d8e4da] bg-white p-3 shadow-2xl">
-          <div className="flex min-w-0 items-center gap-2"><Volume2 className="shrink-0 text-[#14532d]" size={19} /><div className="min-w-0"><strong className="block truncate text-xs">{SURAHS[audioState.surah - 1]?.en} - Ayah {audioState.ayah}{(audioState.mode === 'surah-translation' || audioState.mode === 'ayah-translation') ? ` - ${audioState.leg === 'translation' ? currentLanguage.english : 'Arabic'}` : ''}</strong><small className="block text-[10px] text-slate-500">{audioState.status === 'loading' ? 'Loading audio...' : audioState.status === 'error' ? 'Audio could not be loaded' : audioState.status === 'complete' ? 'Recitation complete' : audioState.status}</small></div></div>
-          <div className="flex shrink-0 gap-2"><button onClick={toggleAudio} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#14532d] text-white">{audioState.status === 'playing' ? <Pause size={15} /> : <Play size={15} />}</button><button onClick={stopAudio} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#14532d] text-white"><Square size={14} /></button></div>
+        <div dir="ltr" className="fixed bottom-3 left-3 right-3 z-[90] mx-auto flex max-w-lg items-center justify-between gap-3 rounded-2xl border border-[#d4e2fb] bg-white p-3 shadow-2xl">
+          <div className="flex min-w-0 items-center gap-2"><Volume2 className="shrink-0 text-[#2563eb]" size={19} /><div className="min-w-0"><strong className="block truncate text-xs">{SURAHS[audioState.surah - 1]?.en} - Ayah {audioState.ayah}{(audioState.mode === 'surah-translation' || audioState.mode === 'ayah-translation') ? ` - ${audioState.leg === 'translation' ? currentLanguage.english : 'Arabic'}` : ''}</strong><small className="block text-[10px] text-slate-500">{audioState.status === 'loading' ? 'Loading audio...' : audioState.status === 'error' ? 'Audio could not be loaded' : audioState.status === 'complete' ? 'Recitation complete' : audioState.status}</small></div></div>
+          <div className="flex shrink-0 gap-2"><button onClick={toggleAudio} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2563eb] text-white">{audioState.status === 'playing' ? <Pause size={15} /> : <Play size={15} />}</button><button onClick={stopAudio} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2563eb] text-white"><Square size={14} /></button></div>
         </div>
       )}
 
       {/* Last-seen toast */}
       {toast && (
-        <div className="fixed right-4 top-4 z-[100] flex w-[min(360px,calc(100vw-32px))] items-center gap-3 rounded-xl border border-[#d8e4da] bg-white p-3 text-xs shadow-2xl">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f0f7f1] text-[#14532d]"><Bookmark size={15} /></span>
+        <div className="fixed right-4 top-4 z-[100] flex w-[min(360px,calc(100vw-32px))] items-center gap-3 rounded-xl border border-[#d4e2fb] bg-white p-3 text-xs shadow-2xl">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#2563eb]"><Bookmark size={15} /></span>
           <span>{toast}</span>
         </div>
       )}
