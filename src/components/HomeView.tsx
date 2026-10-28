@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AlertTriangle, Bell, CalendarDays, ChevronDown, Compass,
-  MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X, BookOpen, ScrollText, ArrowUpRight, CircleDot, Heart, LayoutDashboard,
+  MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X, BookOpen, ScrollText, ArrowRight, CircleDot, Heart, LayoutDashboard, Landmark,
 } from 'lucide-react';
 import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
@@ -163,25 +163,29 @@ interface HomeCardConfig {
   theme: string;
   urdu: string;
   label: string;
+  /** Short description shown under the title. */
+  desc: string;
+  /** Faint decorative silhouette in the card corner. */
+  decor: 'lotus' | 'mosque' | 'beads' | 'compass' | 'dome';
   /** Either a top-level view to open, or a Hadith book to open inside the Hadith view. */
   nav?: string;
   hadithBook?: string;
 }
 
 const HOME_CARDS: HomeCardConfig[] = [
-  { theme: 'green',  urdu: 'القرآن الکریم',   label: 'Quran',            nav: 'quran' },
-  { theme: 'purple', urdu: 'نماز کا طریقہ',   label: 'Prayer',           nav: 'namaz' },
-  { theme: 'pink',   urdu: 'مسنون دعائیں',    label: 'Duas',             nav: 'duas' },
-  { theme: 'amber',  urdu: 'تسبیح کاؤنٹر',   label: 'Tasbih',           nav: 'tasbih' },
-  { theme: 'blue',   urdu: 'قبلہ رخ سمت',     label: 'Qibla',            nav: 'qibla' },
-  { theme: 'white', urdu: 'میرا ڈش بورڈ', label: 'My Dashboard', nav: 'user-dashboard' },
-  { theme: 'coral',  urdu: 'صحیح بخاری',      label: 'Sahih Bukhari',    hadithBook: 'bukhari' },
-  { theme: 'teal',   urdu: 'صحیح مسلم',       label: 'Sahih Muslim',     hadithBook: 'muslim' },
-  { theme: 'rose',   urdu: 'سنن ابو داود',    label: 'Sunan Abu Dawud',  hadithBook: 'abudawud' },
-  { theme: 'purple', urdu: 'جامع ترمذی',      label: 'Jami at-Tirmidhi', hadithBook: 'tirmidhi' },
-  { theme: 'green',  urdu: 'سنن نسائی',       label: 'Sunan an-Nasai',   hadithBook: 'nasai' },
-  { theme: 'amber',  urdu: 'سنن ابن ماجہ',    label: 'Sunan Ibn Majah',  hadithBook: 'ibnmajah' },
-  { theme: 'blue',   urdu: 'موطا امام مالک',  label: 'Muwatta Malik',    hadithBook: 'malik' },
+  { theme: 'green',  urdu: 'القرآن الکریم',   label: 'Quran',            desc: 'Read, listen and explore the Quran.', decor: 'lotus',   nav: 'quran' },
+  { theme: 'purple', urdu: 'نماز کا طریقہ',   label: 'Prayer',           desc: 'Prayer times, Qibla and more.',       decor: 'mosque',  nav: 'namaz' },
+  { theme: 'pink',   urdu: 'مسنون دعائیں',    label: 'Duas',             desc: 'Daily duas for a better life.',       decor: 'lotus',   nav: 'duas' },
+  { theme: 'amber',  urdu: 'تسبیح کاؤنٹر',   label: 'Tasbih',           desc: 'Remember Allah with every breath.',   decor: 'beads',   nav: 'tasbih' },
+  { theme: 'blue',   urdu: 'قبلہ رخ سمت',     label: 'Qibla',            desc: 'Find the right direction.',           decor: 'compass', nav: 'qibla' },
+  { theme: 'white',  urdu: 'میرا ڈش بورڈ',    label: 'My Dashboard',     desc: 'Your personal Islamic space.',        decor: 'dome',    nav: 'user-dashboard' },
+  { theme: 'coral',  urdu: 'صحیح بخاری',      label: 'Sahih Bukhari',    desc: 'صحیح بخاری',      decor: 'dome', hadithBook: 'bukhari' },
+  { theme: 'teal',   urdu: 'صحیح مسلم',       label: 'Sahih Muslim',     desc: 'صحیح مسلم',       decor: 'dome', hadithBook: 'muslim' },
+  { theme: 'rose',   urdu: 'سنن ابو داود',    label: 'Sunan Abu Dawud',  desc: 'سنن ابو داود',    decor: 'dome', hadithBook: 'abudawud' },
+  { theme: 'purple', urdu: 'جامع ترمذی',      label: 'Jami at-Tirmidhi', desc: 'جامع ترمذی',      decor: 'dome', hadithBook: 'tirmidhi' },
+  { theme: 'green',  urdu: 'سنن نسائی',       label: 'Sunan an-Nasai',   desc: 'سنن نسائی',       decor: 'dome', hadithBook: 'nasai' },
+  { theme: 'amber',  urdu: 'سنن ابن ماجہ',    label: 'Sunan Ibn Majah',  desc: 'سنن ابن ماجہ',    decor: 'dome', hadithBook: 'ibnmajah' },
+  { theme: 'blue',   urdu: 'موطا امام مالک',  label: 'Muwatta Malik',    desc: 'موطا امام مالک',  decor: 'dome', hadithBook: 'malik' },
 ];
 
 /* ═══════════════════════════ Helpers ═══════════════════════════ */
@@ -349,17 +353,69 @@ const Spinner: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) =>
   <div className={`animate-spin rounded-full border-b-2 border-blue-600 ${className}`} />
 );
 
+/** Faint corner silhouettes (decorative only). */
+const CardDecor: React.FC<{ kind: HomeCardConfig['decor'] }> = ({ kind }) => {
+  const common = { fill: 'currentColor', stroke: 'none' } as const;
+  return (
+    <svg className="sth-card-decor" viewBox="0 0 120 80" aria-hidden="true">
+      {kind === 'mosque' && (
+        <g {...common}>
+          <rect x="88" y="14" width="9" height="66" rx="3" />
+          <path d="M92.5 2c4 4 5 8 5 12h-10c0-4 1-8 5-12z" />
+          <path d="M20 80c0-22 14-34 34-34s34 12 34 34z" />
+          <circle cx="54" cy="40" r="3" />
+        </g>
+      )}
+      {kind === 'lotus' && (
+        <g {...common}>
+          <path d="M60 80c-6-18-6-34 0-50 6 16 6 32 0 50z" />
+          <path d="M60 80c-22-4-34-18-36-36 18 2 32 14 36 36z" />
+          <path d="M60 80c22-4 34-18 36-36-18 2-32 14-36 36z" />
+        </g>
+      )}
+      {kind === 'beads' && (
+        <g {...common}>
+          {Array.from({ length: 14 }).map((_, i) => {
+            const a = (i / 14) * Math.PI * 2;
+            return <circle key={i} cx={78 + Math.cos(a) * 34} cy={64 + Math.sin(a) * 34} r="6" />;
+          })}
+        </g>
+      )}
+      {kind === 'compass' && (
+        <g fill="none" stroke="currentColor" strokeWidth="6">
+          <circle cx="40" cy="78" r="36" />
+          <path d="M40 46l8 32-8 10-8-10z" fill="currentColor" stroke="none" />
+        </g>
+      )}
+      {kind === 'dome' && (
+        <g {...common}>
+          <path d="M30 80c0-20 14-30 30-48 16 18 30 28 30 48z" />
+          <rect x="56" y="14" width="8" height="20" rx="3" />
+        </g>
+      )}
+    </svg>
+  );
+};
+
 const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void }> = ({ config, onClick }) => {
   const Icon = config.hadithBook ? ScrollText : config.nav === 'quran' ? BookOpen
     : config.nav === 'qibla' ? Compass : config.nav === 'tasbih' ? CircleDot
-    : config.nav === 'duas' ? Heart : config.nav === 'user-dashboard' ? LayoutDashboard : Sunrise;
+    : config.nav === 'duas' ? Heart : config.nav === 'user-dashboard' ? LayoutDashboard : Landmark;
+  const isUrduDesc = !!config.hadithBook;
   return (
-    <button type="button" onClick={onClick} className={`sth-feature sth-feature-white sth-t-${config.theme}`} aria-label={`Open ${config.label}`}>
-      <span className="sth-feature-mark" aria-hidden="true"><Icon size={96} strokeWidth={1.3}/></span>
-      <div className="sth-feature-top"><span className="sth-feature-icon"><Icon size={38} strokeWidth={1.6}/></span><ArrowUpRight size={17}/></div>
-      <span className="home-card-urdu-title sth-feature-title" dir="rtl">{config.urdu}</span>
-      <span className="sth-feature-label">{config.label}</span>
-      <span className="sth-feature-open">{config.hadithBook ? 'Read collection' : 'Explore'} <ArrowUpRight size={12}/></span>
+    <button type="button" onClick={onClick} className={`sth-feature sth-t-${config.theme}`} aria-label={`Open ${config.label}`}>
+      <CardDecor kind={config.decor} />
+      <span className="sth-feature-icon"><Icon size={26} strokeWidth={1.8} /></span>
+      <span className="sth-feature-body">
+        <span className="sth-feature-label">{config.label}</span>
+        <span
+          className={`sth-feature-desc ${isUrduDesc ? 'home-card-urdu-title' : ''}`}
+          dir={isUrduDesc ? 'rtl' : 'ltr'}
+        >
+          {config.desc}
+        </span>
+      </span>
+      <span className="sth-feature-arrow" aria-hidden="true"><ArrowRight size={14} strokeWidth={2.2} /></span>
     </button>
   );
 };
@@ -598,31 +654,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
         .sth-home .sth-search{border-radius:12px!important;padding:15px!important;border-color:#00000012!important;box-shadow:0 9px 24px #00000008,0 2px 5px #00000004!important}
         .sth-home .sth-content{background:#fff;display:grid;gap:25px;padding:8px 0 16px}
         .sth-home .sth-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 18px 13px;color:#080808}
-        .sth-home .sth-section-heading h2{font-size:17px;font-weight:800;letter-spacing:-.025em;color:#080808;margin:0}
+        .sth-home .sth-section-heading h2{font-size:20px;font-weight:800;letter-spacing:-.025em;color:#0b1f4d;margin:0}
         .sth-home .sth-section-heading p{font-size:10px;line-height:1.7;color:#080808;margin:5px 0 0}
+        .sth-home .sth-explore-head{position:relative;margin:0 18px 16px;padding-top:4px}
+        .sth-home .sth-explore-head h2{font-size:24px;font-weight:800;letter-spacing:-.03em;color:#0b1f4d;margin:0;position:relative}
+        .sth-home .sth-explore-head p{font-size:12.5px;line-height:1.5;color:#5b6b86;margin:6px 0 0;position:relative}
+        .sth-home .sth-explore-skyline{position:absolute;right:-6px;top:-14px;width:46%;height:auto;color:#1976f2;opacity:.14;pointer-events:none}
+        .sth-home .sth-link-btn{display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:4px 0;font-size:13px;font-weight:600;color:#1976f2}
         .sth-home .sth-small-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#1559cc;color:#fff;border:0;border-radius:10px;min-height:35px;padding:8px 10px;font-size:10px;font-weight:700;flex-shrink:0}
-        .sth-home .sth-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin:0 16px}
-        .sth-home .sth-feature{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:4px;text-align:left;min-width:0;aspect-ratio:1/1;overflow:hidden;border:1px solid #0000000c;border-radius:10px;padding:12px;box-shadow:0 10px 24px #0000000b,0 3px 6px #00000008}
-        .sth-home .sth-t-green{--ac:#0f9d6b;--bg1:#f2fcf7;--bg2:#d3f2e3;--ink:#064e3b;--bd:#b4e5ce}
-        .sth-home .sth-t-purple{--ac:#7c4dff;--bg1:#f7f3ff;--bg2:#e3d9ff;--ink:#3b1d8a;--bd:#d0c2fb}
-        .sth-home .sth-t-pink{--ac:#e11d62;--bg1:#fff2f7;--bg2:#ffd6e4;--ink:#8a1040;--bd:#fbbfd3}
-        .sth-home .sth-t-amber{--ac:#e08a00;--bg1:#fff9ea;--bg2:#ffe7b5;--ink:#6b4000;--bd:#f5d691}
-        .sth-home .sth-t-blue{--ac:#1559cc;--bg1:#f0f6ff;--bg2:#d1e2ff;--ink:#103d91;--bd:#b9d2fb}
-        .sth-home .sth-t-white{--ac:#334155;--bg1:#f8fafc;--bg2:#e0e6ee;--ink:#0f172a;--bd:#c8d1dc}
-        .sth-home .sth-t-coral{--ac:#ef5a3c;--bg1:#fff4f0;--bg2:#ffd6c9;--ink:#80250f;--bd:#f8c0b0}
-        .sth-home .sth-t-teal{--ac:#0d9aa8;--bg1:#eefbfc;--bg2:#caeef2;--ink:#0b5560;--bd:#addfe5}
-        .sth-home .sth-t-rose{--ac:#b83280;--bg1:#fdf3f9;--bg2:#fad3e9;--ink:#6b1b4b;--bd:#f0bad8}
-        .sth-home .sth-feature-white{background:#fff;color:var(--ink);border-color:#00000014}
-        .sth-home .sth-feature>*:not(.sth-feature-mark){position:relative}
-        .sth-home .sth-feature-mark{position:absolute;right:-16px;bottom:-16px;color:var(--ac);opacity:.1;pointer-events:none;line-height:0}
-        .sth-home .sth-feature-top>svg{position:absolute;right:0;top:0;color:var(--ac)}
-        .sth-home .sth-feature:hover{transform:translateY(-3px);box-shadow:0 15px 27px #00000012}
+        .sth-home .sth-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 16px}
+        .sth-home .sth-feature{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;align-items:start;text-align:left;min-width:0;min-height:128px;overflow:hidden;border:1px solid var(--bd);border-radius:18px;padding:14px 12px;background:linear-gradient(135deg,var(--bg1) 0%,#fff 100%);box-shadow:0 8px 22px #0f172a0d,0 2px 5px #0f172a08;color:var(--ink)}
+        .sth-home .sth-t-green{--ac:#16a36b;--g1:#46c485;--g2:#12905f;--bg1:#ecfbf3;--bg2:#cdf1de;--ink:#0b2a4a;--bd:#d3f0e1}
+        .sth-home .sth-t-purple{--ac:#6d4af0;--g1:#8b6dff;--g2:#5a36d6;--bg1:#f1ecff;--bg2:#e0d6ff;--ink:#0b2a4a;--bd:#e0d8fb}
+        .sth-home .sth-t-pink{--ac:#e0245f;--g1:#f0568a;--g2:#c81f5a;--bg1:#fff0f5;--bg2:#ffd9e6;--ink:#0b2a4a;--bd:#fadbe6}
+        .sth-home .sth-t-amber{--ac:#d99100;--g1:#f5c13a;--g2:#dc9610;--bg1:#fff8e2;--bg2:#fde9b0;--ink:#0b2a4a;--bd:#f7e7b8}
+        .sth-home .sth-t-blue{--ac:#1976f2;--g1:#4aa3ff;--g2:#1566e0;--bg1:#eaf3ff;--bg2:#d3e6ff;--ink:#0b2a4a;--bd:#d4e5fb}
+        .sth-home .sth-t-white{--ac:#475569;--g1:#5b6a82;--g2:#3a475c;--bg1:#f3f5f9;--bg2:#e3e8ef;--ink:#0b2a4a;--bd:#dfe4ec}
+        .sth-home .sth-t-coral{--ac:#ef5a3c;--g1:#ff8466;--g2:#e04a2c;--bg1:#fff1ec;--bg2:#ffd9cd;--ink:#0b2a4a;--bd:#fad6cb}
+        .sth-home .sth-t-teal{--ac:#0d9aa8;--g1:#35c0ce;--g2:#0a8794;--bg1:#e9fafb;--bg2:#c8eef2;--ink:#0b2a4a;--bd:#cdeaee}
+        .sth-home .sth-t-rose{--ac:#b83280;--g1:#d8569f;--g2:#a02a70;--bg1:#fdf0f8;--bg2:#f8d4e8;--ink:#0b2a4a;--bd:#f2d3e5}
+        .sth-home .sth-card-decor{position:absolute;left:0;bottom:0;width:64%;height:auto;color:var(--ac);opacity:.12;pointer-events:none}
+        .sth-home .sth-t-purple .sth-card-decor,.sth-home .sth-t-white .sth-card-decor{left:auto;right:0}
+        .sth-home .sth-feature:hover{transform:translateY(-2px);box-shadow:0 14px 28px #0f172a14}
         .sth-home .sth-feature:active{transform:translateY(0)}
-        .sth-home .sth-feature-top{display:flex;align-items:center;justify-content:center;margin-bottom:0;color:inherit}
-        .sth-home .sth-feature-icon{display:grid;place-items:center;width:46px;height:46px;background:none;border:0;box-shadow:none;color:var(--ac)}
-        .sth-home .sth-feature-title{font-size:17px;line-height:1.55!important;-webkit-text-stroke:.5px currentColor;text-align:center;white-space:normal;color:inherit}
-        .sth-home .sth-feature-label{font-size:12px;font-weight:750;color:inherit;line-height:1.4;text-align:center}
-        .sth-home .sth-feature-open{display:inline-flex;align-items:center;align-self:center;gap:4px;font-size:9px;font-weight:700;margin-top:auto;padding:4px 10px;border-radius:999px;background:var(--ac);color:#fff}
+        .sth-home .sth-feature-icon{position:relative;display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,var(--g1),var(--g2));color:#fff;box-shadow:0 6px 12px color-mix(in srgb,var(--g2) 35%,transparent),inset 0 1px 0 #ffffff55}
+        .sth-home .sth-feature-body{position:relative;display:flex;flex-direction:column;gap:3px;min-width:0;padding-right:22px}
+        .sth-home .sth-feature-label{font-size:14px;font-weight:800;line-height:1.25;letter-spacing:-.01em;color:#0b1f4d}
+        .sth-home .sth-feature-desc{font-size:10.5px;font-weight:500;line-height:1.45;color:#5b6b86}
+        .sth-home .sth-feature-desc.home-card-urdu-title{font-size:13px;line-height:1.9!important;font-weight:700;color:var(--ink)}
+        .sth-home .sth-feature-arrow{position:absolute;top:12px;right:10px;display:grid;place-items:center;width:24px;height:24px;border-radius:999px;background:var(--bg2);color:var(--ac)}
         .sth-home .sth-panel{background:#fff;color:#080808;border:1px solid #0000000d;border-radius:12px!important;padding:19px!important}
         .sth-home .sth-mosque{border-radius:10px;background:#fff;border:1px solid #0000000e;padding:13px!important;box-shadow:0 4px 10px #00000005}
         .sth-home .sth-daily-title{display:flex;align-items:center;gap:8px;color:#080808;text-transform:uppercase;font-size:10px;font-weight:800;letter-spacing:.1em;margin:0 0 12px}
@@ -937,11 +997,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <section aria-label="Explore the app">
-          <div className="sth-section-heading"><div><h2>Explore your deen</h2><p>A little learning, every day.</p></div></div>
+          <div className="sth-explore-head">
+            <svg className="sth-explore-skyline" viewBox="0 0 220 110" aria-hidden="true">
+              <g fill="currentColor">
+                <rect x="170" y="14" width="12" height="96" rx="4" />
+                <path d="M176 0c5 5 7 10 7 14h-14c0-4 2-9 7-14z" />
+                <path d="M92 110c0-34 20-54 46-54s46 20 46 54z" />
+                <rect x="136" y="38" width="4" height="18" />
+                <path d="M138 18a9 9 0 1 0 7 15 7 7 0 1 1-7-15z" />
+                <path d="M40 110c0-20 12-30 28-30s28 10 28 30z" />
+                <rect x="30" y="64" width="7" height="46" rx="3" />
+              </g>
+            </svg>
+            <h2>Explore Your Deen</h2>
+            <p>Quran, Hadith, and more — all in one place.</p>
+          </div>
           <div className="sth-grid">{HOME_CARDS.filter(card => !card.hadithBook).map(card => <HomeCard key={card.label} config={card} onClick={() => handleCardClick(card)}/>)}</div>
         </section>
         <section aria-label="Hadith collections">
-          <div className="sth-section-heading"><div><h2>Hadith collections</h2><p>Read, reflect and return.</p></div><button className="sth-small-btn" onClick={() => onNavigate('hadith')}>View all <ArrowUpRight size={13}/></button></div>
+          <div className="sth-section-heading">
+            <h2>Hadith Collections</h2>
+            <button type="button" className="sth-link-btn" onClick={() => onNavigate('hadith')}>View all <ArrowRight size={15} /></button>
+          </div>
           <div className="sth-grid">{HOME_CARDS.filter(card => card.hadithBook).map(card => <HomeCard key={card.label} config={card} onClick={() => handleCardClick(card)}/>)}</div>
         </section>
 
