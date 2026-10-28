@@ -803,6 +803,21 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
 
           <div className="relative flex items-center gap-2">
+            {!isInstalled && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (canInstall) await promptInstall();
+                  else setInstallHelp(open => !open);
+                }}
+                className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-transform active:scale-95"
+                aria-label="Install app"
+                title="Install app"
+              >
+                <Download size={20} />
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setHeaderMenuOpen(open => !open)}
@@ -810,34 +825,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
               aria-label="Account options"
             >
               <Menu size={22} />
-              {!isInstalled && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-[#063b9d]" />}
             </button>
+
+            {!isInstalled && installHelp && !canInstall && (
+              <div className="absolute right-0 top-12 z-50 w-56 rounded-xl border border-white/20 bg-white p-3 text-[11px] leading-relaxed text-slate-700 shadow-2xl">
+                Open your browser menu (⋮ or Share) and choose “Install app” or “Add to Home Screen”.
+              </div>
+            )}
 
             {headerMenuOpen && (
               <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-white/20 bg-white text-slate-800 shadow-2xl">
-                {!isInstalled && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (canInstall) {
-                          const accepted = await promptInstall();
-                          if (accepted) setHeaderMenuOpen(false);
-                        } else {
-                          setInstallHelp(open => !open);
-                        }
-                      }}
-                      className="flex w-full items-center gap-2 border-b border-slate-100 bg-emerald-50 px-4 py-3 text-left text-xs font-bold text-emerald-800 hover:bg-emerald-100"
-                    >
-                      <Download size={15} className="text-emerald-700" /> Install App
-                    </button>
-                    {installHelp && !canInstall && (
-                      <div className="border-b border-slate-100 bg-emerald-50/60 px-4 py-2.5 text-[11px] leading-relaxed text-slate-600">
-                        Open your browser menu (⋮ or Share) and choose “Install app” or “Add to Home Screen”.
-                      </div>
-                    )}
-                  </>
-                )}
                 <button
                   type="button"
                   onClick={() => { setHeaderMenuOpen(false); onNavigate(accountTarget); }}
