@@ -67,7 +67,7 @@ const MosquePrayerGrid: React.FC<{ mosque: Mosque }> = ({ mosque }) => {
         Prayer Times
         {loading && (
           <span
-            className="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"
+            className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"
             title="Updating today's times"
           />
         )}
@@ -86,12 +86,12 @@ const MosquePrayerGrid: React.FC<{ mosque: Mosque }> = ({ mosque }) => {
         {row2.map(([label, time]) => (
           <div
             key={label}
-            className={`p-1.5 rounded-lg border ${label === 'Jumu’ah' ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-200'}`}
+            className={`p-1.5 rounded-lg border ${label === 'Jumu’ah' ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-200'}`}
           >
-            <div className={`text-[9px] ${label === 'Jumu’ah' ? 'text-emerald-800 font-bold' : 'text-slate-500'}`}>
+            <div className={`text-[9px] ${label === 'Jumu’ah' ? 'text-blue-800 font-bold' : 'text-slate-500'}`}>
               {label} congregation
             </div>
-            <div className={`text-xs font-mono font-bold mt-0.5 ${label === 'Jumu’ah' ? 'text-emerald-700' : 'text-slate-800'}`}>
+            <div className={`text-xs font-mono font-bold mt-0.5 ${label === 'Jumu’ah' ? 'text-blue-700' : 'text-slate-800'}`}>
               {formatTo12Hour(time, '--:--')}
             </div>
           </div>
@@ -152,7 +152,7 @@ class ErrorBoundary extends Component<
             <p className="max-w-sm px-2 text-sm text-slate-500">The application could not load this screen. Please try again.</p>
             <button
               onClick={this.handleRetry}
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
             >
               Try again
             </button>
@@ -617,7 +617,7 @@ export default function App() {
                   {mosques.selectedMosque.imamName && (
                     <div className="text-left space-y-0.5">
                       <span className="text-[9px] text-slate-400 uppercase font-bold block">Imam</span>
-                      <p className="text-xs text-emerald-700 font-bold">{mosques.selectedMosque.imamName}</p>
+                      <p className="text-xs text-blue-700 font-bold">{mosques.selectedMosque.imamName}</p>
                     </div>
                   )}
 
@@ -636,7 +636,7 @@ export default function App() {
                         mosques.handleMosqueAlert(mosques.selectedMosque!);
                         mosques.setSelectedMosque(null);
                       }}
-                      className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-bold rounded-xl flex items-center justify-center gap-1"
+                      className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[10.5px] font-bold rounded-xl flex items-center justify-center gap-1"
                     >
                       <Bell size={12} /><span>Enable Alerts</span>
                     </button>
