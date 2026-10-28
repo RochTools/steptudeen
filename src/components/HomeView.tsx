@@ -831,8 +831,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </button>
 
                 {showInstallTip && (
-                  <div className="sth-install-tip pointer-events-none absolute right-[-6px] top-[52px] z-50 whitespace-nowrap rounded-lg bg-[#ffc933] px-3 py-1.5 text-[11px] font-extrabold text-[#2b1a00] shadow-[0_8px_22px_rgba(0,10,40,0.55)] ring-1 ring-[#fff1b8]/70" role="status">
-                    <span className="absolute -top-1 right-[18px] h-2.5 w-2.5 rotate-45 bg-[#ffc933]" aria-hidden="true" />
+                  <div className="sth-install-tip pointer-events-none absolute right-[-6px] top-[52px] z-50 whitespace-nowrap rounded-lg border border-[#f4a3a3] bg-[#fffafa] px-3 py-1.5 text-[11px] font-bold text-black shadow-[0_8px_22px_rgba(0,10,40,0.45)]" role="status">
+                    <span className="absolute -top-1 right-[18px] h-2.5 w-2.5 rotate-45 border-l border-t border-[#f4a3a3] bg-[#fffafa]" aria-hidden="true" />
                     Install app
                   </div>
                 )}
