@@ -64,10 +64,10 @@ export default function SettingsPage({ onBack }: SettingsProps) {
       {/* Header */}
       <div
         style={{
-          background: "linear-gradient(135deg, #1e3a5f 0%, #2d6a4f 100%)",
-          padding: "32px 24px 28px",
+          background: "#ffffff",
+          padding: "14px 16px", borderBottom: "1px solid #e2e8f0",
           textAlign: "center",
-          color: "#ffffff",
+          color: "#0b1f4d",
           position: "relative",
         }}
       >
@@ -76,9 +76,8 @@ export default function SettingsPage({ onBack }: SettingsProps) {
             onClick={onBack}
             style={{
               position: "absolute",
-              top: 16,
-              left: 16,
-              background: "rgba(255,255,255,0.15)",
+              top: "50%", transform: "translateY(-50%)", left: 12,
+              background: "#2563eb",
               border: "none",
               color: "#fff",
               borderRadius: 10,
@@ -90,26 +89,11 @@ export default function SettingsPage({ onBack }: SettingsProps) {
           >
             ← Back
           </button>
-        )}
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 16,
-            background: "rgba(255,255,255,0.15)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 12px",
-            color: "#ffffff",
-          }}
-        >
-          <Settings size={28} />
-        </div>
-        <h1 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 800, letterSpacing: "-0.5px" }}>
+        )} 
+        <h1 style={{ margin: "0 0 2px", fontSize: 18, fontWeight: 800, letterSpacing: "-0.3px" }}>
           Settings
         </h1>
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.85, lineHeight: 1.5 }}>
+        <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
           Manage your app preferences
         </p>
       </div>
@@ -275,7 +259,7 @@ export default function SettingsPage({ onBack }: SettingsProps) {
                       border: "none",
                       background: requesting
                         ? "#e2e8f0"
-                        : "linear-gradient(135deg, #1e3a5f, #2d6a4f)",
+                        : "linear-gradient(145deg, #3b82f6, #1d5fd6)",
                       color: requesting ? "#94a3b8" : "#ffffff",
                       fontSize: 13,
                       fontWeight: 600,

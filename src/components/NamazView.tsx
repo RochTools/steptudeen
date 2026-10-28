@@ -22,21 +22,21 @@ const IA_NAMAZ: NamazStep[] = [
 export const NamazView: React.FC = () => {
   return (
     <div className="space-y-4 p-4 pb-20 animate-fadeIn">
-      <div className="bg-emerald-50 text-emerald-950 p-3.5 text-center space-y-1.5 border border-emerald-100 rounded-2xl shadow-sm">
-        <h2 className="text-xl font-bold font-amiri leading-normal text-emerald-800">طريقة الصلاة</h2>
+      <div className="bg-blue-50 text-blue-950 p-3.5 text-center space-y-1.5 border border-blue-100 rounded-2xl shadow-sm">
+        <h2 className="text-xl font-bold font-amiri leading-normal text-blue-800">طريقة الصلاة</h2>
         <p className="text-[11px] text-slate-700 font-urdu leading-relaxed">نماز کا مکمل و صحیح طریقہ بعرب نماز کے اوقات اور اردو ترجمہ</p>
       </div>
 
       <div className="space-y-3">
         {IA_NAMAZ.map((step) => (
           <div key={step.s} className="flex p-3 bg-white rounded-2xl border border-slate-200 shadow-sm gap-3.5 items-start">
-            <div className="w-6.5 h-6.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-150 font-bold text-xs flex items-center justify-center shrink-0 font-mono">
+            <div className="w-6.5 h-6.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-100 font-bold text-xs flex items-center justify-center shrink-0 font-mono">
               {step.s}
             </div>
 
             <div className="text-right flex-1 space-y-1.5">
               <h4 className="text-xs font-bold text-slate-800 font-urdu">{step.t}</h4>
-              <p className="text-base leading-loose font-amiri text-emerald-900" dir="rtl">
+              <p className="text-base leading-loose font-amiri text-blue-900" dir="rtl">
                 {step.ar}
               </p>
               <p className="text-xs text-slate-600 font-urdu leading-relaxed border-t border-slate-100 pt-1.5" dir="rtl">

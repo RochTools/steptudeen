@@ -256,7 +256,7 @@ export default function FullScreenMenu({ onNavigate, onClose }: Props) {
           padding: "12px 16px", borderTop: "1px solid #f1f5f9",
           textAlign: "center", fontSize: 11, color: "#94a3b8", flexShrink: 0,
         }}>
-          Version 1.3.0 • © 2026 Step tuDeen
+          © 2026 StepTuDeen
         </div>
       </div>
     </>

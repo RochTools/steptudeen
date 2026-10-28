@@ -86,7 +86,7 @@ export const TasbihView: React.FC = () => {
 
   // Counter body colour
   const [deviceColorId, setDeviceColorId] = useState<string>(() => {
-    return localStorage.getItem('tasbih_device_color_v1') || 'green';
+    return localStorage.getItem('tasbih_device_color_v1') || 'blue';
   });
   const deviceColor = DEVICE_COLORS.find(c => c.id === deviceColorId) || DEVICE_COLORS[0];
   const chooseDeviceColor = (id: string) => {
@@ -502,16 +502,16 @@ export const TasbihView: React.FC = () => {
       >
         {/* Date, Clock & Prayer reminders */}
         <div className="flex items-center gap-1.5 flex-row-reverse text-right">
-          <div className="p-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-100 flex items-center justify-center">
-            <Clock size={12} className="text-emerald-700" />
+          <div className="p-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-100 flex items-center justify-center">
+            <Clock size={12} className="text-blue-700" />
           </div>
           <div>
             <div className="flex gap-1 items-center justify-end">
               <span className="text-[9px] font-mono font-black text-amber-950">{timeStr}</span>
               <span className="text-[9px] font-bold text-stone-500 font-urdu">{getHijriDateStringUrdu()}</span>
             </div>
-            <p className="text-[7.5px] font-bold text-emerald-800 font-urdu mt-0.5 leading-none">
-              {activePrayer.label}: <span className="font-mono text-[8px] font-black text-emerald-700">{activePrayer.time}</span>
+            <p className="text-[7.5px] font-bold text-blue-800 font-urdu mt-0.5 leading-none">
+              {activePrayer.label}: <span className="font-mono text-[8px] font-black text-blue-700">{activePrayer.time}</span>
             </p>
           </div>
         </div>
@@ -566,9 +566,9 @@ export const TasbihView: React.FC = () => {
             <div className="flex items-center justify-between pb-1 flex-row-reverse mb-1 px-1">
               <button
                 onClick={() => { playClickSound(750, 0.06); triggerHaptic(20); setShowAddDhikrModal(true); }}
-                className="py-1 px-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-all text-[8.5px] font-extrabold font-urdu flex items-center gap-1 cursor-pointer"
+                className="py-1 px-2.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 transition-all text-[8.5px] font-extrabold font-urdu flex items-center gap-1 cursor-pointer"
               >
-                <Plus size={10} className="text-emerald-700 stroke-[3]" />
+                <Plus size={10} className="text-blue-700 stroke-[3]" />
                 نیا ذکر
               </button>
               
@@ -639,7 +639,7 @@ export const TasbihView: React.FC = () => {
             <div className="flex items-center gap-2 bg-white/90 px-2.5 py-0.5 rounded-lg border border-amber-200 shadow-xs text-right font-bold text-stone-850">
               <div className="flex items-center gap-1 pl-1 border-r border-[#edd6b3]">
                 <span className="text-[7.5px] text-stone-550 font-mono leading-none">آج کُل:</span>
-                <span className="font-mono text-[10px] font-black text-emerald-800">
+                <span className="font-mono text-[10px] font-black text-blue-800">
                   {getTodayDhikrCount()}
                 </span>
               </div>
@@ -802,7 +802,7 @@ export const TasbihView: React.FC = () => {
               <div className="w-[102px] mt-3.5 p-[1px] bg-[#111812] rounded-lg shadow-inner relative z-10" style={{ border: '0.75px solid #031c10' }}>
                 <div className={`w-full h-10 rounded-md flex items-center justify-center relative overflow-hidden transition-all duration-300 ${
                   isLightGlow 
-                    ? 'bg-[#1de9b6] shadow-[inset_0_2px_4px_rgba(0,0,0,0.4),0_0_10px_rgba(29,233,182,0.6)]' 
+                    ? 'bg-[#1de9b6] shadow-[inset_0_2px_4px_rgba(0,0,0,0.4),0_0_10px_rgba(96,165,250,0.6)]' 
                     : 'bg-[#bbc7bc] shadow-[inset_0_2px_4px_rgba(0,0,0,0.35)]'
                 }`}>
                   {/* 3D Recessed edge level frame shadows */}
@@ -828,7 +828,7 @@ export const TasbihView: React.FC = () => {
                             isLightGlow ? 'text-[#115947]' : 'text-[#445242]'
                           }`} style={{ 
                             textShadow: isLightGlow 
-                              ? '0.5px 1px 1.5px rgba(2,30,22,0.25)' 
+                              ? '0.5px 1px 1.5px rgba(2,10,30,0.25)' 
                               : '0.5px 1px 0.5px rgba(255,255,255,0.4)' 
                           }}>
                             {digit}
@@ -863,8 +863,8 @@ export const TasbihView: React.FC = () => {
                 </button>
 
                 {/* Light Led Status */}
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-950/20 border-[0.5px] border-emerald-950/45 flex items-center justify-center">
-                  <div className={`w-1 h-1 rounded-full ${isLightGlow ? 'bg-emerald-400' : 'bg-emerald-800'}`} />
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-950/20 border-[0.5px] border-blue-950/45 flex items-center justify-center">
+                  <div className={`w-1 h-1 rounded-full ${isLightGlow ? 'bg-blue-400' : 'bg-blue-800'}`} />
                 </div>
 
                 {/* Light Screen Switch button */}
@@ -943,7 +943,7 @@ export const TasbihView: React.FC = () => {
             <div className="bg-white/85 p-1.5 rounded-xl border border-amber-200 text-center shadow-xs flex flex-col justify-center">
               <span className="text-[7.5px] font-bold text-stone-550">آج کی گِنتی</span>
               <span className="font-mono text-base font-black text-amber-950 mt-1 leading-none">{getTodayDhikrCount()}</span>
-              <span className="text-[6.5px] text-emerald-800 font-bold mt-1">بار کیا گیا</span>
+              <span className="text-[6.5px] text-blue-800 font-bold mt-1">بار کیا گیا</span>
             </div>
 
             {/* Week total card */}
@@ -1037,7 +1037,7 @@ export const TasbihView: React.FC = () => {
                 <button
                   onClick={() => setVibrateEnabled(!vibrateEnabled)}
                   className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                    vibrateEnabled ? 'bg-emerald-600' : 'bg-stone-300'
+                    vibrateEnabled ? 'bg-blue-600' : 'bg-stone-300'
                   }`}
                 >
                   <div className={`w-3 h-3 bg-white rounded-full transition-transform transform ${vibrateEnabled ? '-translate-x-3' : 'translate-x-0'}`} />
@@ -1053,7 +1053,7 @@ export const TasbihView: React.FC = () => {
                 <button
                   onClick={() => setSoundEnabled(!soundEnabled)}
                   className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                    soundEnabled ? 'bg-emerald-600' : 'bg-stone-300'
+                    soundEnabled ? 'bg-blue-600' : 'bg-stone-300'
                   }`}
                 >
                   <div className={`w-3 h-3 bg-white rounded-full transition-transform transform ${soundEnabled ? '-translate-x-3' : 'translate-x-0'}`} />
@@ -1069,7 +1069,7 @@ export const TasbihView: React.FC = () => {
                 <button
                   onClick={() => setAutoCompleteAlert(!autoCompleteAlert)}
                   className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                    autoCompleteAlert ? 'bg-emerald-600' : 'bg-stone-300'
+                    autoCompleteAlert ? 'bg-blue-600' : 'bg-stone-300'
                   }`}
                 >
                   <div className={`w-3 h-3 bg-white rounded-full transition-transform transform ${autoCompleteAlert ? '-translate-x-3' : 'translate-x-0'}`} />
@@ -1136,7 +1136,7 @@ export const TasbihView: React.FC = () => {
                 <X size={13} className="text-stone-600" />
               </button>
               <h3 className="text-xs font-black text-amber-950 flex items-center gap-1">
-                <Plus size={12} className="text-emerald-800 stroke-[3]" />
+                <Plus size={12} className="text-blue-800 stroke-[3]" />
                 نیا کسٹم ذکر ریکارڈ شامل کریں
               </h3>
             </div>
@@ -1152,7 +1152,7 @@ export const TasbihView: React.FC = () => {
                   onChange={(e) => setCustomAr(e.target.value)}
                   placeholder="مثال: لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ" 
                   required
-                  className="w-full text-xs font-bold font-naskh text-right border border-stone-300 rounded-lg p-1.5 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-300 outline-none text-[#124d33]"
+                  className="w-full text-xs font-bold font-naskh text-right border border-stone-300 rounded-lg p-1.5 focus:border-blue-600 focus:ring-1 focus:ring-blue-300 outline-none text-[#1d4ed8]"
                 />
               </div>
 
@@ -1165,7 +1165,7 @@ export const TasbihView: React.FC = () => {
                   onChange={(e) => setCustomUr(e.target.value)}
                   placeholder="مثال: لَاحَوْلَ" 
                   required
-                  className="w-full text-xs font-bold font-urdu text-right border border-stone-300 rounded-lg p-1.5 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-300 outline-none"
+                  className="w-full text-xs font-bold font-urdu text-right border border-stone-300 rounded-lg p-1.5 focus:border-blue-600 focus:ring-1 focus:ring-blue-300 outline-none"
                 />
               </div>
 
@@ -1177,7 +1177,7 @@ export const TasbihView: React.FC = () => {
                   value={customEn} 
                   onChange={(e) => setCustomEn(e.target.value)}
                   placeholder="e.g. Lahawla walakuata" 
-                  className="w-full text-[10px] font-sans text-right border border-stone-300 rounded-lg p-1.5 focus:border-emerald-600 outline-none"
+                  className="w-full text-[10px] font-sans text-right border border-stone-300 rounded-lg p-1.5 focus:border-blue-600 outline-none"
                 />
               </div>
 
@@ -1189,7 +1189,7 @@ export const TasbihView: React.FC = () => {
                   value={customMeaning} 
                   onChange={(e) => setCustomMeaning(e.target.value)}
                   placeholder="مثال: کوئی طاقت اور قدرت نہیں مگر اللہ کی طرف سے" 
-                  className="w-full text-[10px] font-urdu text-right border border-stone-300 rounded-lg p-1.5 focus:border-emerald-600 outline-none"
+                  className="w-full text-[10px] font-urdu text-right border border-stone-300 rounded-lg p-1.5 focus:border-blue-600 outline-none"
                 />
               </div>
 
@@ -1201,7 +1201,7 @@ export const TasbihView: React.FC = () => {
                   value={customLimit} 
                   onChange={(e) => setCustomLimit(Math.max(0, parseInt(e.target.value) || 0))}
                   placeholder="33" 
-                  className="w-full text-xs font-mono text-center font-bold border border-stone-300 rounded-lg p-1.5 focus:border-emerald-600 outline-none"
+                  className="w-full text-xs font-mono text-center font-bold border border-stone-300 rounded-lg p-1.5 focus:border-blue-600 outline-none"
                 />
               </div>
             </div>
@@ -1210,7 +1210,7 @@ export const TasbihView: React.FC = () => {
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full py-2 bg-gradient-to-tr from-[#124d33] to-[#072016] text-amber-100 hover:brightness-105 transition-all text-[9.5px] font-black rounded-lg shadow-md flex items-center justify-center gap-1 cursor-pointer"
+                className="w-full py-2 bg-gradient-to-tr from-[#1d4ed8] to-[#072016] text-amber-100 hover:brightness-105 transition-all text-[9.5px] font-black rounded-lg shadow-md flex items-center justify-center gap-1 cursor-pointer"
               >
                 <Check size={11} strokeWidth={3} />
                 شامل کر کے منتخب کریں

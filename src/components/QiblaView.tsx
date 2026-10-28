@@ -245,7 +245,7 @@ export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocatio
         <div className="relative z-10 w-full mb-5">
           <div className={`py-2 px-5 rounded-full text-[11px] font-bold font-urdu border transition-all duration-300 shadow-sm flex items-center justify-center gap-1.5 ${
             isAligned 
-              ? 'bg-[#10402b] text-white border-emerald-500 animate-pulse text-[12px] font-black' 
+              ? 'bg-[#0b2a6b] text-white border-blue-500 animate-pulse text-[12px] font-black' 
               : 'bg-white/90 text-amber-950 border-amber-200/80 shadow-xs'
           }`}>
             {isAligned ? (
@@ -463,7 +463,7 @@ export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocatio
 
         {/* Alignment Success Ring Overlay */}
         {isAligned && (
-          <div className="absolute inset-0 bg-[#10402b]/[0.03] pointer-events-none rounded-3xl border-4 border-emerald-500/20 animate-pulse z-20" />
+          <div className="absolute inset-0 bg-[#0b2a6b]/[0.03] pointer-events-none rounded-3xl border-4 border-blue-500/20 animate-pulse z-20" />
         )}
 
         {/* COMPACT DETAILED STATUS DATA LOGS */}
@@ -472,7 +472,7 @@ export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocatio
             <button
               onClick={handleRecalibrate}
               type="button"
-              className="px-3 py-1.5 bg-[#10402b] hover:bg-[#145036] active:scale-95 text-[#FAF6E9] font-bold rounded-xl border border-emerald-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs font-urdu text-[9.5px]"
+              className="px-3 py-1.5 bg-[#0b2a6b] hover:bg-[#1d4ed8] active:scale-95 text-[#FAF6E9] font-bold rounded-xl border border-blue-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs font-urdu text-[9.5px]"
             >
               <RefreshCw size={11} className={`${isCalibrating ? 'animate-spin' : ''}`} />
               لوکیشن اپڈیٹ کریں

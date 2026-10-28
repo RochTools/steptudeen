@@ -130,34 +130,26 @@ export default function FAQPage({ onBack }: FAQProps) {
 
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, #1e3a5f 0%, #2d6a4f 100%)",
-        padding: "32px 24px 28px",
+        background: "#ffffff",
+        padding: "14px 16px", borderBottom: "1px solid #e2e8f0",
         textAlign: "center",
-        color: "#ffffff",
+        color: "#0b1f4d",
         position: "relative",
       }}>
         {onBack && (
           <button onClick={onBack} style={{
-            position: "absolute", top: 16, left: 16,
-            background: "rgba(255,255,255,0.15)", border: "none",
+            position: "absolute", top: "50%", transform: "translateY(-50%)", left: 12,
+            background: "#2563eb", border: "none",
             color: "#fff", borderRadius: 10, padding: "8px 14px",
             fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}>
             ← Back
           </button>
-        )}
-        <div style={{
-          width: 56, height: 56, borderRadius: 16,
-          background: "rgba(255,255,255,0.15)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          margin: "0 auto 12px", color: "#ffffff",
-        }}>
-          <HelpCircle size={28} />
-        </div>
-        <h1 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 800, letterSpacing: "-0.5px" }}>
+        )} 
+        <h1 style={{ margin: "0 0 2px", fontSize: 18, fontWeight: 800, letterSpacing: "-0.3px" }}>
           FAQ
         </h1>
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.85, lineHeight: 1.5 }}>
+        <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
           Frequently Asked Questions
         </p>
       </div>
@@ -240,7 +232,7 @@ export default function FAQPage({ onBack }: FAQProps) {
           </p>
           <a href="mailto:steptodeen@gmail.com" style={{
             display: "inline-block", padding: "9px 20px",
-            background: "linear-gradient(135deg, #1e3a5f, #2d6a4f)",
+            background: "linear-gradient(145deg, #3b82f6, #1d5fd6)",
             color: "#ffffff", borderRadius: 10, fontSize: 13,
             fontWeight: 600, textDecoration: "none",
           }}>

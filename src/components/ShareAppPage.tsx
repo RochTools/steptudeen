@@ -4,7 +4,7 @@ interface ShareAppProps {
   onBack?: () => void;
 }
 
-const APP_URL = "https://steptudeen.islamorg.workers.dev/";
+const APP_URL = "https://steptudeen.pages.dev";
 const APP_NAME = "StepTuDeen";
 const SHARE_MESSAGE = `Check out ${APP_NAME} — A complete Islamic app with Quran, Hadith, Qibla, Duas and much more!\n\n${APP_URL}`;
 
@@ -32,34 +32,26 @@ export default function ShareAppPage({ onBack }: ShareAppProps) {
 
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, #1a3a6b 0%, #1a6b8a 100%)",
-        padding: "32px 24px 28px",
+        background: "#ffffff",
+        padding: "14px 16px", borderBottom: "1px solid #e2e8f0",
         textAlign: "center",
-        color: "#ffffff",
+        color: "#0b1f4d",
         position: "relative",
       }}>
         {onBack && (
           <button onClick={onBack} style={{
-            position: "absolute", top: 16, left: 16,
-            background: "rgba(255,255,255,0.15)", border: "none",
+            position: "absolute", top: "50%", transform: "translateY(-50%)", left: 12,
+            background: "#2563eb", border: "none",
             color: "#fff", borderRadius: 10, padding: "8px 14px",
             fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}>
             ← Back
           </button>
-        )}
-        <div style={{
-          width: 56, height: 56, borderRadius: 16,
-          background: "rgba(255,255,255,0.15)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          margin: "0 auto 12px", color: "#ffffff",
-        }}>
-          <Share2 size={28} />
-        </div>
-        <h1 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 800, letterSpacing: "-0.5px" }}>
+        )} 
+        <h1 style={{ margin: "0 0 2px", fontSize: 18, fontWeight: 800, letterSpacing: "-0.3px" }}>
           Share App
         </h1>
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.85, lineHeight: 1.5 }}>
+        <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
           Share StepTuDeen with your family and friends
         </p>
       </div>
@@ -74,7 +66,7 @@ export default function ShareAppPage({ onBack }: ShareAppProps) {
         }}>
           <div style={{
             width: 64, height: 64, borderRadius: 18,
-            background: "linear-gradient(135deg, #1a3a6b, #1a6b8a)",
+            background: "linear-gradient(145deg, #3b82f6, #1d5fd6)",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 14px", fontSize: 30, color: "#ffffff",
           }}>
@@ -102,7 +94,7 @@ export default function ShareAppPage({ onBack }: ShareAppProps) {
             style={{
               width: "100%", padding: "14px",
               borderRadius: 12, border: "none",
-              background: "linear-gradient(135deg, #1a3a6b, #1a6b8a)",
+              background: "linear-gradient(145deg, #3b82f6, #1d5fd6)",
               color: "#ffffff", fontSize: 15, fontWeight: 700,
               cursor: "pointer", display: "flex",
               alignItems: "center", justifyContent: "center", gap: 8,

@@ -102,32 +102,24 @@ export default function ContactPage({ onBack }: ContactProps) {
 
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, #1e3a5f 0%, #2d6a4f 100%)",
-        padding: "32px 24px 28px",
+        background: "#ffffff",
+        padding: "14px 16px", borderBottom: "1px solid #e2e8f0",
         textAlign: "center",
-        color: "#ffffff",
+        color: "#0b1f4d",
         position: "relative",
       }}>
         {onBack && (
           <button onClick={onBack} style={{
-            position: "absolute", top: 16, left: 16,
-            background: "rgba(255,255,255,0.15)", border: "none",
+            position: "absolute", top: "50%", transform: "translateY(-50%)", left: 12,
+            background: "#2563eb", border: "none",
             color: "#fff", borderRadius: 10, padding: "8px 14px",
             fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}>
             ← Back
           </button>
-        )}
-        <div style={{
-          width: 56, height: 56, borderRadius: 16,
-          background: "rgba(255,255,255,0.15)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          margin: "0 auto 12px", fontSize: 26,
-        }}>
-          💬
-        </div>
-        <h1 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 800, letterSpacing: "-0.5px" }}>Contact Us</h1>
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.85, lineHeight: 1.5 }}>
+        )} 
+        <h1 style={{ margin: "0 0 2px", fontSize: 18, fontWeight: 800, letterSpacing: "-0.3px" }}>Contact Us</h1>
+        <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
           Your feedback helps us improve StepTuDeen.
         </p>
       </div>
@@ -245,7 +237,7 @@ export default function ContactPage({ onBack }: ContactProps) {
               width: "100%", padding: "12px",
               borderRadius: 10, border: "none",
               background: name.trim() && message.trim()
-                ? "linear-gradient(135deg, #1e3a5f, #2d6a4f)"
+                ? "linear-gradient(145deg, #3b82f6, #1d5fd6)"
                 : "#e2e8f0",
               color: name.trim() && message.trim() ? "#ffffff" : "#94a3b8",
               fontSize: 14, fontWeight: 600, cursor: name.trim() && message.trim() ? "pointer" : "not-allowed",
