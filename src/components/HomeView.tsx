@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AlertTriangle, Bell, CalendarDays, ChevronDown, Compass,
-  MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X, BookOpen, ScrollText, ArrowRight, CircleDot, Heart, LayoutDashboard, Landmark,
+  MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X, BookOpen, ScrollText, ArrowRight, CircleDot, Heart, LayoutDashboard, Landmark, Download,
 } from 'lucide-react';
 import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
 import { InboxItem, readInbox, markInboxRead } from '../utils/notifications';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
 
@@ -440,6 +441,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [loadingAyah, setLoadingAyah] = useState(true);
   const [isDeviceOffline, setIsDeviceOffline] = useState<boolean>(!navigator.onLine);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const { canInstall, isInstalled, promptInstall } = useInstallPrompt();
+  const [installHelp, setInstallHelp] = useState(false);
   const [locationName, setLocationName] = useState(DEFAULT_LOCATION_NAME);
 
   // Bell / inbox
@@ -803,14 +806,38 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <button
               type="button"
               onClick={() => setHeaderMenuOpen(open => !open)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm"
               aria-label="Account options"
             >
               <Menu size={22} />
+              {!isInstalled && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-[#063b9d]" />}
             </button>
 
             {headerMenuOpen && (
               <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl border border-white/20 bg-white text-slate-800 shadow-2xl">
+                {!isInstalled && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (canInstall) {
+                          const accepted = await promptInstall();
+                          if (accepted) setHeaderMenuOpen(false);
+                        } else {
+                          setInstallHelp(open => !open);
+                        }
+                      }}
+                      className="flex w-full items-center gap-2 border-b border-slate-100 bg-emerald-50 px-4 py-3 text-left text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+                    >
+                      <Download size={15} className="text-emerald-700" /> Install App
+                    </button>
+                    {installHelp && !canInstall && (
+                      <div className="border-b border-slate-100 bg-emerald-50/60 px-4 py-2.5 text-[11px] leading-relaxed text-slate-600">
+                        Open your browser menu (⋮ or Share) and choose “Install app” or “Add to Home Screen”.
+                      </div>
+                    )}
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => { setHeaderMenuOpen(false); onNavigate(accountTarget); }}
