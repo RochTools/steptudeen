@@ -257,7 +257,7 @@ export default function FullScreenMenu({ onNavigate, onClose }: Props) {
           textAlign: "center", fontSize: 11, color: "#94a3b8", flexShrink: 0,
         }}>
           © 2026 StepTuDeen
-        </div>
+       _V3.0.0 </div>
       </div>
     </>
   );
