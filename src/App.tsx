@@ -517,7 +517,7 @@ export default function App() {
             <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 flex justify-around p-2 z-40 shadow-xl">
               <button
                 onClick={() => nav.navigateTo('hadith')}
-                className={`flex flex-col items-center justify-center flex-1 transition-all ${currentView === 'hadith' ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center flex-1 transition-all ${currentView === 'hadith' ? 'text-[#2563eb] font-bold' : 'text-slate-400'}`}
               >
                 <Scroll size={17} />
                 <span className="text-[10px] mt-0.5">Hadith</span>
@@ -525,7 +525,7 @@ export default function App() {
 
               <button
                 onClick={() => nav.navigateTo('quran')}
-                className={`flex flex-col items-center justify-center flex-1 transition-all ${currentView === 'quran' ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center flex-1 transition-all ${currentView === 'quran' ? 'text-[#2563eb] font-bold' : 'text-slate-400'}`}
               >
                 <BookOpen size={17} />
                 <span className="text-[10px] mt-0.5">Quran</span>
@@ -533,7 +533,7 @@ export default function App() {
 
               <button
                 onClick={nav.goHome}
-                className="relative -top-3.5 w-11 h-11 bg-emerald-600 rounded-xl flex items-center justify-center border border-emerald-500 shadow-lg text-white transition-transform hover:scale-105"
+                className="relative -top-3.5 w-11 h-11 bg-gradient-to-br from-[#3b82f6] to-[#1d5fd6] rounded-xl flex items-center justify-center border border-[#3b82f6] shadow-[0_6px_14px_rgba(37,99,235,0.35)] text-white transition-transform hover:scale-105"
               >
                 <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 21h18" />
@@ -544,7 +544,7 @@ export default function App() {
 
               <button
                 onClick={() => nav.navigateTo('mosques')}
-                className={`flex flex-col items-center justify-center flex-1 transition-all ${currentView === 'mosques' ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center flex-1 transition-all ${currentView === 'mosques' ? 'text-[#2563eb] font-bold' : 'text-slate-400'}`}
               >
                 <Compass size={17} />
                 <span className="text-[10px] mt-0.5">Mosques</span>
@@ -552,7 +552,7 @@ export default function App() {
 
               <button
                 onClick={() => nav.navigateTo('duas')}
-                className={`flex flex-col items-center justify-center flex-1 transition-all ${currentView === 'duas' ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}
+                className={`flex flex-col items-center justify-center flex-1 transition-all ${currentView === 'duas' ? 'text-[#2563eb] font-bold' : 'text-slate-400'}`}
               >
                 <Heart size={17} />
                 <span className="text-[10px] mt-0.5">Duas</span>
