@@ -650,9 +650,9 @@ export default function MosqueFinder({
       const coords = route.c && route.c.length > 1 ? route.c : ([[from.lat, from.lng], [m.lat, m.lon]] as [number, number][]);
       routeLines.forEach((l) => map.removeLayer(l));
       routeLines = [];
-      routeLines.push(L.polyline(coords, { color: '#0a3d2b', weight: 9, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map));
+      routeLines.push(L.polyline(coords, { color: '#0b2a6b', weight: 9, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map));
       routeLines.push(
-        L.polyline(coords, { color: '#22b573', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map),
+        L.polyline(coords, { color: '#3b82f6', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map),
       );
       updateRouteProgress();
     }
@@ -694,10 +694,10 @@ export default function MosqueFinder({
         route.c && route.c.length > 1 ? route.c : ([[from.lat, from.lng], [m.lat, m.lon]] as [number, number][]);
 
       clearRouteLayers();
-      routeLines.push(L.polyline(coords, { color: '#0a3d2b', weight: 9, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map));
+      routeLines.push(L.polyline(coords, { color: '#0b2a6b', weight: 9, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(map));
       routeLines.push(
         L.polyline(coords, {
-          color: '#22b573',
+          color: '#3b82f6',
           weight: 5,
           opacity: 1,
           lineCap: 'round',
