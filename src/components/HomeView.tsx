@@ -443,6 +443,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const { canInstall, isInstalled, promptInstall } = useInstallPrompt();
   const [installHelp, setInstallHelp] = useState(false);
+  const [showInstallTip, setShowInstallTip] = useState(true);
+
+  // Small "Install app" hint right after opening the app; disappears after 3 seconds.
+  useEffect(() => {
+    const timer = setTimeout(() => setShowInstallTip(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
   const [locationName, setLocationName] = useState(DEFAULT_LOCATION_NAME);
 
   // Bell / inbox
@@ -654,6 +661,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
         .sth-home *, .sth-home *::before, .sth-home *::after{box-sizing:border-box}
         .sth-home button{cursor:pointer;transition:box-shadow .18s,transform .18s,background .18s}
         .sth-home button:focus-visible,.sth-home input:focus-visible{outline:3px solid #3685ff;outline-offset:3px}
+        @keyframes sthInstallGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,214,102,.0),0 0 6px 1px rgba(255,214,102,.35)}50%{box-shadow:0 0 0 5px rgba(255,214,102,.18),0 0 16px 4px rgba(255,214,102,.75)}}
+        @keyframes sthInstallTip{0%{opacity:0;transform:translateY(-4px)}12%{opacity:1;transform:translateY(0)}88%{opacity:1}100%{opacity:0}}
+        .sth-home .sth-install-glow{animation:sthInstallGlow 1.1s ease-in-out infinite;background:rgba(255,255,255,.22)!important}
+        .sth-home .sth-install-tip{animation:sthInstallTip 3s ease forwards}
         .sth-home .sth-search{border-radius:12px!important;padding:15px!important;border-color:#00000012!important;box-shadow:0 9px 24px #00000008,0 2px 5px #00000004!important}
         .sth-home .sth-content{background:#fff;display:grid;gap:25px;padding:8px 0 16px}
         .sth-home .sth-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 18px 13px;color:#080808}
@@ -804,18 +815,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           <div className="relative flex items-center gap-2">
             {!isInstalled && (
-              <button
-                type="button"
-                onClick={async () => {
-                  if (canInstall) await promptInstall();
-                  else setInstallHelp(open => !open);
-                }}
-                className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-transform active:scale-95"
-                aria-label="Install app"
-                title="Install app"
-              >
-                <Download size={20} />
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowInstallTip(false);
+                    if (canInstall) await promptInstall();
+                    else setInstallHelp(open => !open);
+                  }}
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-transform active:scale-95 ${showInstallTip ? 'sth-install-glow' : ''}`}
+                  aria-label="Install app"
+                  title="Install app"
+                >
+                  <Download size={20} />
+                </button>
+
+                {showInstallTip && (
+                  <div className="sth-install-tip pointer-events-none absolute right-[-6px] top-[52px] z-50 whitespace-nowrap rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-[#0b1f4d] shadow-[0_8px_22px_rgba(0,20,80,0.35)]" role="status">
+                    <span className="absolute -top-1 right-[18px] h-2.5 w-2.5 rotate-45 bg-white" aria-hidden="true" />
+                    Install app
+                  </div>
+                )}
+              </div>
             )}
 
             <button
