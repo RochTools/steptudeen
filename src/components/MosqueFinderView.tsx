@@ -214,8 +214,8 @@ const LivePanel: React.FC<{ instants: (number | null)[]; raws: string[] }> = ({ 
         <svg viewBox="0 0 100 100" aria-hidden="true">
           <defs>
             <linearGradient id="mfv-ring-grad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#34d399" />
-              <stop offset="100%" stopColor="#047857" />
+              <stop offset="0%" stopColor="#60a5fa" />
+              <stop offset="100%" stopColor="#1d5fd6" />
             </linearGradient>
           </defs>
           <circle className="mfv-ring-track" cx="50" cy="50" r={RING_R} />
@@ -282,7 +282,7 @@ const PrayerStrip: React.FC<{ items: StripItem[]; instants: (number | null)[] }>
 
       {jumuah && (
         <div className="mfv-jumuah-pill">
-          <span>🕌 {jumuah.label}</span>
+          <span>{jumuah.label}</span>
           <b>{jumuahTime ? `${jumuahTime.time} ${jumuahTime.suffix}` : jumuah.raw}</b>
         </div>
       )}
@@ -417,7 +417,7 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
       {/* جمعہ: ایک سے زیادہ جماعتیں ہوں تو الگ حصہ */}
       {jumuahSlots.length > 1 && (
         <section className="mfv-jumuah">
-          <h5 className="mfv-jumuah-title">🕌 جمعہ کی نماز</h5>
+          <h5 className="mfv-jumuah-title">جمعہ کی نماز</h5>
           {jumuahSlots.map((slot, i) => (
             <div className="mfv-jumuah-row" key={`${slot.label}-${i}`}>
               <span>{slot.label}</span>
@@ -431,7 +431,7 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
       <div className="mfv-special">
         {(mosque.sehri || mosque.iftar) && (
           <section className="mfv-special-card" data-kind="ramadan">
-            <h5 className="mfv-special-title">🌙 رمضان</h5>
+            <h5 className="mfv-special-title">رمضان</h5>
             <div className="mfv-special-items">
               {mosque.sehri && (
                 <div className="mfv-special-item">
@@ -449,7 +449,7 @@ const MosqueCard: React.FC<MosqueCardProps> = ({
           </section>
         )}
         <section className="mfv-special-card" data-kind="eid">
-          <h5 className="mfv-special-title">✨ عیدین</h5>
+          <h5 className="mfv-special-title">عیدین</h5>
           <div className="mfv-special-items">
             <div className="mfv-special-item">
               <span>عیدالفطر</span>
@@ -589,8 +589,8 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
     } else {
       showToast(
         want
-          ? `✅ ${mosque.name.trim()} کی جماعت کے نوٹیفکیشن آن ہو گئے`
-          : `🔕 ${mosque.name.trim()} کے نوٹیفکیشن بند ہو گئے`
+          ? `${mosque.name.trim()} کی جماعت کے نوٹیفکیشن آن ہو گئے`
+          : `${mosque.name.trim()} کے نوٹیفکیشن بند ہو گئے`
       );
     }
   };
@@ -627,7 +627,7 @@ export const MosqueFinderView: React.FC<MosqueFinderViewProps> = ({
                 bottom: 'calc(150px + env(safe-area-inset-bottom, 0px))',
                 zIndex: 2147483000,
                 margin: '0 auto', maxWidth: 420, padding: '12px 16px',
-                background: '#0f5a43', color: '#fff', borderRadius: 14,
+                background: '#1d4ed8', color: '#fff', borderRadius: 14,
                 textAlign: 'center', fontSize: 14, fontWeight: 600, lineHeight: 1.6,
                 boxShadow: '0 8px 24px rgba(0,0,0,.25)',
                 pointerEvents: 'none',
