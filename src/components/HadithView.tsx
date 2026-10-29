@@ -158,8 +158,8 @@ function gradeInfo(grades: Array<{ grade?: string }>) {
   const original = String(grades[0]?.grade || '');
   const grade = original.toLowerCase();
   if (grade.includes('sahih') || grade.includes('صحيح')) return { className: 'bg-blue-100 text-black', label: 'Sahih' };
-  if (grade.includes('hasan') || grade.includes('حسن')) return { className: 'bg-blue-100 text-black', label: 'Hasan' };
-  if (grade.includes('daif') || grade.includes("da'if") || grade.includes('weak') || grade.includes('ضعيف')) return { className: 'bg-blue-100 text-black', label: 'Daif' };
+  if (grade.includes('hasan') || grade.includes('حسن')) return { className: 'bg-yellow-100 text-black', label: 'Hasan' };
+  if (grade.includes('daif') || grade.includes("da'if") || grade.includes('weak') || grade.includes('ضعيف')) return { className: 'bg-red-600 text-white', label: 'Daif' };
   return { className: 'bg-[#75b5ff] text-slate-600', label: original };
 }
 
