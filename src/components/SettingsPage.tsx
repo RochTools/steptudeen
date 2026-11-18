@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Settings, MapPin } from "lucide-react";
+import { isNative, getSound, previewSound, SOUNDS, type SoundId } from "../utils/native";
+import { changeNotificationSound } from "../utils/fcm";
 
 interface SettingsProps {
   onBack?: () => void;
@@ -8,6 +10,20 @@ interface SettingsProps {
 export default function SettingsPage({ onBack }: SettingsProps) {
   const [locationStatus, setLocationStatus] = useState<"granted" | "denied" | "prompt" | "unsupported">("prompt");
   const [requesting, setRequesting] = useState(false);
+  const [sound, setSound] = useState<SoundId>(() => getSound());
+  const [soundBusy, setSoundBusy] = useState(false);
+  const [soundMsg, setSoundMsg] = useState<string | null>(null);
+
+  async function handlePickSound(next: SoundId) {
+    if (soundBusy || next === sound) { previewSound(next); return; }
+    setSoundBusy(true);
+    setSoundMsg(null);
+    previewSound(next);                       // چنتے ہی سن لیں
+    const res = await changeNotificationSound(next);
+    if (res.ok) setSound(next);
+    else setSoundMsg(res.message || "Could not change the sound. Please try again.");
+    setSoundBusy(false);
+  }
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -280,6 +296,80 @@ export default function SettingsPage({ onBack }: SettingsProps) {
             </div>
           </div>
         </div>
+
+        {/* ==================== نوٹیفکیشن کی آواز (صرف Android ایپ) ==================== */}
+        {isNative() && (
+          <div style={{ marginTop: 20 }}>
+            <h3
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                color: "#94a3b8",
+                marginBottom: 10,
+                paddingLeft: 4,
+              }}
+            >
+              Notification sound
+            </h3>
+            <div
+              style={{
+                background: "#ffffff",
+                borderRadius: 16,
+                padding: "8px",
+                border: "1px solid #f1f5f9",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+              }}
+            >
+              {SOUNDS.map((s) => {
+                const active = s.id === sound;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => handlePickSound(s.id)}
+                    disabled={soundBusy}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px",
+                      border: "none",
+                      borderRadius: 12,
+                      background: active ? "#eff6ff" : "transparent",
+                      cursor: soundBusy ? "default" : "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        border: `2px solid ${active ? "#2563eb" : "#cbd5e1"}`,
+                        background: active ? "#2563eb" : "transparent",
+                        boxShadow: active ? "inset 0 0 0 3px #fff" : "none",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ flex: 1 }}>
+                      <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#0b1f4d" }}>{s.label}</span>
+                      <span style={{ display: "block", fontSize: 12, color: "#64748b" }}>{s.hint}</span>
+                    </span>
+                    <span style={{ fontSize: 12, color: "#2563eb", fontWeight: 600 }}>▶ Play</span>
+                  </button>
+                );
+              })}
+            </div>
+            {soundMsg && (
+              <p style={{ margin: "8px 4px 0", fontSize: 12, color: "#dc2626" }}>{soundMsg}</p>
+            )}
+            <p style={{ margin: "8px 4px 0", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+              This sound plays for jamaat notifications of the masjids you follow.
+            </p>
+          </div>
+        )}
 
         {/* نیچے پرائیویسی نوٹ */}
         <div
