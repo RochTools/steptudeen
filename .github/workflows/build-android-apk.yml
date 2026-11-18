@@ -1,0 +1,72 @@
+# Actions ٹیب → "Build Android APK" → Run workflow
+# ختم ہونے پر اسی رن کے صفحے پر نیچے Artifacts میں "StepTuDeen-debug-apk" ملے گی۔
+#
+# ضروری:
+#   1) Secret  GOOGLE_SERVICES_JSON  = google-services.json فائل کا مکمل متن
+#      (Settings → Secrets and variables → Actions → New repository secret)
+#   2) public/sounds/ میں azan.mp3, voice.mp3, tone.mp3
+#   3) پہلے "Setup Capacitor (run once)" چل چکا ہو
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Check required files
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          missing=0
+          for f in azan voice tone; do
+            if [ ! -f "public/sounds/$f.mp3" ]; then echo "::error::public/sounds/$f.mp3 موجود نہیں"; missing=1; fi
+          done
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then echo "::error::Secret GOOGLE_SERVICES_JSON نہیں ملا"; missing=1; fi
+          if ! grep -q '"@capacitor/android"' package.json; then echo "::error::پہلے 'Setup Capacitor (run once)' چلائیں"; missing=1; fi
+          exit $missing
+
+      - run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Create Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Add sounds, Firebase config and permission
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          mkdir -p android/app/src/main/res/raw
+          cp public/sounds/azan.mp3 public/sounds/voice.mp3 public/sounds/tone.mp3 android/app/src/main/res/raw/
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          # Android 13+ پر نوٹیفکیشن کی اجازت کے لیے
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q "POST_NOTIFICATIONS" "$MANIFEST"; then
+            sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>#' "$MANIFEST"
+          fi
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StepTuDeen-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
