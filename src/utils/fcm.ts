@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { isNative, getNativeToken, getSound, getSubscribedSound, saveSound, saveSubscribedSound, type SoundId } from './native';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAlivb1p_ptLEfxxitQTUZ0jtBz9HDvHk8",
@@ -99,20 +100,24 @@ export async function setMosqueFollow(
   follow: boolean
 ): Promise<{ ok: boolean; message?: string }> {
   if (NOTIFY_URL.includes('PASTE_')) return { ok: false, message: 'نوٹیفکیشن سرور کا پتہ ابھی نہیں لکھا گیا۔' };
-  if (!('Notification' in window)) return { ok: false, message: 'اس براؤزر میں نوٹیفکیشن کی سہولت نہیں۔' };
+
+  const native = isNative();
+  if (!native && !('Notification' in window)) return { ok: false, message: 'اس براؤزر میں نوٹیفکیشن کی سہولت نہیں۔' };
 
   let token = localStorage.getItem('fcm_token');
   if (follow) {
-    token = await initFCM(undefined);            // اجازت مانگے گا اور ٹوکن لے گا
+    token = native ? await getNativeToken() : await initFCM(undefined);   // اجازت مانگے گا اور ٹوکن لے گا
     if (!token) return { ok: false, message: 'نوٹیفکیشن کی اجازت نہیں ملی۔ فون/براؤزر کی سیٹنگ میں اجازت دیں۔' };
   }
   if (!token) { saveFollowed(mosqueId, false); return { ok: true }; }
 
+  // نیٹو ایپ: چنی ہوئی آواز کے topic میں شامل ہوں؛ ویب: پرانا topic (sound نہیں بھیجتے)
+  const sound: SoundId | undefined = native ? getSubscribedSound() : undefined;
   try {
     const res = await fetch(`${NOTIFY_URL}/follow`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, mosqueId, follow }),
+      body: JSON.stringify({ token, mosqueId, follow, ...(sound ? { sound } : {}) }),
     });
     if (!res.ok) return { ok: false, message: 'سرور سے رابطہ نہ ہو سکا، دوبارہ کوشش کریں۔' };
     saveFollowed(mosqueId, follow);
@@ -121,3 +126,48 @@ export async function setMosqueFollow(
     return { ok: false, message: 'انٹرنیٹ نہیں ہے، دوبارہ کوشش کریں۔' };
   }
 }
+
+/**
+ * نوٹیفکیشن کی آواز بدلنا (صرف نیٹو ایپ): جو مساجد فالو ہیں ان سب کو پرانی آواز کے topic سے نکال کر
+ * نئی آواز کے topic میں ڈالتا ہے۔ کوئی ایک بھی ناکام ہو تو پرانی آواز ہی رہتی ہے۔
+ */
+export async function changeNotificationSound(next: SoundId): Promise<{ ok: boolean; message?: string }> {
+  const prev = getSubscribedSound();
+  const mosqueIds = Object.keys(getFollowedMosques());
+
+  // ویب پر یا کوئی مسجد فالو نہ ہو تو بس پسند محفوظ کرنی ہے
+  if (!isNative() || mosqueIds.length === 0 || prev === next) {
+    saveSound(next);
+    saveSubscribedSound(next);
+    return { ok: true };
+  }
+
+  const token = localStorage.getItem('fcm_token') || (await getNativeToken());
+  if (!token) return { ok: false, message: 'نوٹیفکیشن کی اجازت نہیں ملی۔ فون کی سیٹنگ میں اجازت دیں۔' };
+
+  const call = async (mosqueId: string, follow: boolean, sound: SoundId) => {
+    const res = await fetch(`${NOTIFY_URL}/follow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, mosqueId, follow, sound }),
+    });
+    return res.ok;
+  };
+
+  try {
+    // پہلے نئی آواز میں شامل کریں، پھر پرانی سے نکالیں — درمیان میں ناکامی ہو تو نوٹیفکیشن ضائع نہ ہو
+    const added = await Promise.all(mosqueIds.map((id) => call(id, true, next)));
+    if (added.some((ok) => !ok)) {
+      await Promise.all(mosqueIds.map((id) => call(id, false, next).catch(() => false)));  // جو شامل ہو گئیں انہیں واپس
+      return { ok: false, message: 'آواز بدلی نہ جا سکی، دوبارہ کوشش کریں۔' };
+    }
+    await Promise.all(mosqueIds.map((id) => call(id, false, prev).catch(() => false)));
+    saveSound(next);
+    saveSubscribedSound(next);
+    return { ok: true };
+  } catch {
+    return { ok: false, message: 'انٹرنیٹ نہیں ہے، دوبارہ کوشش کریں۔' };
+  }
+}
+
+export { getSound };
