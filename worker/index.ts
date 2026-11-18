@@ -209,22 +209,55 @@ const toMin = (t: string) => { const [h, mi] = t.split(':').map(Number); return 
 /** "18:12" → "6:12" */
 export const pretty12 = (t: string) => { const [h, mi] = t.split(':').map(Number); return `${h % 12 || 12}:${String(mi).padStart(2, '0')}`; };
 
-export const topicOf = (id: string) => `mosque_${id}`;
+// آواز کے تین انتخاب (نیٹو Android ایپ): ہر ایک کا اپنا topic اور اپنا نوٹیفکیشن چینل۔
+// Android میں چینل کی آواز بعد میں بدلی نہیں جا سکتی، اس لیے ہر آواز کا الگ چینل ہے
+// (ایپ میں src/utils/native.ts کی SOUNDS فہرست سے نام ملتے ہوں)۔
+export const SOUND_IDS = ['azan', 'voice', 'tone'] as const;
+export type SoundId = (typeof SOUND_IDS)[number];
+export const isSoundId = (v: unknown): v is SoundId => typeof v === 'string' && (SOUND_IDS as readonly string[]).includes(v);
 
+// sound نہ ہو = ویب/PWA صارفین کا پرانا topic (`mosque_<id>`)
+export const topicOf = (id: string, sound?: SoundId) => (sound ? `mosque_${id}_${sound}` : `mosque_${id}`);
+
+function messageContent(m: MosqueLite, prayer: PrayerName, time: string) {
+  return {
+    title: `🕌 ${NAMES_UR[prayer]} کی جماعت کا وقت`,
+    body: `آپ کے قریب ${m.name} میں ${NAMES_UR[prayer]} کا وقت ہو چکا ہے (${pretty12(time)})`,
+    tag: `jamaat-${m.id}-${prayer}`,
+  };
+}
+
+/** ویب/PWA صارفین کے لیے (پہلے جیسا: data-only، service worker نوٹیفکیشن بناتا ہے) */
 export function buildMessage(m: MosqueLite, prayer: PrayerName, time: string) {
+  const c = messageContent(m, prayer, time);
   return {
     message: {
       topic: topicOf(m.id),
-      data: {
-        title: `🕌 ${NAMES_UR[prayer]} کی جماعت کا وقت`,
-        body: `آپ کے قریب ${m.name} میں ${NAMES_UR[prayer]} کا وقت ہو چکا ہے (${pretty12(time)})`,
-        tag: `jamaat-${m.id}-${prayer}`,
-        mosqueId: m.id,
-        prayer,
-      },
+      data: { ...c, mosqueId: m.id, prayer },
       webpush: { headers: { TTL: '600', Urgency: 'high' } },   // 10 منٹ سے پرانا پش نہ پہنچے
     },
   };
+}
+
+/** نیٹو Android صارفین کے لیے: چنی ہوئی آواز کے چینل پر سسٹم خود نوٹیفکیشن دکھاتا ہے */
+export function buildNativeMessage(m: MosqueLite, prayer: PrayerName, time: string, sound: SoundId) {
+  const c = messageContent(m, prayer, time);
+  return {
+    message: {
+      topic: topicOf(m.id, sound),
+      data: { ...c, mosqueId: m.id, prayer },
+      android: {
+        priority: 'HIGH',
+        ttl: '600s',
+        notification: { title: c.title, body: c.body, tag: c.tag, channel_id: sound, sound },
+      },
+    },
+  };
+}
+
+/** ایک وقت کے سارے پیغام: ویب + تینوں آوازوں کے لیے */
+export function buildAllMessages(m: MosqueLite, prayer: PrayerName, time: string) {
+  return [buildMessage(m, prayer, time), ...SOUND_IDS.map((s) => buildNativeMessage(m, prayer, time, s))];
 }
 
 async function sendFcm(env: Env, body: unknown): Promise<{ status: number; body: string }> {
@@ -242,12 +275,12 @@ async function sendFcm(env: Env, body: unknown): Promise<{ status: number; body:
 // ── cron: ہر منٹ ──────────────────────────────────────────────────────────────
 async function tick(env: Env, now = new Date()): Promise<number> {
   const mosques = await getMosques(env);
-  const jobs: Promise<void>[] = [];
+  const jobs: Promise<unknown>[] = [];
   for (const m of mosques) {
     try {
       const { times, minutes } = jamaatToday(m, now);
       for (const p of PRAYER_NAMES) {
-        if (toMin(times[p]) === minutes) jobs.push(sendFcm(env, buildMessage(m, p, times[p])));
+        if (toMin(times[p]) === minutes) for (const msg of buildAllMessages(m, p, times[p])) jobs.push(sendFcm(env, msg));
       }
     } catch (err) {
       console.error('skip mosque', m.id, err);
@@ -307,21 +340,22 @@ async function handle(req: Request, env: Env): Promise<Response> {
     const list = await getMosques(env, true);
     const m = list.find((x) => x.id === url.searchParams.get('mosque'));
     if (!m) return reply({ error: 'unknown mosque' }, 404);
-    const fcm = await sendFcm(env, buildMessage(m, 'maghrib', jamaatToday(m, new Date()).times.maghrib));
-    return reply({ ok: fcm.status === 200, sentTo: topicOf(m.id), fcm });
+    const results = await Promise.all(buildAllMessages(m, 'maghrib', jamaatToday(m, new Date()).times.maghrib).map((msg) => sendFcm(env, msg)));
+    return reply({ ok: results.every((r) => r.status === 200), sentTo: [topicOf(m.id), ...SOUND_IDS.map((x) => topicOf(m.id, x))], results });
   }
 
   if (req.method !== 'POST') return reply({ error: 'not found' }, 404);
   const body = (await req.json().catch(() => ({}))) as Record<string, any>;
 
   if (url.pathname === '/follow') {
-    const { token, mosqueId, follow } = body;
+    const { token, mosqueId, follow, sound } = body;
     if (typeof token !== 'string' || token.length < 50 || token.length > 4096) return reply({ error: 'bad token' }, 400);
     if (typeof mosqueId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(mosqueId)) return reply({ error: 'bad mosque' }, 400);
     let list = await getMosques(env);
     if (!list.some((m) => m.id === mosqueId)) list = await getMosques(env, true);   // نئی رجسٹر مسجد
     if (!list.some((m) => m.id === mosqueId)) return reply({ error: 'unknown mosque' }, 404);
-    const ok = await topicSubscribe(env, token, topicOf(mosqueId), follow !== false);
+    if (sound !== undefined && !isSoundId(sound)) return reply({ error: 'bad sound' }, 400);
+    const ok = await topicSubscribe(env, token, topicOf(mosqueId, sound), follow !== false);
     return ok ? reply({ ok: true }) : reply({ error: 'subscribe failed' }, 502);
   }
 
@@ -330,8 +364,8 @@ async function handle(req: Request, env: Env): Promise<Response> {
     const list = await getMosques(env, true);
     const m = list.find((x) => x.id === body.mosqueId);
     if (!m) return reply({ error: 'unknown mosque' }, 404);
-    const fcm = await sendFcm(env, buildMessage(m, 'maghrib', jamaatToday(m, new Date()).times.maghrib));
-    return reply({ ok: fcm.status === 200, sentTo: topicOf(m.id), fcm });
+    const results = await Promise.all(buildAllMessages(m, 'maghrib', jamaatToday(m, new Date()).times.maghrib).map((msg) => sendFcm(env, msg)));
+    return reply({ ok: results.every((r) => r.status === 200), sentTo: [topicOf(m.id), ...SOUND_IDS.map((x) => topicOf(m.id, x))], results });
   }
   return reply({ error: 'not found' }, 404);
 }
