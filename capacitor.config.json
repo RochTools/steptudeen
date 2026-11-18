@@ -1,0 +1,8 @@
+{
+  "appId": "com.steptudeen.app",
+  "appName": "StepTuDeen",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}

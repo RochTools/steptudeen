@@ -118,7 +118,9 @@
     <script type="module" src="/src/main.tsx"></script>
 
     <script>
-      if ('serviceWorker' in navigator) {
+      // نیٹو Android ایپ میں فائلیں APK کے اندر ہیں، service worker کی ضرورت نہیں (پرانا کیش اپڈیٹ میں رکاوٹ بنتا ہے)
+      var isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+      if ('serviceWorker' in navigator && !isNativeApp) {
         window.addEventListener('load', async () => {
           let reg;
           try {
