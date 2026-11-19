@@ -32,6 +32,7 @@ jobs:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           missing=0
+          if [ ! -d android-res ]; then echo "::error::android-res فولڈر موجود نہیں (آئیکن)"; missing=1; fi
           for f in azan voice tone; do
             if [ ! -f "public/sounds/$f.mp3" ]; then echo "::error::public/sounds/$f.mp3 موجود نہیں"; missing=1; fi
           done
@@ -60,6 +61,18 @@ jobs:
           MANIFEST=android/app/src/main/AndroidManifest.xml
           if ! grep -q "POST_NOTIFICATIONS" "$MANIFEST"; then
             sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>#' "$MANIFEST"
+          fi
+
+      - name: Install app icons
+        run: |
+          RES=android/app/src/main/res
+          # ٹیمپلیٹ کے پرانے webp آئیکن ہٹائیں تاکہ ہمارے png سے "duplicate resources" نہ بنے
+          find "$RES" -name 'ic_launcher*.webp' -delete
+          cp -r android-res/. "$RES/"
+          # نوٹیفکیشن کا چھوٹا آئیکن اور رنگ (FCM کا ڈیفالٹ)
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q "default_notification_icon" "$MANIFEST"; then
+            sed -i 's#</application>#        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_steptudeen" />\n        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/steptudeen_notif_color" />\n    </application>#' "$MANIFEST"
           fi
 
       - name: Build debug APK
