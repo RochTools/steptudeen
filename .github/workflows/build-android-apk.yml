@@ -87,6 +87,55 @@ jobs:
             sed -i 's#</application>#        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_steptudeen" />\n        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/steptudeen_notif_color" />\n    </application>#' "$MANIFEST"
           fi
 
+      - name: Full screen (hide status bar)
+        run: |
+          # سٹیٹس بار (وقت/بیٹری/سگنل) چھپا کر ایپ پوری سکرین پر؛ اوپر سے سوائپ پر عارضی طور پر نظر آتا ہے۔
+          # نیویگیشن بٹن (Back/Home) جیسے ہیں ویسے رہتے ہیں۔
+          DIR=android/app/src/main/java/com/steptudeen/app
+          if [ ! -f "$DIR/MainActivity.java" ]; then echo "::error::MainActivity.java نہیں ملی ($DIR)"; exit 1; fi
+          cat > "$DIR/MainActivity.java" <<'JAVA'
+          package com.steptudeen.app;
+
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.WindowManager;
+
+          import androidx.core.view.WindowCompat;
+          import androidx.core.view.WindowInsetsCompat;
+          import androidx.core.view.WindowInsetsControllerCompat;
+
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  // نوچ/کٹ آؤٹ والے فونز پر بھی پوری سکرین استعمال ہو
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                      WindowManager.LayoutParams lp = getWindow().getAttributes();
+                      lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                      getWindow().setAttributes(lp);
+                  }
+                  hideStatusBar();
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) {
+                      hideStatusBar();
+                  }
+              }
+
+              private void hideStatusBar() {
+                  WindowInsetsControllerCompat controller =
+                      WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+                  controller.hide(WindowInsetsCompat.Type.statusBars());
+                  controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+              }
+          }
+          JAVA
+
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
