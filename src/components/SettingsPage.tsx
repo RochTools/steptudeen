@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Settings, MapPin } from "lucide-react";
 import { isNative, getSound, previewSound, SOUNDS, type SoundId } from "../utils/native";
 import { changeNotificationSound } from "../utils/fcm";
+import { watchPermissionState, requestPosition, describeFailure, type LocationFailure } from "../utils/location";
 
 interface SettingsProps {
   onBack?: () => void;
@@ -10,6 +11,8 @@ interface SettingsProps {
 export default function SettingsPage({ onBack }: SettingsProps) {
   const [locationStatus, setLocationStatus] = useState<"granted" | "denied" | "prompt" | "unsupported">("prompt");
   const [requesting, setRequesting] = useState(false);
+  // GPS بند / سگنل نہیں / ٹائم آؤٹ — یہ اجازت کا مسئلہ نہیں، اس لیے "Denied" نہیں دکھانا
+  const [locationIssue, setLocationIssue] = useState<LocationFailure | null>(null);
   const [sound, setSound] = useState<SoundId>(() => getSound());
   const [soundBusy, setSoundBusy] = useState(false);
   const [soundMsg, setSoundMsg] = useState<string | null>(null);
@@ -25,31 +28,25 @@ export default function SettingsPage({ onBack }: SettingsProps) {
     setSoundBusy(false);
   }
 
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setLocationStatus("unsupported");
-      return;
-    }
-    navigator.permissions?.query({ name: "geolocation" }).then((result) => {
-      setLocationStatus(result.state as any);
-      result.onchange = () => setLocationStatus(result.state as any);
-    });
-  }, []);
+  // اجازت کی حالت خود بخود تازہ رہتی ہے — سیٹنگز سے واپس آتے ہی بدل جاتی ہے
+  useEffect(() => watchPermissionState((s) => {
+    setLocationStatus(s);
+    if (s === "granted") setLocationIssue((prev) => (prev === "denied" ? null : prev));
+  }), []);
 
   async function handleRequestLocation() {
-    if (!navigator.geolocation) return;
     setRequesting(true);
-    navigator.geolocation.getCurrentPosition(
-      () => {
-        setLocationStatus("granted");
-        setRequesting(false);
-      },
-      () => {
-        setLocationStatus("denied");
-        setRequesting(false);
-      }
-    );
+    setLocationIssue(null);
+    const res = await requestPosition();
+    if (res.ok) setLocationStatus("granted");
+    else if (res.reason === "denied") setLocationStatus("denied");
+    else if (res.reason === "unsupported") setLocationStatus("unsupported");
+    else setLocationIssue(res.reason);
+    setRequesting(false);
   }
+
+  const deniedInfo = describeFailure("denied", "en");
+  const issueInfo = locationIssue && locationIssue !== "denied" ? describeFailure(locationIssue, "en") : null;
 
   const statusColor =
     locationStatus === "granted"
@@ -225,20 +222,72 @@ export default function SettingsPage({ onBack }: SettingsProps) {
                       Location Blocked
                     </p>
                     <p style={{ margin: "0 0 8px", fontSize: 12, color: "#7f1d1d", lineHeight: 1.7 }}>
-                      You have blocked location permission. Follow these steps to allow it:
+                      {deniedInfo.summary}
                     </p>
-                    <p style={{ margin: 0, fontSize: 12, color: "#475569", lineHeight: 1.9 }}>
-                      1. Open Chrome menu (⋮ top right)<br />
-                      2. Settings → Site Settings → Location<br />
-                      3. Find this site and change to <strong>Allow</strong><br />
-                      4. Come back and tap Back — done!
+                    <p style={{ margin: "0 0 10px", fontSize: 12, color: "#475569", lineHeight: 1.9 }}>
+                      {deniedInfo.steps.map((step, i) => (
+                        <span key={i}>{i + 1}. {step}<br /></span>
+                      ))}
                     </p>
+                    <button
+                      onClick={handleRequestLocation}
+                      disabled={requesting}
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: 10,
+                        border: "none",
+                        background: requesting ? "#e2e8f0" : "linear-gradient(145deg, #3b82f6, #1d5fd6)",
+                        color: requesting ? "#94a3b8" : "#ffffff",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: requesting ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {requesting ? "Checking..." : "Check again"}
+                    </button>
                   </div>
                 </div>
               )}
 
+              {/* ==================== GPS بند / سگنل نہیں / ٹائم آؤٹ ==================== */}
+              {issueInfo && locationStatus !== "denied" && locationStatus !== "unsupported" && (
+                <div
+                  style={{
+                    background: "#fffbeb",
+                    borderRadius: 10,
+                    padding: "12px 14px",
+                    border: "1px solid #fde68a",
+                    marginBottom: 12,
+                  }}
+                >
+                  <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 700, color: "#b45309" }}>{issueInfo.title}</p>
+                  <p style={{ margin: "0 0 8px", fontSize: 12, color: "#92400e", lineHeight: 1.7 }}>{issueInfo.summary}</p>
+                  <p style={{ margin: "0 0 10px", fontSize: 12, color: "#475569", lineHeight: 1.9 }}>
+                    {issueInfo.steps.map((step, i) => (
+                      <span key={i}>{i + 1}. {step}<br /></span>
+                    ))}
+                  </p>
+                  <button
+                    onClick={handleRequestLocation}
+                    disabled={requesting}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: 10,
+                      border: "none",
+                      background: requesting ? "#e2e8f0" : "linear-gradient(145deg, #3b82f6, #1d5fd6)",
+                      color: requesting ? "#94a3b8" : "#ffffff",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: requesting ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {requesting ? "Trying..." : "Try again"}
+                  </button>
+                </div>
+              )}
+
               {/* ==================== اگر لوکیشن Allow ہے ==================== */}
-              {locationStatus === "granted" && (
+              {locationStatus === "granted" && !issueInfo && (
                 <p style={{ margin: "0 0 8px", fontSize: 12, color: "#16a34a", fontWeight: 500 }}>
                   ✓ Location is active. Masjid finder and Qibla are working correctly.
                 </p>

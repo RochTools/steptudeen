@@ -8,6 +8,7 @@ import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
 import { InboxItem, readInbox, markInboxRead } from '../utils/notifications';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import type { LocationFailure } from '../utils/location';
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
 
@@ -21,6 +22,8 @@ interface HomeViewProps {
   onOpenMosque: (mosque: Mosque) => void;
   userCoords: { latitude: number; longitude: number } | null;
   requestLocation: () => void;
+  /** لوکیشن نہ ملی ہو تو وجہ (آخری معلوم مقام استعمال ہو رہا ہو سکتا ہے) */
+  locationIssue?: LocationFailure | null;
   isAuthenticated: boolean;
   isUserAuthenticated: boolean;
   userAuthName: string;
@@ -431,6 +434,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   savedMosqueIds = [],
   onOpenMosque,
   userCoords,
+  locationIssue = null,
   isAuthenticated,
   isUserAuthenticated,
   userAuthName,
@@ -1010,6 +1014,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           ) : (
             <div className="space-y-2">
+              {locationIssue && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('settings')}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-left text-[11px] font-semibold text-amber-900"
+                >
+                  <span>Showing your last known location. Tap to fix location.</span>
+                  <MapPin size={12} />
+                </button>
+              )}
               {closestMosques.length === 0 ? (
                 isLoading ? (
                   <div className="flex items-center justify-center py-4"><Spinner /></div>
