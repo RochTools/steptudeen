@@ -20,6 +20,7 @@ import {
   PrayerConfig, PrayerKey, computeDay, nextPrayerInfo, toDateKey, DEFAULT_PRAYER_CONFIG,
 } from '../lib/prayerEngine';
 import { IqamaSchedule, JumuahSlot, pickSchedule, resolveIqama } from '../lib/iqama';
+import { requestPosition, type LocationFailure } from '../utils/location';
 
 const LAST_GOOD_KEY = 'prayer_last_good';
 const DEFAULT_COORDS = { latitude: 31.5204, longitude: 74.3587 }; // لاہور (پرانا ڈیفالٹ)
@@ -97,6 +98,10 @@ export const usePrayerTimes = (options: UsePrayerTimesOptions = {}) => {
   );
   const [currentPrayer, setCurrentPrayer] = useState<string>('zuhr');
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  // لوکیشن نہ ملے تو وجہ (denied / unavailable / timeout / unsupported)؛ ملے تو null
+  const [locationIssue, setLocationIssue] = useState<LocationFailure | null>(null);
+  // true = نیا مقام نہیں ملا، آخری معلوم مقام استعمال ہو رہا ہے
+  const [locationApproximate, setLocationApproximate] = useState(false);
   const [todayDate, setTodayDate] = useState<string>('');
   const [source, setSource] = useState<'mqtt' | 'engine' | 'api' | 'cache'>('engine');
   const [mosqueUsed, setMosqueUsed] = useState<MosqueForTimes | null>(null);
@@ -182,30 +187,48 @@ export const usePrayerTimes = (options: UsePrayerTimesOptions = {}) => {
     if (isMounted.current) setSource('cache');   // last-good ہی چلے
   }, [mosques, savedMosqueIds, selectedMosque, fetchFromApi]);
 
-  // ============ مقام ============
-  const requestLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setUserCoords(null);
-      recompute(null);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (!isMounted.current) return;
-        const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-        setUserCoords(coords);
-        recompute(coords);
-      },
-      (err) => {
-        console.warn('Location denied:', err);
-        if (isMounted.current) { setUserCoords(null); recompute(null); }
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
-    );
-  }, [recompute]);
+  // recompute ہر بار بدلتا ہے (مثلاً مساجد آنے پر)؛ تازہ ورژن ref میں رکھتے ہیں تاکہ
+  // requestLocation مستحکم رہے اور لوکیشن بار بار نہ مانگی جائے
+  const recomputeRef = useRef(recompute);
+  recomputeRef.current = recompute;
 
+  // ============ مقام ============
+  const locating = useRef(false);
+  const requestLocation = useCallback(async () => {
+    if (locating.current) return;          // پہلی مانگ چل رہی ہو تو دوسری نہ چلائیں
+    locating.current = true;
+    try {
+      const res = await requestPosition();
+      if (!isMounted.current) return;
+      if (res.ok) {
+        const coords = { latitude: res.coords.latitude, longitude: res.coords.longitude };
+        setLocationIssue(null);
+        setLocationApproximate(false);
+        setUserCoords(coords);
+        recomputeRef.current(coords);
+      } else if (res.lastKnown) {
+        // نیا مقام نہ ملا تو آخری معلوم مقام — اوقات اور قریبی مساجد پھر بھی چلتی رہیں
+        const coords = { latitude: res.lastKnown.latitude, longitude: res.lastKnown.longitude };
+        setLocationIssue(res.reason);
+        setLocationApproximate(true);
+        setUserCoords(coords);
+        recomputeRef.current(coords);
+      } else {
+        setLocationIssue(res.reason);
+        setLocationApproximate(false);
+        setUserCoords(null);
+        recomputeRef.current(null);
+      }
+    } finally {
+      locating.current = false;
+    }
+  }, []);
+
+  // ⚠️ پہلے cleanup میں isMounted=false ہو کر کبھی true نہیں ہوتا تھا؛ مساجد لوڈ ہوتے ہی
+  // لوکیشن کا نتیجہ اور اوقات کی تازگی خاموشی سے ضائع ہو جاتی تھی۔ اب ہر بار true سیٹ ہوتا ہے۔
   useEffect(() => {
-    requestLocation();
+    isMounted.current = true;
+    void requestLocation();
     return () => { isMounted.current = false; };
   }, [requestLocation]);
 
@@ -247,6 +270,7 @@ export const usePrayerTimes = (options: UsePrayerTimesOptions = {}) => {
   return {
     // پرانا API (وہی)
     prayerTimes, currentPrayer, userCoords, todayDate, requestLocation,
+    locationIssue, locationApproximate,
     // نیا
     iqama, jumuah, nextPrayer, isRamadan,
     prayerConfig: mosqueUsed?.prayerConfig ?? null,

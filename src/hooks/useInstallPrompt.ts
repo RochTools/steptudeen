@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { isNative } from '../utils/native';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -22,7 +23,8 @@ const isStandalone = () =>
     (window.navigator as any).standalone === true);
 
 if (typeof window !== 'undefined') {
-  installed = isStandalone();
+  // Android ایپ (APK) میں ایپ پہلے سے انسٹال ہے — انسٹال بٹن، ٹول ٹپ اور مدد کا بکس نہ دکھائیں
+  installed = isStandalone() || isNative();
 
   window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault(); // stop Chrome's mini-infobar; we show our own button
