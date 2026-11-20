@@ -63,6 +63,18 @@ jobs:
             sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>#' "$MANIFEST"
           fi
 
+      - name: Add location permissions
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          for p in ACCESS_COARSE_LOCATION ACCESS_FINE_LOCATION; do
+            if ! grep -q "android.permission.$p" "$MANIFEST"; then
+              sed -i "s#</manifest>#    <uses-permission android:name=\"android.permission.$p\" />\n</manifest>#" "$MANIFEST"
+            fi
+          done
+          if ! grep -q "android.hardware.location.gps" "$MANIFEST"; then
+            sed -i 's#</manifest>#    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n</manifest>#' "$MANIFEST"
+          fi
+
       - name: Install app icons
         run: |
           RES=android/app/src/main/res
