@@ -32,6 +32,7 @@ import 'leaflet-rotate';
 import './mosqueFinder.css';
 
 import { bearingDeg, debounce, esc, fmtDist, fmtDur, getDistance } from './geo';
+import { describeFailure } from '../../utils/location';
 import { fetchGeocode, fetchMosquesFromAPI, fetchOSRMRoute } from './api';
 import {
   STALE_MAX,
@@ -155,6 +156,7 @@ export default function MosqueFinder({
     let userPos: { lat: number; lng: number; acc: number } | null = null;
     let activeRoute: ActiveRoute | null = null;
     let watchId: number | null = null;
+    let softRetryDone = false;   // ٹائم آؤٹ پر کم درستگی سے ایک بار دوبارہ کوشش
     let followMode = false;
     let statusTimer: ReturnType<typeof setTimeout> | null = null;
     let hintTimer: ReturnType<typeof setTimeout> | null = null;
@@ -964,13 +966,26 @@ export default function MosqueFinder({
     }
 
     function onWatchError(err: GeolocationPositionError): void {
+      if (err.code === 3 && watchId !== null && !softRetryDone && navigator.geolocation) {
+        // GPS سے وقت پر نہ ملا — نیٹ ورک والے مقام سے آزمائیں
+        softRetryDone = true;
+        navigator.geolocation.clearWatch(watchId);
+        showStatus('loading', 'Still looking for your location...');
+        watchId = navigator.geolocation.watchPosition(onWatchPosition, onWatchError, {
+          enableHighAccuracy: false,
+          timeout: 20000,
+          maximumAge: 60000,
+        });
+        return;
+      }
+      const denied = describeFailure('denied', 'en');
       const msgs: Record<number, string> = {
-        1: 'Location permission not granted — allow it in your browser settings',
-        2: 'Position unavailable — type an area in the search box above',
+        1: `${denied.summary} ${denied.steps.slice(0, 2).join(' → ')}`,
+        2: 'GPS seems off or has no signal — turn on Location on your phone and retry, or type an area above',
         3: 'Location timed out — please try again',
       };
       if (err.code === 1 || err.code === 2) watchId = null;
-      showStatus('error', msgs[err.code] || 'Location not found: ' + (err.message || 'unknown error'), 4000);
+      showStatus('error', msgs[err.code] || 'Location not found: ' + (err.message || 'unknown error'), err.code === 1 ? 7000 : 4000);
     }
 
     function startLocationWatch(): void {
