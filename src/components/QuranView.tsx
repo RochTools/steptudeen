@@ -17,6 +17,7 @@ import {
   Volume2,
   X,
 } from 'lucide-react';
+import { isNative } from '../utils/native';
 
 /**
  * Combined replacement for the old QuranView + SurahReader components.
@@ -113,8 +114,10 @@ type TranslationAudioEdition = {
   base: string;
 };
 
+// قرآن کا ڈیٹا ایپ کے اندر public/quran/{زبان}/{سورت}.json میں موجود ہے — پہلے وہی پڑھا جاتا ہے
+// (انٹرنیٹ کے بغیر بھی چلتا ہے)۔ CDN صرف اس صورت میں جب کوئی فائل ایپ میں نہ ملے۔
+const QURAN_LOCAL = '/quran/';
 const QURAN_CDN = 'https://cdn.jsdelivr.net/gh/RochTools/quran-api@main/Quran/';
-const QURAN_FALLBACK = 'https://raw.githubusercontent.com/RochTools/quran-api/main/Quran/';
 const TAFSIR_CDN = 'https://cdn.jsdelivr.net/gh/RochTools/quran-tafsir-api@main/tafsir/';
 const TAFSIR_FALLBACK = 'https://raw.githubusercontent.com/RochTools/quran-tafsir-api/main/tafsir/';
 const AUDIO_BASE = 'https://everyayah.com/data/Alafasy_128kbps/';
@@ -233,7 +236,7 @@ async function downloadAllSurahsDirect(
       const key = `${lang}_${n}`;
       try {
         if (!surahCache.has(key)) {
-          const data = await fetchJson<SurahPayload>(`${QURAN_CDN}${lang}/${n}.json`, `${QURAN_FALLBACK}${lang}/${n}.json`, signal);
+          const data = await fetchJson<SurahPayload>(`${QURAN_LOCAL}${lang}/${n}.json`, `${QURAN_CDN}${lang}/${n}.json`, signal);
           surahCache.set(key, data);
         }
       } catch {
@@ -492,8 +495,8 @@ export const QuranView: React.FC<QuranViewProps> = () => {
     setSurahData(null);
     setSurahLoading(true);
     fetchJson<SurahPayload>(
+      `${QURAN_LOCAL}${language}/${selectedSurah}.json`,
       `${QURAN_CDN}${language}/${selectedSurah}.json`,
-      `${QURAN_FALLBACK}${language}/${selectedSurah}.json`,
       controller.signal
     )
       .then((data) => {
@@ -779,7 +782,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
   return (
     <div dir="ltr" className="mx-auto w-full max-w-[900px] bg-white p-2 text-left text-slate-900">
       <style>{`
-        @font-face{font-family:'KFGQPC Hafs';src:url('https://cdn.jsdelivr.net/gh/mustafa0x/qpc-fonts@f93bf5f3/various-woff2/UthmanicHafs1%20Ver09.woff2') format('woff2');font-display:swap}
+        @font-face{font-family:'KFGQPC Hafs';src:url('/fonts/UthmanicHafs1-Ver09.woff2') format('woff2'),url('https://cdn.jsdelivr.net/gh/mustafa0x/qpc-fonts@f93bf5f3/various-woff2/UthmanicHafs1%20Ver09.woff2') format('woff2');font-display:swap}
         .quran-hafs{font-family:'KFGQPC Hafs','Noto Naskh Arabic',serif;font-weight:700;color:#111;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
         .quran-brand-loader span{animation:quran-bounce 1.1s ease-in-out infinite;background:linear-gradient(180deg,#3b8bff,#1a63d8);-webkit-background-clip:text;background-clip:text;color:transparent}
         @keyframes quran-bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}}
@@ -818,6 +821,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
               <BookOpen size={17} className="mt-0.5 text-[#2563eb]" />
               <span><strong className="block text-sm">Select Tafsir</strong><small className="block text-[11px] text-slate-500">{currentTafsir.name} - {currentTafsir.language}</small></span>
             </button>
+            {!isNative() && (
             <button
               onClick={() => {
                 setMenuOpen(false);
@@ -839,6 +843,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
                 </small>
               </span>
             </button>
+            )}
           </div>
         )}
       </div>

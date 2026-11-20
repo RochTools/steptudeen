@@ -131,7 +131,7 @@ export const DuasView: React.FC = () => {
   return <main className="dv" dir="ltr">
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Sans+Arabic:wght@400;700&display=swap');
-      @font-face{font-family:"KFGQPC Uthmanic Script HAFS";src:url('https://cdn.jsdelivr.net/gh/mustafa0x/qpc-fonts@f93bf5f3/various-woff2/UthmanicHafs1%20Ver09.woff2') format('woff2');font-display:swap}
+      @font-face{font-family:"KFGQPC Uthmanic Script HAFS";src:url('/fonts/UthmanicHafs1-Ver09.woff2') format('woff2'),url('https://cdn.jsdelivr.net/gh/mustafa0x/qpc-fonts@f93bf5f3/various-woff2/UthmanicHafs1%20Ver09.woff2') format('woff2');font-display:swap}
       .dv{--dv-blue:#2b77ec;--dv-grad:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%);--dv-ink:#080808;min-height:100vh;background:#fff;color:var(--dv-ink);padding:22px 16px 90px;font-family:inherit;box-sizing:border-box}
       .dv *{box-sizing:border-box}.dv button,.dv input{font:inherit}.dv button{cursor:pointer}.dv h1,.dv h2,.dv h3,.dv p{margin:0}.dv .dv-shell{max-width:980px;margin:auto}
       .dv .dv-card{background:#fff;border:1px solid #0000000e;border-radius:22px;box-shadow:0 12px 30px #00000008,0 3px 7px #00000006}

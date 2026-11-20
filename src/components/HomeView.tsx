@@ -44,8 +44,9 @@ interface SurahTarget { surah: number; ayah?: number }
 
 /* ═══════════════════════════ Constants ═══════════════════════════ */
 
+// قرآن کا ڈیٹا ایپ کے اندر public/quran میں ہے؛ CDN صرف ہنگامی متبادل
+const QURAN_LOCAL = '/quran/';
 const QURAN_CDN = 'https://cdn.jsdelivr.net/gh/RochTools/quran-api@main/Quran/';
-const QURAN_FALLBACK = 'https://raw.githubusercontent.com/RochTools/quran-api/main/Quran/';
 const QURAN_SEARCH_TARGET_KEY = 'steptudeen_app_quran_search_target';
 const QURAN_LANGUAGE_KEY = 'steptudeen_app_quran_language';
 const HADITH_HOME_TARGET_KEY = 'steptudeen_app_hadith_book_target';
@@ -282,9 +283,9 @@ const fetchQuranSurah = async (surah: number) => {
     return response.json();
   };
   try {
-    return await request(QURAN_CDN);
+    return await request(QURAN_LOCAL);
   } catch {
-    return request(QURAN_FALLBACK);
+    return request(QURAN_CDN);
   }
 };
 
@@ -623,17 +624,32 @@ export const HomeView: React.FC<HomeViewProps> = ({
     let cancelled = false;
     const chosen = FAMOUS_AYAHS[getDayOfYear() % FAMOUS_AYAHS.length];
 
-    fetch(`https://api.alquran.cloud/v1/ayah/${chosen.s}:${chosen.a}/editions/quran-uthmani,ur.jalandhry`)
-      .then(response => response.json())
-      .then(json => {
-        if (cancelled) return;
-        const ok = json.code === 200 && json.data?.length >= 2;
-        setDailyAyah(ok
-          ? { ar: json.data[0].text, ur: json.data[1].text, ref: `Surah ${chosen.s} · Ayah ${chosen.a}` }
-          : FALLBACK_AYAH);
-      })
-      .catch(() => { if (!cancelled) setDailyAyah(FALLBACK_AYAH); })
-      .finally(() => { if (!cancelled) setLoadingAyah(false); });
+    const ref = `Surah ${chosen.s} · Ayah ${chosen.a}`;
+    (async () => {
+      let next: DailyText = FALLBACK_AYAH;
+      try {
+        // 1) ایپ کے اندر موجود قرآن کا ڈیٹا — آف لائن بھی چلتا ہے
+        const response = await fetch(`${QURAN_LOCAL}ur/${chosen.s}.json`);
+        if (!response.ok) throw new Error('local data not found');
+        const data = await response.json();
+        const verse = data.verses?.find((v: { id: number }) => v.id === chosen.a);
+        if (!verse?.text || !verse?.translation) throw new Error('verse missing');
+        next = { ar: verse.text, ur: verse.translation, ref };
+      } catch {
+        try {
+          // 2) متبادل: آن لائن
+          const response = await fetch(`https://api.alquran.cloud/v1/ayah/${chosen.s}:${chosen.a}/editions/quran-uthmani,ur.jalandhry`);
+          const json = await response.json();
+          if (json.code === 200 && json.data?.length >= 2) {
+            next = { ar: json.data[0].text, ur: json.data[1].text, ref };
+          }
+        } catch { /* FALLBACK_AYAH */ }
+      }
+      if (!cancelled) {
+        setDailyAyah(next);
+        setLoadingAyah(false);
+      }
+    })();
 
     return () => { cancelled = true; };
   }, []);
