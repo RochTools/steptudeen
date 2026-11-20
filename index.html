@@ -122,6 +122,15 @@
     <script>
       // نیٹو Android ایپ میں فائلیں APK کے اندر ہیں، service worker کی ضرورت نہیں (پرانا کیش اپڈیٹ میں رکاوٹ بنتا ہے)
       var isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+      // Android ایپ: viewport-fit=cover (safe-area کے لیے لازم) اور native-app کلاس — صرف نیٹو میں،
+      // تاکہ ویب/iPhone PWA کا برتاؤ نہ بدلے
+      if (isNativeApp) {
+        document.documentElement.classList.add('native-app');
+        var vp = document.querySelector('meta[name=viewport]');
+        if (vp && vp.getAttribute('content').indexOf('viewport-fit') === -1) {
+          vp.setAttribute('content', vp.getAttribute('content') + ', viewport-fit=cover');
+        }
+      }
       if ('serviceWorker' in navigator && !isNativeApp) {
         window.addEventListener('load', async () => {
           let reg;
