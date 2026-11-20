@@ -8,7 +8,7 @@
 //   • raw.githubusercontent.com (Quran fallback) اور firebase config بھی cache ہوتے ہیں
 // ───────────────────────────────────────────────────────────────────────────
 
-const VERSION     = 'v12';
+const VERSION     = 'v13';
 const CACHE_NAME  = `steptudeen-${VERSION}`;
 const CDN_CACHE   = `steptudeen-cdn-${VERSION}`;
 const FONTS_CACHE = `steptudeen-fonts-${VERSION}`;
@@ -18,8 +18,9 @@ const ALL_CACHES = [CACHE_NAME, CDN_CACHE, FONTS_CACHE];
 // ── Quran precache (v12) ─────────────────────────────────────────────────────
 // یہ URLs QuranView.tsx کے QURAN_CDN / font @font-face سے بالکل میل کھانے چاہییں،
 // ورنہ cache میں الگ entries بنیں گی اور آف لائن میں کام نہیں کریں گی۔
-const QURAN_CDN_BASE = 'https://cdn.jsdelivr.net/gh/RochTools/quran-api@main/Quran/';
-const QURAN_FONT_URL = 'https://cdn.jsdelivr.net/gh/mustafa0x/qpc-fonts@f93bf5f3/various-woff2/UthmanicHafs1%20Ver09.woff2';
+// v13: قرآن کا ڈیٹا اور فونٹ اب ایپ کے اپنے فولڈر (public/quran, public/fonts) سے آتے ہیں
+const QURAN_LOCAL_BASE = '/quran/';
+const QURAN_FONT_URL = '/fonts/UthmanicHafs1-Ver09.woff2';
 const SURAH_COUNT    = 114;
 const PRECACHE_BATCH = 6;          // ایک وقت میں کتنی سورتیں (موبائل پر نرمی)
 const SAFE_LANG      = /^[a-z]{2,3}$/;
@@ -42,7 +43,7 @@ async function precacheQuran(lang) {
   precacheRunning = lang;
 
   try {
-    const cache = await caches.open(CDN_CACHE);
+    const cache = await caches.open(CACHE_NAME);
 
     // عربی فونٹ (چھوٹا، مگر آف لائن میں ضروری)
     try {
@@ -53,7 +54,7 @@ async function precacheQuran(lang) {
     } catch (_) { /* فونٹ نہ ملا تو Noto Naskh fallback چلے گا */ }
 
     const urls = [];
-    for (let n = 1; n <= SURAH_COUNT; n++) urls.push(`${QURAN_CDN_BASE}${lang}/${n}.json`);
+    for (let n = 1; n <= SURAH_COUNT; n++) urls.push(`${QURAN_LOCAL_BASE}${lang}/${n}.json`);
 
     let done = 0;
     let failed = 0;
@@ -66,6 +67,8 @@ async function precacheQuran(lang) {
           if (await cache.match(url)) return;          // پہلے سے موجود
           const res = await fetch(url);
           if (!res || !res.ok) throw new Error('HTTP ' + (res && res.status));
+          // فائل نہ ہو تو سرور index.html (200) لوٹا دیتا ہے — اسے سورت بنا کر محفوظ نہ کریں
+          if (!(res.headers.get('content-type') || '').includes('json')) throw new Error('not json');
           await cache.put(url, res.clone());
         } catch (_) {
           failed++;
@@ -297,7 +300,8 @@ self.addEventListener('fetch', (event) => {
       const cached = await cache.match(request);
       const network = fetch(request)
         .then((res) => {
-          if (res && res.ok) cache.put(request, res.clone());
+          const jsonOk = !/\.json(\?.*)?$/i.test(url.pathname) || (res && (res.headers.get('content-type') || '').includes('json'));
+          if (res && res.ok && jsonOk) cache.put(request, res.clone());
           return res;
         })
         .catch(() => null);
