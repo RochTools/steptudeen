@@ -333,6 +333,7 @@ export default function App() {
                   onOpenMosque={(m) => mosques.setSelectedMosque(m)}
                   userCoords={prayer.userCoords}
                   requestLocation={prayer.requestLocation}
+                  locationIssue={prayer.locationIssue}
                   isAuthenticated={hasVerifiedImam}
                   isUserAuthenticated={auth.isAnyUser}
                   userAuthName={auth.currentUserName}
