@@ -1,6 +1,7 @@
 /* Network layer: Overpass (mosques), OSRM (road route), Nominatim (place search).
    Same endpoints and fallback behavior as the standalone HTML app. */
 import type { MosqueLite, RouteData, GeocodeHit } from './types';
+import { fetchMosquesFromRepo } from './mosqueRepo';
 
 interface OverpassElement {
   type: string;
@@ -82,6 +83,9 @@ async function fetchMosquesDirect(lat: number, lng: number, radius: number): Pro
 
 /** All nearby mosques within `radius` meters of (lat, lng) — via our own cached /api/mosques. */
 export async function fetchMosquesFromAPI(lat: number, lng: number, radius: number): Promise<MosqueLite[]> {
+  // پہلے ہمارا اپنا پاکستان ڈیٹا ریپو؛ نہ ملے تو نیچے پرانا راستہ (/api/mosques → Overpass)
+  const fromRepo = await fetchMosquesFromRepo(lat, lng, radius);
+  if (fromRepo) return fromRepo;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 40000);
   try {
