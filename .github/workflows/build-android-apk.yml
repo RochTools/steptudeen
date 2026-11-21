@@ -181,6 +181,15 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
+      - name: Show APK signing SHA-1 (Google sign-in check)
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          AS=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          echo "=== APK کی اصل دستخطی SHA-1 (Firebase والی سے ملنی چاہیے: CD:CB:E6:C8:96:16:D5:D6:31:F2:87:82:1D:59:0E:93:20:59:AC:01) ==="
+          if [ -n "$AS" ]; then "$AS" verify --print-certs "$APK" | grep -i "SHA-1" || true; else echo "apksigner نہیں ملا"; fi
+          echo "=== google-services.json میں پیکیج اور certificate_hash ==="
+          grep -E '"package_name"|"certificate_hash"|"client_type"' android/app/google-services.json | sed 's/^ *//' || true
+
       - uses: actions/upload-artifact@v4
         with:
           name: StepTuDeen-debug-apk
