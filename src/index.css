@@ -65,3 +65,9 @@ html.native-app .native-top-pad {
 html.native-app .fixed.bottom-0 {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
 }
+
+/* Android ایپ: جو عناصر fixed/sticky ہیں وہ روٹ کی padding کے باہر ہیں، انہیں الگ سے نیچے کرنا */
+html.native-app .mf-root .mf-top-bar { top: calc(14px + var(--sat)); }
+html.native-app .mf-root .mf-sidebar { padding-top: var(--sat); box-sizing: border-box; }
+html.native-app .dv .dv-toolbar-fixed { padding-top: var(--sat); }
+html.native-app .sticky.top-0 { top: var(--sat); }
