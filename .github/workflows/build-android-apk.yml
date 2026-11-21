@@ -50,6 +50,19 @@ jobs:
           npx cap add android
           npx cap sync android
 
+      - name: Google sign-in + fixed debug key
+        run: |
+          # 1) نیٹو Google سائن اِن (پلگ اِن کی Google لائبریریاں شامل کرنا)
+          VG=android/variables.gradle
+          if [ ! -f "$VG" ]; then echo "::error::android/variables.gradle نہیں ملی"; exit 1; fi
+          grep -q rgcfaIncludeGoogle "$VG" || sed -i '0,/ext *{/s//ext {\n    rgcfaIncludeGoogle = true/' "$VG"
+          grep -q "rgcfaIncludeGoogle = true" "$VG" || { echo "::error::variables.gradle میں rgcfaIncludeGoogle شامل نہیں ہو سکا"; exit 1; }
+          # 2) مستقل ڈیبگ کی — ہر بلڈ پر وہی SHA-1 رہے تاکہ Firebase میں ایک بار ڈالنا کافی ہو
+          if [ ! -f signing/debug.keystore ]; then echo "::error::signing/debug.keystore موجود نہیں"; exit 1; fi
+          mkdir -p ~/.android
+          cp signing/debug.keystore ~/.android/debug.keystore
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep -E "SHA1|SHA256" || true
+
       - name: Add sounds, Firebase config and permission
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
