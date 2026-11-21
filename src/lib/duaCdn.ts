@@ -24,7 +24,7 @@ export interface DuaDataset {
   meta: { dataset: string; version: string; language: DuaLanguage; languageName: string; direction: 'rtl' | 'ltr'; generatedAt?: string; counts: { chapters: number; duas: number }; attribution?: string; license?: { dataset?: string; notes?: string[] } };
   chapters: CdnChapter[];
 }
-export interface DuaDatasetResult { data: DuaDataset; via: 'cdn' | 'github' | 'cache'; savedAt: number; stale: boolean }
+export interface DuaDatasetResult { data: DuaDataset; via: 'local' | 'cdn' | 'github' | 'cache'; savedAt: number; stale: boolean }
 const KEY = `steptudeen_dua_repo_v1:${DUA_REF}:`;
 const TTL = 6 * 60 * 60 * 1000;
 const memory = new Map<DuaLanguage, DuaDatasetResult>();
@@ -32,6 +32,32 @@ const record = (v: unknown): v is Record<string, any> => !!v && typeof v === 'ob
 const stringOrNull = (v: unknown) => v === undefined || v === null || typeof v === 'string';
 const repetition = (v: unknown) => v === undefined || v === null || Number.isInteger(v) && Number(v) > 0;
 const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
+
+// نیا فارمیٹ (v2: dua.translation، meta.translationKind) → وہ فارمیٹ جو ویو سمجھتا ہے (title/text/textKind/translationKind)۔
+// پرانا فارمیٹ (جس میں text موجود ہو) جیسا ہے ویسا رہتا ہے۔
+export function normalizeDuaDataset(raw: unknown): unknown {
+  if (!record(raw) || !record(raw.meta) || !Array.isArray(raw.chapters)) return raw;
+  const kind = typeof raw.meta.translationKind === 'string' ? raw.meta.translationKind : 'translation';
+  return {
+    ...raw,
+    chapters: raw.chapters.map((ch: any) => !record(ch) || !Array.isArray(ch.duas) ? ch : ({
+      ...ch,
+      duas: ch.duas.map((d: any) => {
+        if (!record(d) || typeof d.text === 'string') return d;
+        const text = typeof d.translation === 'string' ? d.translation : '';
+        return {
+          ...d,
+          title: typeof d.title === 'string' ? d.title : String(ch.title ?? ''),
+          text,
+          textKind: typeof d.textKind === 'string' ? d.textKind : 'translation',
+          translationKind: typeof d.translationKind === 'string' ? d.translationKind : kind,
+          placeholders: Array.isArray(d.placeholders) ? d.placeholders.map((p: any) => record(p) && typeof p.instruction !== 'string' ? { ...p, instruction: '' } : p) : d.placeholders,
+          parts: Array.isArray(d.parts) ? d.parts.map((p: any) => record(p) && p.en === undefined && typeof p.translation === 'string' ? { ...p, en: p.translation } : p) : d.parts,
+        };
+      }),
+    })),
+  };
+}
 
 export function validateDuaDataset(value: unknown, language: DuaLanguage): value is DuaDataset {
   if (!record(value) || !record(value.meta) || !Array.isArray(value.chapters)) return false;
@@ -58,6 +84,10 @@ export function validateDuaDataset(value: unknown, language: DuaLanguage): value
   }
   return meta.counts.chapters === chapters.size && meta.counts.duas === total;
 }
+// ایپ کے اپنے public/dua فولڈر سے (APK کے اندر) — پہلی ترجیح۔ دونوں عام ڈھانچے آزمائے جاتے ہیں۔
+export function duaLocalUrls(language: DuaLanguage) {
+  return [`/dua/${language}/duas.json`, `/dua/data/${language}/duas.json`, `/dua/${language}.json`];
+}
 export function duaDatasetUrls(language: DuaLanguage) {
   if (!DUA_LANGUAGES.some(item => item.code === language)) throw new Error('Unsupported language.');
   const path = `data/${language}/duas.json`;
@@ -78,7 +108,7 @@ async function request(url: string, language: DuaLanguage, parent: AbortSignal):
   try {
     const response = await fetch(url, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data: unknown = await response.json();
+    const data: unknown = normalizeDuaDataset(await response.json());
     if (!validateDuaDataset(data, language)) throw new Error('The JSON format or language does not match this library.');
     return data;
   } finally { clearTimeout(timer); parent.removeEventListener('abort', cancel); }
@@ -86,6 +116,16 @@ async function request(url: string, language: DuaLanguage, parent: AbortSignal):
 export async function loadDuaDataset(language: DuaLanguage, signal: AbortSignal, refresh = false): Promise<DuaDatasetResult> {
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
   const urls = duaDatasetUrls(language);
+  // لوکل فولڈر پہلے: انٹرنیٹ کے بغیر بھی دعائیں کھلیں
+  for (const url of duaLocalUrls(language)) {
+    try {
+      const data = await request(url, language, signal);
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      return { data, via: 'local', savedAt: Date.now(), stale: false };
+    } catch {
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    }
+  }
   const stored = cached(language);
   if (!refresh && stored && Date.now() - stored.savedAt < TTL) return { ...stored, via: 'cache', stale: false };
   // Manual Refresh checks GitHub first: @main may remain cached at the CDN edge.
