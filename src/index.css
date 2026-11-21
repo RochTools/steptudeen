@@ -48,10 +48,19 @@ body {
 /* ── Android ایپ (Capacitor 7، Android 15+): مواد سٹیٹس/نیویگیشن بار کے نیچے نہ جائے ──
    index.html صرف نیٹو ایپ میں html پر native-app کلاس لگاتی ہے۔ جہاں سسٹم بار الگ ہیں
    (پرانے Android) وہاں env() صفر ہوتا ہے، یعنی کوئی فرق نہیں پڑتا۔ */
+html.native-app {
+  --sat: var(--status-bar-height, env(safe-area-inset-top, 0px));
+}
 html.native-app body {
   box-sizing: border-box;
-  padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* ہوم کے علاوہ صفحات: سٹیٹس بار کے نیچے سے شروع (ہوم کا نیلا ہیڈر خود اوپر تک جاتا ہے) */
+html.native-app [data-view]:not([data-view="home"]) {
+  padding-top: var(--sat);
+}
+html.native-app .native-top-pad {
+  padding-top: var(--sat);
 }
 html.native-app .fixed.bottom-0 {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));

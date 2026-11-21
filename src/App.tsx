@@ -291,10 +291,17 @@ export default function App() {
 
   const { currentView } = nav;
 
+  // Android ایپ: سٹیٹس بار کے آئیکن کا رنگ — ہوم کے نیلے ہیڈر پر سفید، باقی ہلکے صفحات پر کالا
+  useEffect(() => {
+    try {
+      (window as any).StepNative?.setLightIcons?.(currentView === 'home');
+    } catch { /* ویب پر کوئی اثر نہیں */ }
+  }, [currentView]);
+
   // ============ RENDER ============
   return (
     <ErrorBoundary>
-      <div dir="ltr" className={`w-full max-w-md mx-auto min-h-screen relative flex flex-col shadow-xl overflow-hidden pb-14 ${currentView === 'tasbih' ? 'bg-[#fef2c7]' : 'bg-slate-50'}`}>
+      <div dir="ltr" data-view={currentView} className={`w-full max-w-md mx-auto min-h-screen relative flex flex-col shadow-xl overflow-hidden pb-14 ${currentView === 'tasbih' ? 'bg-[#fef2c7]' : 'bg-slate-50'}`}>
 
         {/* LOGIN SPLASH */}
         {currentView === 'login-splash' && (
