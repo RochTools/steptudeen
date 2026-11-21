@@ -126,6 +126,13 @@
       // تاکہ ویب/iPhone PWA کا برتاؤ نہ بدلے
       if (isNativeApp) {
         document.documentElement.classList.add('native-app');
+        // سٹیٹس بار کی اونچائی (CSS px) — Android انٹرفیس سے، ورنہ CSS میں env() fallback
+        try {
+          if (window.StepNative) {
+            var h = window.StepNative.getStatusBarHeightCss();
+            if (h > 0) document.documentElement.style.setProperty('--status-bar-height', h + 'px');
+          }
+        } catch (e) {}
         var vp = document.querySelector('meta[name=viewport]');
         if (vp && vp.getAttribute('content').indexOf('viewport-fit') === -1) {
           vp.setAttribute('content', vp.getAttribute('content') + ', viewport-fit=cover');
