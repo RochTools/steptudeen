@@ -61,7 +61,14 @@ jobs:
           if [ ! -f signing/debug.keystore ]; then echo "::error::signing/debug.keystore موجود نہیں"; exit 1; fi
           mkdir -p ~/.android
           cp signing/debug.keystore ~/.android/debug.keystore
-          keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep -E "SHA1|SHA256" || true
+          # Gradle کو بھی صاف صاف بتانا کہ debug بلڈ اسی کی سے سائن ہو (ڈیفالٹ جگہ پر بھروسا نہیں)
+          cp signing/debug.keystore android/app/debug.keystore
+          AG=android/app/build.gradle
+          if ! grep -q "steptudeen-fixed-debug-key" "$AG"; then
+            sed -i '0,/^android *{/s//android {\n    \/\/ steptudeen-fixed-debug-key\n    signingConfigs {\n        debug {\n            storeFile file("debug.keystore")\n            storePassword "android"\n            keyAlias "androiddebugkey"\n            keyPassword "android"\n        }\n    }/' "$AG"
+          fi
+          grep -q "steptudeen-fixed-debug-key" "$AG" || { echo "::error::app/build.gradle میں signingConfigs شامل نہیں ہو سکا"; exit 1; }
+          keytool -list -v -keystore signing/debug.keystore -storepass android | grep -E "SHA1|SHA256" || true
 
       - name: Add sounds, Firebase config and permission
         env:
@@ -186,7 +193,13 @@ jobs:
           APK=android/app/build/outputs/apk/debug/app-debug.apk
           AS=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
           echo "=== APK کی اصل دستخطی SHA-1 (Firebase والی سے ملنی چاہیے: CD:CB:E6:C8:96:16:D5:D6:31:F2:87:82:1D:59:0E:93:20:59:AC:01) ==="
-          if [ -n "$AS" ]; then "$AS" verify --print-certs "$APK" | grep -i "SHA-1" || true; else echo "apksigner نہیں ملا"; fi
+          if [ -n "$AS" ]; then
+            GOT=$("$AS" verify --print-certs "$APK" | grep -i "SHA-1" | head -1 | sed 's/.*: *//' | tr -d ': ' | tr 'A-F' 'a-f')
+            echo "APK SHA-1: $GOT"
+            if [ "$GOT" != "cdcbe6c89616d5d631f287821d590e932059ac01" ] && [ "$GOT" != "cdcbe6c89616d5d631f287821d590e932059ac01" ]; then
+              echo "::error::APK مستقل کی سے سائن نہیں ہوئی — Google لاگ ان نہیں چلے گا"; exit 1
+            fi
+          else echo "apksigner نہیں ملا"; fi
           echo "=== google-services.json میں پیکیج اور certificate_hash ==="
           grep -E '"package_name"|"certificate_hash"|"client_type"' android/app/google-services.json | sed 's/^ *//' || true
 
