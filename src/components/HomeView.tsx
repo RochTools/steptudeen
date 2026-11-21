@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AlertTriangle, Bell, CalendarDays, ChevronDown, Compass,
-  MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X, BookOpen, ScrollText, ArrowRight, CircleDot, Heart, LayoutDashboard, Landmark, Download,
+  MapPin, MapPinned, Menu, Search, SlidersHorizontal, Sunrise, User, X, BookOpen, ScrollText, ArrowRight, CircleDot, Heart, LayoutDashboard, Landmark, Download, Sparkles,
 } from 'lucide-react';
 import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
@@ -62,6 +62,7 @@ const SECTIONS = [
   { title: 'Duas', subtitle: 'Daily supplications', nav: 'duas' },
   { title: 'Tasbih Counter', subtitle: 'Daily dhikr', nav: 'tasbih' },
   { title: 'Qibla Direction', subtitle: 'Find the Qibla', nav: 'qibla' },
+  { title: '99 Names of Allah', subtitle: 'Asma ul Husna', nav: 'names99' },
   { title: 'Nearby Mosques', subtitle: 'Jumu’ah timings', nav: 'mosques' },
 ];
 
@@ -175,6 +176,8 @@ interface HomeCardConfig {
   /** Either a top-level view to open, or a Hadith book to open inside the Hadith view. */
   nav?: string;
   hadithBook?: string;
+  /** Hadith count shown on book cards. */
+  count?: number;
 }
 
 const HOME_CARDS: HomeCardConfig[] = [
@@ -183,14 +186,15 @@ const HOME_CARDS: HomeCardConfig[] = [
   { theme: 'pink',   urdu: 'مسنون دعائیں',    label: 'Duas',             desc: 'Daily duas for a better life.',       decor: 'lotus',   nav: 'duas' },
   { theme: 'amber',  urdu: 'تسبیح کاؤنٹر',   label: 'Tasbih',           desc: 'Remember Allah with every breath.',   decor: 'beads',   nav: 'tasbih' },
   { theme: 'blue',   urdu: 'قبلہ رخ سمت',     label: 'Qibla',            desc: 'Find the right direction.',           decor: 'compass', nav: 'qibla' },
+  { theme: 'amber',  urdu: 'اللہ کے 99 نام',  label: '99 Names of Allah', desc: 'Asma ul Husna with meanings.',        decor: 'dome',    nav: 'names99' },
   { theme: 'white',  urdu: 'میرا ڈش بورڈ',    label: 'My Dashboard',     desc: 'Your personal Islamic space.',        decor: 'dome',    nav: 'user-dashboard' },
-  { theme: 'coral',  urdu: 'صحیح بخاری',      label: 'Sahih Bukhari',    desc: 'صحیح بخاری',      decor: 'dome', hadithBook: 'bukhari' },
-  { theme: 'teal',   urdu: 'صحیح مسلم',       label: 'Sahih Muslim',     desc: 'صحیح مسلم',       decor: 'dome', hadithBook: 'muslim' },
-  { theme: 'rose',   urdu: 'سنن ابو داود',    label: 'Sunan Abu Dawud',  desc: 'سنن ابو داود',    decor: 'dome', hadithBook: 'abudawud' },
-  { theme: 'purple', urdu: 'جامع ترمذی',      label: 'Jami at-Tirmidhi', desc: 'جامع ترمذی',      decor: 'dome', hadithBook: 'tirmidhi' },
-  { theme: 'green',  urdu: 'سنن نسائی',       label: 'Sunan an-Nasai',   desc: 'سنن نسائی',       decor: 'dome', hadithBook: 'nasai' },
-  { theme: 'amber',  urdu: 'سنن ابن ماجہ',    label: 'Sunan Ibn Majah',  desc: 'سنن ابن ماجہ',    decor: 'dome', hadithBook: 'ibnmajah' },
-  { theme: 'blue',   urdu: 'موطا امام مالک',  label: 'Muwatta Malik',    desc: 'موطا امام مالک',  decor: 'dome', hadithBook: 'malik' },
+  { theme: 'coral',  urdu: 'صحیح بخاری',      label: 'Sahih Bukhari',    desc: 'صحیح بخاری',      decor: 'dome', hadithBook: 'bukhari', count: 7563 },
+  { theme: 'teal',   urdu: 'صحیح مسلم',       label: 'Sahih Muslim',     desc: 'صحیح مسلم',       decor: 'dome', hadithBook: 'muslim', count: 3033 },
+  { theme: 'rose',   urdu: 'سنن ابو داود',    label: 'Sunan Abu Dawud',  desc: 'سنن ابو داود',    decor: 'dome', hadithBook: 'abudawud', count: 5274 },
+  { theme: 'purple', urdu: 'جامع ترمذی',      label: 'Jami at-Tirmidhi', desc: 'جامع ترمذی',      decor: 'dome', hadithBook: 'tirmidhi', count: 3956 },
+  { theme: 'green',  urdu: 'سنن نسائی',       label: 'Sunan an-Nasai',   desc: 'سنن نسائی',       decor: 'dome', hadithBook: 'nasai', count: 5758 },
+  { theme: 'amber',  urdu: 'سنن ابن ماجہ',    label: 'Sunan Ibn Majah',  desc: 'سنن ابن ماجہ',    decor: 'dome', hadithBook: 'ibnmajah', count: 4341 },
+  { theme: 'blue',   urdu: 'موطا امام مالک',  label: 'Muwatta Malik',    desc: 'موطا امام مالک',  decor: 'dome', hadithBook: 'malik', count: 1857 },
 ];
 
 /* ═══════════════════════════ Helpers ═══════════════════════════ */
@@ -402,25 +406,23 @@ const CardDecor: React.FC<{ kind: HomeCardConfig['decor'] }> = ({ kind }) => {
   );
 };
 
-const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void }> = ({ config, onClick }) => {
-  const Icon = config.hadithBook ? ScrollText : config.nav === 'quran' ? BookOpen
+const HomeCard: React.FC<{ config: HomeCardConfig; onClick: () => void; wide?: boolean }> = ({ config, onClick, wide }) => {
+  const Icon = config.hadithBook ? BookOpen : config.nav === 'quran' ? BookOpen
     : config.nav === 'qibla' ? Compass : config.nav === 'tasbih' ? CircleDot
-    : config.nav === 'duas' ? Heart : config.nav === 'user-dashboard' ? LayoutDashboard : Landmark;
-  const isUrduDesc = !!config.hadithBook;
+    : config.nav === 'duas' ? Heart : config.nav === 'user-dashboard' ? LayoutDashboard
+    : config.nav === 'names99' ? Sparkles : Landmark;
+  // حدیث والے کارڈ جیسا انداز: سفید کارڈ، درمیان میں گول نیلا آئیکن، نام، نیچے نیلی گولی
+  const pill = config.hadithBook && config.count ? `${config.count.toLocaleString('en-US')} Hadith` : config.urdu;
   return (
-    <button type="button" onClick={onClick} className={`sth-feature sth-t-${config.theme}`} aria-label={`Open ${config.label}`}>
-      <CardDecor kind={config.decor} />
-      <span className="sth-feature-icon"><Icon size={26} strokeWidth={1.8} /></span>
-      <span className="sth-feature-body">
-        <span className="sth-feature-label">{config.label}</span>
-        <span
-          className={`sth-feature-desc ${isUrduDesc ? 'home-card-urdu-title' : ''}`}
-          dir={isUrduDesc ? 'rtl' : 'ltr'}
-        >
-          {config.desc}
-        </span>
-      </span>
-      <span className="sth-feature-arrow" aria-hidden="true"><ArrowRight size={14} strokeWidth={2.2} /></span>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Open ${config.label}`}
+      className={`flex min-h-[142px] flex-col items-center justify-center rounded-2xl border border-black/10 bg-white p-3 text-center shadow-[0_3px_10px_rgba(0,0,0,.12)] transition active:scale-[.97] ${wide ? 'col-span-2' : ''}`}
+    >
+      <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full text-white" style={{ background: 'linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%)', boxShadow: '0 4px 12px #1a63d847' }}><Icon size={19} /></span>
+      <strong className="text-sm text-black">{config.label}</strong>
+      <small className="mt-2 rounded-full px-2.5 py-1 text-[10px] font-semibold text-white" style={{ background: 'linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%)' }}>{pill}</small>
     </button>
   );
 };
@@ -1072,14 +1074,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <section aria-label="Explore the app">
-          <div className="sth-grid">{HOME_CARDS.filter(card => !card.hadithBook).map(card => <HomeCard key={card.label} config={card} onClick={() => handleCardClick(card)}/>)}</div>
+          <div className="sth-grid">{HOME_CARDS.filter(card => !card.hadithBook).map((card, i, arr) => <HomeCard key={card.label} config={card} wide={arr.length % 2 === 1 && i === arr.length - 1} onClick={() => handleCardClick(card)}/>)}</div>
         </section>
         <section aria-label="Hadith collections">
           <div className="sth-section-heading">
             <h2>Hadith Collections</h2>
             <button type="button" className="sth-link-btn" onClick={() => onNavigate('hadith')}>View all <ArrowRight size={15} /></button>
           </div>
-          <div className="sth-grid">{HOME_CARDS.filter(card => card.hadithBook).map(card => <HomeCard key={card.label} config={card} onClick={() => handleCardClick(card)}/>)}</div>
+          <div className="sth-grid">{HOME_CARDS.filter(card => card.hadithBook).map((card, i, arr) => <HomeCard key={card.label} config={card} wide={arr.length % 2 === 1 && i === arr.length - 1} onClick={() => handleCardClick(card)}/>)}</div>
         </section>
 
         {/* Verse of the day */}
