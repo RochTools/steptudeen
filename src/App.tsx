@@ -18,6 +18,7 @@ import { HomeView } from './components/HomeView';
 // ============ ALL OTHER COMPONENTS: lazy loaded ============
 // These components are loaded only when the user opens the relevant page.
 const QuranView       = lazy(() => import('./components/QuranView').then(m => ({ default: m.QuranView })));
+const NamesOfAllahView = lazy(() => import('./components/NamesOfAllahView').then(m => ({ default: m.NamesOfAllahView })));
 const HadithView      = lazy(() => import('./components/HadithView').then(m => ({ default: m.HadithView })));
 const NamazView       = lazy(() => import('./components/NamazView').then(m => ({ default: m.NamazView })));
 const DuasView        = lazy(() => import('./components/DuasView').then(m => ({ default: m.DuasView })));
@@ -365,6 +366,7 @@ export default function App() {
 
               {currentView === 'namaz' && <NamazView />}
               {currentView === 'duas' && <DuasView />}
+              {currentView === 'names99' && <NamesOfAllahView onBack={() => nav.goBack()} />}
 
               {currentView === 'tasbih' && (
                 <div className="flex flex-col justify-center animate-fadeIn flex-1 bg-[#fef2c7]">

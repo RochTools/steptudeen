@@ -70,4 +70,3 @@ html.native-app .fixed.bottom-0 {
 html.native-app .mf-root .mf-top-bar { top: calc(14px + var(--sat)); }
 html.native-app .mf-root .mf-sidebar { padding-top: var(--sat); box-sizing: border-box; }
 html.native-app .dv .dv-toolbar-fixed { padding-top: var(--sat); }
-html.native-app .sticky.top-0 { top: var(--sat); }
