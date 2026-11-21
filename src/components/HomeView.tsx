@@ -726,7 +726,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       `}</style>
 
       {/* ═══════════ Header ═══════════ */}
-      <div className="relative min-h-[260px] overflow-hidden rounded-b-[26px] pb-5 bg-[#063b9d] text-white shadow-[0_10px_30px_rgba(5,69,166,.28)]">
+      <div className="native-top-pad relative min-h-[260px] overflow-hidden rounded-b-[26px] pb-5 bg-[#063b9d] text-white shadow-[0_10px_30px_rgba(5,69,166,.28)]">
         <CelestialHeaderScene prayerTimes={prayerTimes} />
 
         <img
