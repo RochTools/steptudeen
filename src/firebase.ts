@@ -9,8 +9,10 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCredential,
   User
 } from 'firebase/auth';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import {
   getFirestore,
   Firestore,
@@ -81,6 +83,26 @@ export async function firebaseSignUp(
 }
 
 export async function firebaseGoogleSignIn(firebaseAuth: Auth): Promise<User> {
+  // Android ایپ (APK): ویب والا popup/redirect نیٹو WebView میں کام نہیں کرتا ("The requested action is invalid")،
+  // اس لیے فون کا اپنا Google سائن اِن استعمال ہوتا ہے، پھر اسی ٹوکن سے JS Firebase میں لاگ ان۔
+  if (Capacitor.isNativePlatform()) {
+    const FirebaseAuthentication = registerPlugin<any>('FirebaseAuthentication');
+    let r: any;
+    try {
+      r = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
+    } catch (e: any) {
+      const msg = String(e?.message || e?.code || e || '').toLowerCase();
+      if (msg.includes('cancel') || msg.includes('12501') || msg.includes('dismiss')) {
+        throw { code: 'auth/popup-closed-by-user', message: 'cancelled' };
+      }
+      throw e;
+    }
+    const idToken = r?.credential?.idToken;
+    if (!idToken) throw { code: 'auth/native-no-token', message: 'Google did not return an ID token' };
+    const credential = GoogleAuthProvider.credential(idToken, r?.credential?.accessToken || undefined);
+    const res = await signInWithCredential(firebaseAuth, credential);
+    return res.user;
+  }
   const provider = new GoogleAuthProvider();
   const result = await signInWithPopup(firebaseAuth, provider);
   return result.user;
