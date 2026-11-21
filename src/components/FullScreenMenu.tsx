@@ -140,7 +140,7 @@ export default function FullScreenMenu({ onNavigate, onClose }: Props) {
         {/* Header */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9", flexShrink: 0,
+          padding: "16px 16px 12px", paddingTop: "calc(16px + var(--sat, 0px))", borderBottom: "1px solid #f1f5f9", flexShrink: 0,
         }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>Menu</h2>
           <button
