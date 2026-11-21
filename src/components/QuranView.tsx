@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { isNative } from '../utils/native';
+import { useHideOnScroll } from '../hooks/useHideOnScroll';
 
 /**
  * Combined replacement for the old QuranView + SurahReader components.
@@ -330,6 +331,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
   const [search, setSearch] = useState('');
   const [selectedSurah, setSelectedSurah] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const barHidden = useHideOnScroll(menuOpen);
   const [picker, setPicker] = useState<'quran' | 'tafsir' | null>(null);
 
   const [language, setLanguage] = useState(() => {
@@ -790,7 +792,7 @@ export const QuranView: React.FC<QuranViewProps> = () => {
       `}</style>
 
       {/* Search with Blogger-style three-dot menu */}
-      <div className="relative mb-4" ref={menuRef}>
+      <div className={`sticky top-0 z-30 mb-4 bg-slate-50 py-1 transition-transform duration-300 ${barHidden ? '-translate-y-[140%]' : ''}`} ref={menuRef}>
         <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
         <input
           value={search}
