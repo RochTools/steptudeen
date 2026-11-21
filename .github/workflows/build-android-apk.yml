@@ -87,21 +87,24 @@ jobs:
             sed -i 's#</application>#        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_steptudeen" />\n        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/steptudeen_notif_color" />\n    </application>#' "$MANIFEST"
           fi
 
-      - name: Full screen (hide status bar)
+      - name: Transparent status bar (edge-to-edge)
         run: |
-          # سٹیٹس بار (وقت/بیٹری/سگنل) چھپا کر ایپ پوری سکرین پر؛ اوپر سے سوائپ پر عارضی طور پر نظر آتا ہے۔
-          # نیویگیشن بٹن (Back/Home) جیسے ہیں ویسے رہتے ہیں۔
+          # سٹیٹس بار (وقت/بیٹری/سگنل) نظر آئے مگر شفاف ہو، اور ایپ کا مواد سکرین کے بالکل اوپر سے شروع ہو۔
+          # ویب پیج کو سٹیٹس بار کی اونچائی JS انٹرفیس (StepNative) سے ملتی ہے، اور آئیکن کا رنگ (سفید/کالا) بھی۔
           DIR=android/app/src/main/java/com/steptudeen/app
           if [ ! -f "$DIR/MainActivity.java" ]; then echo "::error::MainActivity.java نہیں ملی ($DIR)"; exit 1; fi
           cat > "$DIR/MainActivity.java" <<'JAVA'
           package com.steptudeen.app;
 
+          import android.graphics.Color;
           import android.os.Build;
           import android.os.Bundle;
+          import android.view.View;
+          import android.view.Window;
           import android.view.WindowManager;
+          import android.webkit.JavascriptInterface;
 
           import androidx.core.view.WindowCompat;
-          import androidx.core.view.WindowInsetsCompat;
           import androidx.core.view.WindowInsetsControllerCompat;
 
           import com.getcapacitor.BridgeActivity;
@@ -110,28 +113,53 @@ jobs:
               @Override
               public void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  // نوچ/کٹ آؤٹ والے فونز پر بھی پوری سکرین استعمال ہو
+                  final Window window = getWindow();
+                  // نوچ/کٹ آؤٹ والے فونز پر بھی اوپر تک
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                      WindowManager.LayoutParams lp = getWindow().getAttributes();
+                      WindowManager.LayoutParams lp = window.getAttributes();
                       lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-                      getWindow().setAttributes(lp);
+                      window.setAttributes(lp);
                   }
-                  hideStatusBar();
+                  // مواد سٹیٹس بار کے نیچے سے شروع ہو (پرانے اور نئے دونوں Android پر)
+                  View decor = window.getDecorView();
+                  decor.setSystemUiVisibility(decor.getSystemUiVisibility()
+                      | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+                  window.setStatusBarColor(Color.TRANSPARENT);
+                  // ہوم پر نیلا ہیڈر ہے، اس لیے شروع میں سفید آئیکن
+                  setLightIcons(true);
+                  try {
+                      getBridge().getWebView().addJavascriptInterface(new StepNative(), "StepNative");
+                  } catch (Throwable t) {
+                      // انٹرفیس نہ بنے تو ایپ پھر بھی چلے (JS میں env() fallback ہے)
+                  }
               }
 
-              @Override
-              public void onWindowFocusChanged(boolean hasFocus) {
-                  super.onWindowFocusChanged(hasFocus);
-                  if (hasFocus) {
-                      hideStatusBar();
-                  }
+              private void setLightIcons(final boolean whiteIcons) {
+                  runOnUiThread(new Runnable() {
+                      @Override
+                      public void run() {
+                          WindowInsetsControllerCompat c =
+                              WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+                          // appearance light status bars = کالے آئیکن
+                          c.setAppearanceLightStatusBars(!whiteIcons);
+                      }
+                  });
               }
 
-              private void hideStatusBar() {
-                  WindowInsetsControllerCompat controller =
-                      WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
-                  controller.hide(WindowInsetsCompat.Type.statusBars());
-                  controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+              public class StepNative {
+                  @JavascriptInterface
+                  public float getStatusBarHeightCss() {
+                      int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
+                      int px = id > 0 ? getResources().getDimensionPixelSize(id) : 0;
+                      float density = getResources().getDisplayMetrics().density;
+                      return density > 0 ? px / density : 0f;
+                  }
+
+                  @JavascriptInterface
+                  public void setLightIcons(boolean whiteIcons) {
+                      MainActivity.this.setLightIcons(whiteIcons);
+                  }
               }
           }
           JAVA
