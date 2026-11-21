@@ -21,9 +21,9 @@ jobs:
 
       - name: Install Capacitor packages
         run: |
-          npm install --no-audit --no-fund
-          npm install --no-audit --no-fund @capacitor/core@^7 @capacitor/app@^7 @capacitor/push-notifications@^7 @capacitor-firebase/authentication@^7
-          npm install --save-dev --no-audit --no-fund @capacitor/cli@^7 @capacitor/android@^7
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm install --legacy-peer-deps --no-audit --no-fund @capacitor/core@^7 @capacitor/app@^7 @capacitor/push-notifications@^7 @capacitor-firebase/authentication@^7
+          npm install --save-dev --legacy-peer-deps --no-audit --no-fund @capacitor/cli@^7 @capacitor/android@^7
 
       - name: Commit package files
         run: |
