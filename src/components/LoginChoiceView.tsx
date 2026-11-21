@@ -142,7 +142,10 @@ export function LoginChoiceView({
       } else if (code === 'unavailable') {
         setError('Service is temporarily unavailable. Please try again later.');
       } else {
-        setError('Something went wrong. Please try again.');
+        // APK میں اصل وجہ بھی دکھاؤ تاکہ مسئلہ پکڑا جا سکے (ویب پر پہلے جیسا)
+        const detail = String(err?.message || err?.code || err || '').replace(/\s+/g, ' ').slice(0, 160);
+        const isApk = !!(window as any).Capacitor?.isNativePlatform?.();
+        setError(isApk && detail ? `Something went wrong. Please try again. [${detail}]` : 'Something went wrong. Please try again.');
       }
       setLoading(false);
       return;
