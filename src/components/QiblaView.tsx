@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Compass, Key, Sparkles, MapPin, RefreshCw, Info } from 'lucide-react';
+import { isNative } from '../utils/native';
 
 interface QiblaViewProps {
   userCoords: { latitude: number; longitude: number } | null;
@@ -143,6 +144,27 @@ export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocatio
     };
   }, []);
 
+  // Android ایپ (APK): WebView میں absolute سینسر نہیں ملتا، اس لیے فون کا اصل سمتی سینسر (StepNative) استعمال کرو
+  useEffect(() => {
+    const nat = (window as any).StepNative;
+    if (!isNative() || !nat || typeof nat.startCompass !== 'function') return;
+    (window as any).__stepHeading = (deg: number) => {
+      if (typeof deg !== 'number' || !isFinite(deg)) return;
+      hasAbsoluteRef.current = true; // اس کے بعد WebView کے relative ایونٹ نظر انداز
+      setDeviceHeading(((deg % 360) + 360) % 360);
+      setSensorKind('absolute');
+      setSensorPermission('granted');
+    };
+    try {
+      nat.startCompass(userCoords?.latitude ?? 30, userCoords?.longitude ?? 70);
+    } catch { /* ignore */ }
+    return () => {
+      try { nat.stopCompass(); } catch { /* ignore */ }
+      delete (window as any).__stepHeading;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userCoords?.latitude, userCoords?.longitude]);
+
   const activateCompass = async () => {
     setIsCalibrating(true);
     const isIOS = typeof (DeviceOrientationEvent as any).requestPermission === 'function';
@@ -219,7 +241,7 @@ export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocatio
   };
 
   return (
-    <div className="absolute inset-x-0 top-[56px] bottom-[56px] flex flex-col items-center justify-center p-4 bg-slate-50 overflow-hidden select-none text-right animate-fadeIn">
+    <div className="absolute inset-x-0 top-[56px] bottom-[56px] flex flex-col items-center p-4 bg-slate-50 overflow-y-auto select-none text-right animate-fadeIn">
       
       {/* Top Banner indicating heading status or permission state */}
       {deviceHeading === null && (
@@ -234,7 +256,7 @@ export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocatio
       )}
 
       {/* Main Luxury Premium VIP Card Containing Compass */}
-      <div className="w-full max-w-sm relative overflow-hidden bg-gradient-to-b from-[#FAF6E9] via-[#FCF9ED] to-[#F5ECCF] rounded-3xl border-2 border-amber-200/80 p-4 shadow-xl flex flex-col items-center justify-center text-center flex-1 max-h-[460px]">
+      <div className="my-auto w-full max-w-sm relative overflow-hidden bg-gradient-to-b from-[#FAF6E9] via-[#FCF9ED] to-[#F5ECCF] rounded-3xl border-2 border-amber-200/80 p-4 shadow-xl flex flex-col items-center justify-center text-center flex-1 max-h-[460px]">
         
         {/* Luxury Gold/White background decoration rays behind the compass */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-3xl opacity-[0.25]">
