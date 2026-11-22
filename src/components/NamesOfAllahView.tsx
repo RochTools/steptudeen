@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Search, AlertTriangle, RefreshCw } from 'lucide-react';
-import { useHideOnScroll } from '../hooks/useHideOnScroll';
+import { HideOnScrollBar } from './HideOnScrollBar';
 
 interface NameItem { id: number; arabic: string; transliteration: string; meaning: string }
 
@@ -29,7 +29,6 @@ export const NamesOfAllahView: React.FC<{ onBack: () => void }> = ({ onBack }) =
   const [error, setError] = useState(false);
   const [query, setQuery] = useState('');
   const [attempt, setAttempt] = useState(0);
-  const barHidden = useHideOnScroll();
 
   useEffect(() => {
     try { localStorage.setItem(LANG_KEY, lang); } catch { /* ignore */ }
@@ -68,7 +67,7 @@ export const NamesOfAllahView: React.FC<{ onBack: () => void }> = ({ onBack }) =
         .names99 .n-grad{background:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%);color:#fff}
       `}</style>
 
-      <div className={`sticky top-0 z-30 mb-3 flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm transition-transform duration-300 ${barHidden ? '-translate-y-[140%]' : ''}`}>
+      <HideOnScrollBar bg="#fff" className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm">
         <button onClick={onBack} className="n-grad flex items-center gap-1 rounded-full px-3 py-2 text-[11px] font-bold shadow-md"><ArrowLeft size={13} /> Back</button>
         <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-black">99 Names of Allah</div>
         <div className="flex gap-1">
@@ -77,7 +76,7 @@ export const NamesOfAllahView: React.FC<{ onBack: () => void }> = ({ onBack }) =
               className={`rounded-full px-2.5 py-1.5 text-[11px] font-bold ${lang === l.code ? 'n-grad' : 'bg-slate-100 text-slate-600'}`}>{l.label}</button>
           ))}
         </div>
-      </div>
+      </HideOnScrollBar>
 
       <label className="mb-3 flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 shadow-sm">
         <Search size={16} className="text-slate-500" />

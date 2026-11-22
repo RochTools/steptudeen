@@ -15,7 +15,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { useHideOnScroll } from '../hooks/useHideOnScroll';
+import { HideOnScrollBar } from './HideOnScrollBar';
 
 type PendingHadithNavigation = {
   bookKey: string;
@@ -196,7 +196,6 @@ export const HadithView: React.FC<HadithViewProps> = ({
   const [searchError, setSearchError] = useState(false);
   const [fontScale, setFontScale] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
-  const barHidden = useHideOnScroll(menuOpen);
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
   const [language, setLanguage] = useState(() => {
     if (typeof window === 'undefined') return 'urd';
@@ -562,9 +561,9 @@ export const HadithView: React.FC<HadithViewProps> = ({
 
       {screen === 'books' && (
         <>
-          <div className={`sticky top-0 z-30 mb-3 flex items-center justify-start gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm transition-transform duration-300 ${barHidden ? '-translate-y-[140%]' : ''}`}>
+          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center justify-start gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm">
             <button onClick={onBack} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Back</button>
-          </div>
+          </HideOnScrollBar>
           <div className="grid grid-cols-2 gap-3">
             {BOOKS.map((book, index) => (
               <button
@@ -584,11 +583,11 @@ export const HadithView: React.FC<HadithViewProps> = ({
 
       {screen === 'chapters' && selectedBook && (
         <>
-          <div className={`sticky top-0 z-30 mb-3 flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm transition-transform duration-300 ${barHidden ? '-translate-y-[140%]' : ''}`}>
+          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm">
             <button onClick={goToBooks} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Books</button>
             <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-black">{selectedBook.name} · {currentLanguage.name}</div>
             <button onClick={() => setLanguagePickerOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black" aria-label="Select language"><Languages size={15} /></button>
-          </div>
+          </HideOnScrollBar>
 
           {loading && <BrandLoader />}
           {error && (
@@ -615,7 +614,7 @@ export const HadithView: React.FC<HadithViewProps> = ({
 
       {screen === 'reader' && selectedBook && selectedChapter && (
         <>
-          <div className={`sticky top-0 z-30 mb-3 flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm transition-transform duration-300 ${barHidden ? '-translate-y-[140%]' : ''}`} ref={menuRef}>
+          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm" innerRef={menuRef}>
             <button onClick={goToChapters} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Chapters</button>
             <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-black">{selectedChapter.name}</div>
             <div className="relative">
@@ -629,7 +628,7 @@ export const HadithView: React.FC<HadithViewProps> = ({
                 </div>
               )}
             </div>
-          </div>
+          </HideOnScrollBar>
 
           <div className="fixed bottom-16 left-3 z-40 flex items-center rounded-full bg-[#75b5ff] p-1 shadow-xl">
             <button onClick={() => setFontScale((value) => Math.max(.8, Math.round((value - .1) * 10) / 10))} className="flex h-8 w-8 items-center justify-center rounded-full text-black"><Minus size={14} /></button>
