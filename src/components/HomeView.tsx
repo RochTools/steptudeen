@@ -8,6 +8,8 @@ import { Mosque } from '../types';
 import CelestialHeaderScene from './CelestialHeaderScene';
 import { InboxItem, readInbox, markInboxRead } from '../utils/notifications';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import { isNative } from '../utils/native';
+import { APK_OPEN_OR_DOWNLOAD_URL } from '../config/app';
 import type { LocationFailure } from '../utils/location';
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
@@ -842,6 +844,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   type="button"
                   onClick={async () => {
                     setShowInstallTip(false);
+                    // Android کے ویب براؤزر میں: ایپ انسٹال ہو تو کھلے، ورنہ اصل APK ڈاؤن لوڈ (PWA انسٹال کی جگہ)
+                    if (!isNative() && /android/i.test(navigator.userAgent)) { window.location.href = APK_OPEN_OR_DOWNLOAD_URL; return; }
                     if (canInstall) await promptInstall();
                     else setInstallHelp(open => !open);
                   }}
