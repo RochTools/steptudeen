@@ -1,5 +1,6 @@
 import { Mail, Youtube, MessageCircle, Send, Facebook, Linkedin } from "lucide-react";
 import { useState } from "react";
+import { InfoPage } from "./InfoLayout";
 
 // ─── WhatsApp Icon ────────────────────────────────────────────────────────────
 const WhatsAppIcon = () => (
@@ -98,33 +99,8 @@ export default function ContactPage({ onBack }: ContactProps) {
   }
 
   return (
-    <div dir="ltr" style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "system-ui, sans-serif" }}>
-
-      {/* Header */}
-      <div style={{
-        background: "#ffffff",
-        padding: "14px 16px", borderBottom: "1px solid #e2e8f0",
-        textAlign: "center",
-        color: "#0b1f4d",
-        position: "relative",
-      }}>
-        {onBack && (
-          <button onClick={onBack} style={{
-            position: "absolute", top: "50%", transform: "translateY(-50%)", left: 12,
-            background: "#2563eb", border: "none",
-            color: "#fff", borderRadius: 10, padding: "8px 14px",
-            fontSize: 13, fontWeight: 600, cursor: "pointer",
-          }}>
-            ← Back
-          </button>
-        )} 
-        <h1 style={{ margin: "0 0 2px", fontSize: 18, fontWeight: 800, letterSpacing: "-0.3px" }}>Contact Us</h1>
-        <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
-          Your feedback helps us improve StepTuDeen.
-        </p>
-      </div>
-
-      <div style={{ maxWidth: 480, margin: "0 auto", padding: "24px 16px 40px" }}>
+    <InfoPage title="Contact Us" meta="Your feedback helps us improve StepTuDeen" onBack={onBack}>
+      <div style={{ fontFamily: "system-ui, sans-serif" }}>
 
         {/* Contact Links */}
         <h3 style={{
@@ -255,6 +231,6 @@ export default function ContactPage({ onBack }: ContactProps) {
         </p>
 
       </div>
-    </div>
+    </InfoPage>
   );
 }

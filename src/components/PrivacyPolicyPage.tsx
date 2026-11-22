@@ -1,204 +1,108 @@
-import { Shield } from "lucide-react";
+import { InfoPage, P, Callout, H2, InfoCard, UL, MailLink } from "./InfoLayout";
 
-interface PrivacyPolicyProps {
-  onBack?: () => void;
-}
+interface PrivacyPolicyProps { onBack?: () => void }
 
 export default function PrivacyPolicyPage({ onBack }: PrivacyPolicyProps) {
   return (
-    <div dir="ltr" style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "system-ui, sans-serif" }}>
+    <InfoPage title="Privacy Policy" meta="Last updated: November 2026" onBack={onBack}>
+      <P>
+        <strong>StepTuDeen</strong> is operated from Pakistan. This policy explains, in plain words, what the app
+        uses, why, and what stays on your phone. You can use most of the app (Quran, Hadith, Duas, Tasbih, 99 Names,
+        Qibla and prayer times) without creating an account.
+      </P>
 
-      {/* Header */}
-      <div style={{
-        background: "#ffffff",
-        padding: "14px 16px", borderBottom: "1px solid #e2e8f0",
-        textAlign: "center",
-        color: "#0b1f4d",
-        position: "relative",
-      }}>
-        {onBack && (
-          <button onClick={onBack} style={{
-            position: "absolute", top: "50%", transform: "translateY(-50%)", left: 12,
-            background: "#2563eb", border: "none",
-            color: "#fff", borderRadius: 10, padding: "8px 14px",
-            fontSize: 13, fontWeight: 600, cursor: "pointer",
-          }}>
-            ← Back
-          </button>
-        )} 
-        <h1 style={{ margin: "0 0 2px", fontSize: 18, fontWeight: 800, letterSpacing: "-0.3px" }}>
-          Privacy Policy
-        </h1>
-        <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
-          Last updated: August 2026
-        </p>
-      </div>
+      <Callout label="In short:">
+        We do not sell your data, we show no ads, and we do not track you across other apps or websites.
+        Your location is used to give you prayer times, Qibla and nearby mosques; we do not store it in your account.
+      </Callout>
 
-      {/* Content */}
-      <div style={{ maxWidth: 480, margin: "0 auto", padding: "24px 16px 40px" }}>
+      <H2>1. Information We Collect</H2>
+      <InfoCard title="Account (optional)">
+        If you sign in with Google (for your profile or as an Imam), we receive your <strong>name and email
+        address</strong> from your Google account and store them in our Firebase database. We never see or store your
+        Google password.
+      </InfoCard>
+      <InfoCard title="Imam and masjid information">
+        Imams enter their masjid's name, address, map location and prayer, jamaat and Eid timings. This information
+        is meant to be public so that the community can see it.
+      </InfoCard>
+      <InfoCard title="Your saved items">
+        Bookmarks, favourites, tasbih counts and your settings (such as language and notification sound) are kept on your
+        device. If you are signed in, your favourites and bookmarks may also be saved to your profile.
+      </InfoCard>
+      <InfoCard title="Ratings and feedback">
+        If you submit a rating or review, we store your review and the name you provide. Emails you send us are
+        handled by your email app and are only used to reply to you.
+      </InfoCard>
 
-        {/* Intro */}
-        <Section>
-          <p style={para}>
-            Welcome to <strong>StepTuDeen</strong>. We are committed to protecting your privacy.
-            This Privacy Policy explains how we collect, use, and safeguard your information
-            when you use our app.
-          </p>
-          <p style={para}>
-            StepTuDeen is operated from <strong>Pakistan</strong> and is designed to help
-            Muslims access authentic Islamic knowledge easily.
-          </p>
-        </Section>
+      <H2>2. Location</H2>
+      <P>
+        With your permission, the app uses your device location to calculate prayer times, show the Qibla direction and
+        find nearby mosques. Your most recent coordinates are kept <strong>on your device only</strong> so the app works
+        faster next time. They are not saved to your account or to our database. You can turn location off at any time
+        in your phone's settings, but location-based features will then not work.
+      </P>
+      <P>
+        To work, some features send coordinates to third-party services (see section 4): prayer-time lookups, map
+        tiles, and mosque data for your area.
+      </P>
 
-        {/* Data We Collect */}
-        <SectionCard title="1. Information We Collect">
-          <p style={para}>When you create an account, we collect and store the following information in our secure Firebase database:</p>
-          <ul style={list}>
-            <li style={listItem}><strong>Full Name</strong> — to personalize your experience</li>
-            <li style={listItem}><strong>Gmail Address</strong> — used for login and account identification</li>
-            <li style={listItem}><strong>Password</strong> — encrypted and stored securely via Firebase Authentication</li>
-          </ul>
-          <p style={para}>
-            The same applies to <strong>Imam accounts</strong> — name, Gmail, and password are stored
-            to allow Imams to manage their masjid profile and prayer times.
-          </p>
-        </SectionCard>
+      <H2>3. Notifications and Sensors</H2>
+      <UL items={[
+        <>Prayer notifications use <strong>Firebase Cloud Messaging</strong>. A notification token and the masjid and
+          sound you choose are used only to deliver notifications to you.</>,
+        <>The Qibla compass reads your phone's motion and magnetic sensors <strong>on the device</strong>. This sensor
+          data is never uploaded.</>,
+      ]} />
 
-        {/* How We Use */}
-        <SectionCard title="2. How We Use Your Data">
-          <ul style={list}>
-            <li style={listItem}>To create and manage your account</li>
-            <li style={listItem}>To allow you to log in securely</li>
-            <li style={listItem}>To save your favourites, bookmarks, and tasbih count</li>
-            <li style={listItem}>To allow Imams to update prayer times and masjid information</li>
-          </ul>
-        </SectionCard>
+      <H2>4. Third-Party Services</H2>
+      <UL items={[
+        <><strong>Google Firebase</strong> — sign-in, database and notifications (<a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "#1d6df2", fontWeight: 700 }}>privacy details</a>).</>,
+        <><strong>Cloudflare</strong> — hosts the website and the service that sends notifications.</>,
+        <><strong>GitHub</strong> — hosts some open data we use (for example tafsir and mosque data) and the app update files. Checking for updates contacts GitHub.</>,
+        <><strong>OpenStreetMap</strong> — map tiles and mosque locations, © OpenStreetMap contributors.</>,
+        <><strong>AlAdhan API</strong> — used for prayer times when they cannot be calculated on the device.</>,
+      ]} />
+      <P>These services receive technical information such as your IP address when your phone contacts them. Each has its own privacy policy.</P>
 
-        {/* What We Don't Collect */}
-        <SectionCard title="3. What We Do NOT Collect">
-          <p style={para}>We do <strong>not</strong> collect or store:</p>
-          <ul style={list}>
-            <li style={listItem}>Your location data</li>
-            <li style={listItem}>Phone number</li>
-            <li style={listItem}>Payment or financial information</li>
-            <li style={listItem}>Device contacts or media</li>
-            <li style={listItem}>Any data beyond what is mentioned above</li>
-          </ul>
-        </SectionCard>
+      <H2>5. How We Use Information</H2>
+      <UL items={[
+        "To sign you in and keep your profile and saved items",
+        "To let Imams publish and update masjid timings",
+        "To give you prayer times, Qibla and nearby mosques",
+        "To send the prayer notifications you asked for",
+        "To fix problems and improve the app",
+      ]} />
 
-        {/* Data Security */}
-        <SectionCard title="4. Data Security">
-          <p style={para}>
-            Your data is stored securely using <strong>Google Firebase</strong>, which provides
-            industry-standard encryption and security. Passwords are never stored in plain text.
-          </p>
-          <p style={para}>
-            We do not sell, rent, or share your personal data with any third parties.
-          </p>
-        </SectionCard>
+      <H2>6. What We Do Not Do</H2>
+      <UL items={[
+        "We do not sell, rent or trade your personal data",
+        "We do not show advertisements",
+        "We do not collect your contacts, photos, files, phone number or payment details",
+        "We do not build a record of your location history",
+      ]} />
 
-        {/* Third Party */}
-        <SectionCard title="5. Third-Party Services">
-          <p style={para}>
-            StepTuDeen uses <strong>Firebase</strong> (by Google) for authentication and database
-            services. Firebase has its own privacy policy which can be found at{" "}
-            <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener noreferrer"
-              style={{ color: "#2563eb", fontWeight: 600 }}>
-              firebase.google.com/support/privacy
-            </a>.
-          </p>
-        </SectionCard>
+      <H2>7. Security and Retention</H2>
+      <P>
+        Data in Firebase is protected with industry-standard encryption in transit and at rest. We keep your account
+        information until you ask us to remove it. No system is perfectly secure, so please protect your own Google account.
+      </P>
 
-        {/* Children */}
-        <SectionCard title="6. Children's Privacy">
-          <p style={para}>
-            StepTuDeen is suitable for all ages. We do not knowingly collect personal data
-            from children under 13 without parental consent.
-          </p>
-        </SectionCard>
+      <H2>8. Your Choices and Deletion</H2>
+      <P>
+        You can sign out at any time, clear the app's data from your phone settings, or withdraw location and notification
+        permissions. To have your account and related data removed, email us from the address you signed up with and we will
+        delete it.
+      </P>
 
-        {/* Changes */}
-        <SectionCard title="7. Changes to This Policy">
-          <p style={para}>
-            This Privacy Policy may be updated in the future as new features are added to StepTuDeen.
-            We will notify users of any significant changes through the app. Continued use of the app
-            after changes means you accept the updated policy.
-          </p>
-        </SectionCard>
+      <H2>9. Children</H2>
+      <P>StepTuDeen is suitable for all ages. We do not knowingly collect personal data from children under 13 without a parent's consent.</P>
 
-        {/* Contact */}
-        <SectionCard title="8. Contact Us">
-          <p style={para}>
-            If you have any questions or concerns about this Privacy Policy, please contact us at:
-          </p>
-          <a href="mailto:steptodeen@gmail.com" style={{
-            display: "inline-block", marginTop: 4,
-            color: "#2563eb", fontWeight: 700, fontSize: 14,
-            textDecoration: "none",
-          }}>
-            steptodeen@gmail.com
-          </a>
-        </SectionCard>
+      <H2>10. Changes</H2>
+      <P>We may update this policy as the app grows. The date at the top shows the latest version, and continued use means you accept the update.</P>
 
-        {/* Footer */}
-        <div style={{
-          background: "#ffffff", borderRadius: 12, padding: "14px 16px",
-          border: "1px solid #f1f5f9", textAlign: "center", marginTop: 8,
-        }}>
-          <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>
-            © 2026 StepTuDeen — Pakistan
-          </p>
-          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#94a3b8" }}>
-            May Allah bless this effort. Ameen
-          </p>
-        </div>
-
-      </div>
-    </div>
+      <H2>11. Contact</H2>
+      <P>Questions about privacy? Write to us at <MailLink />.</P>
+    </InfoPage>
   );
 }
-
-// ─── Helper Components ────────────────────────────────────────────────────────
-
-function Section({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      background: "#ffffff", borderRadius: 16, padding: "16px 18px",
-      marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-      border: "1px solid #f1f5f9",
-    }}>
-      {children}
-    </div>
-  );
-}
-
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{
-      background: "#ffffff", borderRadius: 16, padding: "16px 18px",
-      marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-      border: "1px solid #f1f5f9",
-    }}>
-      <h2 style={{
-        margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "#0f172a",
-      }}>
-        {title}
-      </h2>
-      {children}
-    </div>
-  );
-}
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const para: React.CSSProperties = {
-  margin: "0 0 8px", fontSize: 13, color: "#475569", lineHeight: 1.7,
-};
-
-const list: React.CSSProperties = {
-  margin: "6px 0 8px", paddingLeft: 20,
-};
-
-const listItem: React.CSSProperties = {
-  fontSize: 13, color: "#475569", lineHeight: 1.7, marginBottom: 4,
-};
