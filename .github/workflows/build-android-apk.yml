@@ -14,6 +14,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # GitHub Release پر APK رکھنے کے لیے
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +45,8 @@ jobs:
       - run: npm ci
 
       - name: Build web app
+        env:
+          VITE_BUILD_NUMBER: ${{ github.run_number }}
         run: npm run build
 
       - name: Create Android project
@@ -82,6 +86,25 @@ jobs:
           if ! grep -q "POST_NOTIFICATIONS" "$MANIFEST"; then
             sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>#' "$MANIFEST"
           fi
+
+      - name: Add app link (open app from website)
+        run: |
+          python3 - <<'PY'
+          p = 'android/app/src/main/AndroidManifest.xml'
+          s = open(p).read()
+          if 'android:scheme="steptudeen"' not in s:
+              f = """        <intent-filter>
+              <action android:name="android.intent.action.VIEW"/>
+              <category android:name="android.intent.category.DEFAULT"/>
+              <category android:name="android.intent.category.BROWSABLE"/>
+              <data android:scheme="steptudeen"/>
+          </intent-filter>
+          """
+              i = s.index('</activity>')
+              s = s[:i] + f + s[i:]
+              open(p, 'w').write(s)
+          print('app link added' if 'android:scheme="steptudeen"' in s else 'FAILED')
+          PY
 
       - name: Add location permissions
         run: |
@@ -202,6 +225,17 @@ jobs:
           else echo "apksigner نہیں ملا"; fi
           echo "=== google-services.json میں پیکیج اور certificate_hash ==="
           grep -E '"package_name"|"certificate_hash"|"client_type"' android/app/google-services.json | sed 's/^ *//' || true
+
+      - name: Prepare APK file
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk steptudeen.apk
+
+      - name: Publish APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: StepTuDeen build ${{ github.run_number }}
+          files: steptudeen.apk
+          make_latest: true
 
       - uses: actions/upload-artifact@v4
         with:
