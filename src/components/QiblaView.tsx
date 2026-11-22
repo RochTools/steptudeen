@@ -10,6 +10,22 @@ interface QiblaViewProps {
 const KAABA_LAT = 21.4225;
 const KAABA_LNG = 39.8262;
 
+// فون کی پوزیشن کے مطابق سمت: فون زمین کے برابر (flat) ہو یا کھڑا (upright) — دونوں میں درست۔
+// پرانا فارمولا (360 - alpha) صرف flat فون پر ٹھیک ہے؛ کھڑے فون پر درجنوں ڈگری غلط آتا ہے۔
+function postureHeading(alpha: number, beta?: number | null, gamma?: number | null): number {
+  const r = (d: number | null | undefined) => ((d || 0) * Math.PI) / 180;
+  const a = r(alpha), b = r(beta), g = r(gamma);
+  const azY = -a;
+  const E = -(Math.cos(a) * Math.sin(g) + Math.sin(a) * Math.sin(b) * Math.cos(g));
+  const N = Math.cos(a) * Math.sin(b) * Math.cos(g) - Math.sin(a) * Math.sin(g);
+  const azZ = Math.atan2(E, N);
+  const w = Math.min(1, Math.max(0, ((beta || 0) - 30) / 30));
+  let d = azZ - azY;
+  d = (((d % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
+  const so = (screen.orientation && screen.orientation.angle) || (window as unknown as { orientation?: number }).orientation || 0;
+  return ((((azY + d * w) * 180) / Math.PI + so) % 360 + 360) % 360;
+}
+
 export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocation }) => {
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const [qiblaAngle, setQiblaAngle] = useState<number>(262.2); // Pakistan default is ~262°
@@ -21,6 +37,8 @@ export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocatio
     return Number(localStorage.getItem('qibla_calibration_offset') || '0');
   });
   const hasAbsoluteRef = useRef<boolean>(false);
+  // 'absolute' = اصل مقناطیسی شمال، 'relative' = شمال کا پتا نہیں (کمپاس غلط ہو سکتا ہے)
+  const [sensorKind, setSensorKind] = useState<'none' | 'absolute' | 'relative' | 'ios'>('none');
 
   const setAndSaveOffset = (val: number) => {
     const normalized = (val + 360) % 360;
@@ -75,27 +93,32 @@ export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocatio
 
     const handleOrientation = (event: DeviceOrientationEvent) => {
       let heading: number | null = null;
-      
-      // 1. Check iOS Webkit Compass Heading (True absolute bearing)
+      let kind: 'absolute' | 'relative' | 'ios' = 'relative';
+
+      // 1. iOS: اصل کمپاس سمت
       if ((event as any).webkitCompassHeading !== undefined && (event as any).webkitCompassHeading !== null) {
         heading = (event as any).webkitCompassHeading;
         hasAbsoluteRef.current = true;
-      } 
-      // 2. Check explicitly absolute events (Android deviceorientationabsolute)
+        kind = 'ios';
+      }
+      // 2. Android absolute (مقناطیسی شمال کے حساب سے) — فون کی پوزیشن کا لحاظ کر کے
       else if (event.type === 'deviceorientationabsolute' || (event as any).absolute === true) {
         if (event.alpha !== null && event.alpha !== undefined) {
-        heading = (360 - event.alpha) % 360;
+          heading = postureHeading(event.alpha, event.beta, event.gamma);
           hasAbsoluteRef.current = true;
+          kind = 'absolute';
         }
       }
-      // 3. Fallback standard orientation (Only if no absolute signal was logged yet)
+      // 3. عام (relative) ایونٹ: صرف تب جب absolute کبھی آیا ہی نہ ہو — اس میں "شمال" اندازاً ہوتا ہے
       else if (!hasAbsoluteRef.current && event.alpha !== null && event.alpha !== undefined) {
-      heading = (360 - event.alpha) % 360;
+        heading = postureHeading(event.alpha, event.beta, event.gamma);
+        kind = 'relative';
       }
 
       if (heading !== null) {
         const normalized = (heading + 360) % 360;
         setDeviceHeading(normalized);
+        setSensorKind(kind);
         setSensorPermission('granted');
       }
     };
@@ -465,6 +488,31 @@ export const QiblaView: React.FC<QiblaViewProps> = ({ userCoords, requestLocatio
         {isAligned && (
           <div className="absolute inset-0 bg-[#0b2a6b]/[0.03] pointer-events-none rounded-3xl border-4 border-blue-500/20 animate-pulse z-20" />
         )}
+
+        {/* سینسر کی حالت + ہاتھ سے درستی */}
+        {sensorKind === 'relative' && (
+          <div className="relative z-10 mt-3 w-full rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center font-urdu text-[10px] leading-relaxed text-red-700">
+            اس فون/براؤزر میں اصل شمال کا سینسر نہیں مل رہا، اس لیے زاویہ غلط ہو سکتا ہے۔ فون کو ہوا میں 8 کی شکل میں گھمائیں، یا نیچے "قبلہ رخ پر ہوں" سے درست کر لیں۔
+          </div>
+        )}
+        <div className="relative z-10 mt-3 flex w-full items-center justify-center gap-2 font-urdu">
+          <button
+            type="button"
+            onClick={handleQuickCalibrate}
+            className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-bold text-amber-900 active:scale-95"
+          >
+            میں قبلہ رخ پر ہوں — درست کریں
+          </button>
+          {calibrationOffset !== 0 && (
+            <button
+              type="button"
+              onClick={handleResetCalibration}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-[10px] font-bold text-slate-600 active:scale-95"
+            >
+              ری سیٹ
+            </button>
+          )}
+        </div>
 
         {/* COMPACT DETAILED STATUS DATA LOGS */}
         <div className="w-full mt-4 relative z-10 border-t border-amber-200/40 pt-3">
