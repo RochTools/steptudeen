@@ -44,6 +44,7 @@ import { Mosque } from './types';
 import { BookOpen, Scroll, Heart, Compass, Bell, X, MapPin } from 'lucide-react';
 import { formatTo12Hour } from './utils/timeHelpers';
 import { useJamaatTimes } from './hooks/useJamaatTimes';
+import { UpdateBanner } from './components/UpdateBanner';
 
 // ============ MOSQUE PRAYER GRID ============
 // جماعت کا وقت = آج کا API وقت + امام کا offset۔ روز خود اپڈیٹ ہوتا ہے۔
@@ -303,6 +304,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div dir="ltr" data-view={currentView} className={`w-full max-w-md mx-auto min-h-screen relative flex flex-col shadow-xl overflow-hidden pb-14 ${currentView === 'tasbih' ? 'bg-[#fef2c7]' : 'bg-slate-50'}`}>
+        <UpdateBanner />
 
         {/* LOGIN SPLASH */}
         {currentView === 'login-splash' && (
