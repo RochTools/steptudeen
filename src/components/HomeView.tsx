@@ -683,6 +683,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         }
         .sth-home{--sth-blue:#1559cc;--sth-dark:#103d91;background:#fff;color:#080808;min-height:100vh}
         .sth-home *, .sth-home *::before, .sth-home *::after{box-sizing:border-box}
+        /* backdrop-blur حرکت کرتے آسمان کے اوپر ہر فریم دوبارہ بلر ہوتا تھا (جام کی بڑی وجہ) — بند */
+        .sth-home .backdrop-blur-sm,.sth-home .backdrop-blur-md{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
         .sth-home button{cursor:pointer;transition:box-shadow .18s,transform .18s,background .18s}
         .sth-home button:focus-visible,.sth-home input:focus-visible{outline:3px solid #3685ff;outline-offset:3px}
         @keyframes sthInstallGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,214,102,.0),0 0 6px 1px rgba(255,214,102,.35)}50%{box-shadow:0 0 0 5px rgba(255,214,102,.18),0 0 16px 4px rgba(255,214,102,.75)}}
@@ -756,7 +758,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('mosque-map')}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-transform active:scale-95"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-95"
               aria-label="Mosque map"
               title="Find mosques on the map"
             >
@@ -766,7 +768,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <button
               type="button"
               onClick={toggleBell}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-sm"
               aria-label="Notifications"
               title="Inbox"
             >
@@ -849,7 +851,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     if (canInstall) await promptInstall();
                     else setInstallHelp(open => !open);
                   }}
-                  className={`relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-transform active:scale-95 ${showInstallTip ? 'sth-install-glow' : ''}`}
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-sm transition-transform active:scale-95 ${showInstallTip ? 'sth-install-glow' : ''}`}
                   aria-label="Install app"
                   title="Install app"
                 >
@@ -868,7 +870,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <button
               type="button"
               onClick={() => setHeaderMenuOpen(open => !open)}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-sm"
               aria-label="Account options"
             >
               <Menu size={22} />
@@ -913,7 +915,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* Prayer glass card */}
-        <div className={`relative z-20 mx-4 mt-7 rounded-[20px] border p-3 shadow-[0_12px_35px_rgba(0,34,110,.28)] backdrop-blur-md ${nextPrayer.isCurrent ? 'border-amber-300/50 bg-amber-500/20' : 'border-white/35 bg-white/12'}`}>
+        <div className={`relative z-20 mx-4 mt-7 rounded-[20px] border p-3 shadow-[0_12px_35px_rgba(0,34,110,.28)] backdrop-blur-md ${nextPrayer.isCurrent ? 'border-amber-300/50 bg-amber-500/20' : 'border-white/35 bg-[#0b3a8f]/30'}`}>
           <div className="flex items-center gap-3">
             <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg ${nextPrayer.isCurrent ? 'bg-amber-300 text-amber-900' : 'bg-white text-[#0755bd]'}`}>
               <Sunrise size={27} strokeWidth={1.8} />

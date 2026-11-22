@@ -763,13 +763,15 @@ const CLOUDS = [
 ];
 
 const SCENE_CSS = `
-  .celestial-cloud { position: absolute; left: -30%; animation-name: celestial-drift; animation-timing-function: linear; animation-iteration-count: infinite; will-change: left; }
+  /* بادل: left کی بجائے transform (GPU) — left ہر فریم layout کرواتا تھا اور ہوم جام ہوتا تھا */
+  .celestial-cloud { position: absolute; left: 0; animation-name: celestial-drift; animation-timing-function: linear; animation-iteration-count: infinite; will-change: transform; transform: translate3d(-35vw, 0, 0); backface-visibility: hidden; }
   .celestial-cloud-piece { position: absolute; bottom: 0; border-radius: 999px; }
-  .celestial-star { position: absolute; border-radius: 999px; background: #ffffff; animation: celestial-twinkle ease-in-out infinite; }
-  .celestial-sun-halo { position: absolute; inset: -120%; border-radius: 999px; animation: celestial-breathe 5.4s ease-in-out infinite; }
-  .celestial-moon-halo { position: absolute; inset: -70%; border-radius: 999px; animation: celestial-breathe 6.8s ease-in-out infinite; }
-  @keyframes celestial-drift { from { left: -32%; } to { left: 118%; } }
-  @keyframes celestial-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.75); } 50% { opacity: 1; transform: scale(1.15); } }
+  .celestial-star { position: absolute; border-radius: 999px; background: #ffffff; animation: celestial-twinkle ease-in-out infinite; will-change: opacity; }
+  .celestial-sun-halo { position: absolute; inset: -120%; border-radius: 999px; animation: celestial-breathe 5.4s ease-in-out infinite; will-change: transform; }
+  .celestial-moon-halo { position: absolute; inset: -70%; border-radius: 999px; animation: celestial-breathe 6.8s ease-in-out infinite; will-change: transform; }
+  @keyframes celestial-drift { from { transform: translate3d(-35vw, 0, 0); } to { transform: translate3d(120vw, 0, 0); } }
+  /* ستارے: صرف opacity (scale کی ضرورت نہیں) — سستا */
+  @keyframes celestial-twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
   @keyframes celestial-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
   @media (prefers-reduced-motion: reduce) {
     .celestial-cloud, .celestial-star, .celestial-sun-halo, .celestial-moon-halo { animation: none !important; }
@@ -866,13 +868,12 @@ const CelestialHeaderScene: React.FC<CelestialHeaderSceneProps> = ({
             className="celestial-cloud"
             style={{
               top: `${cloud.top}%`,
-              transform: `scale(${cloud.scale})`,
               animationDuration: `${cloud.duration}s`,
               animationDelay: `${cloud.delay}s`,
               opacity: 0.75,
             }}
           >
-            <div style={{ position: 'relative', height: 14, width: 58 }}>
+            <div style={{ position: 'relative', height: 14, width: 58, transform: `scale(${cloud.scale})`, transformOrigin: 'left center' }}>
               <span
                 className="celestial-cloud-piece"
                 style={{ left: 0, width: 30, height: 11, background: scene.cloud.top }}
