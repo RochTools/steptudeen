@@ -766,13 +766,15 @@ const SCENE_CSS = `
   /* بادل: left کی بجائے transform (GPU) — left ہر فریم layout کرواتا تھا اور ہوم جام ہوتا تھا */
   .celestial-cloud { position: absolute; left: 0; animation-name: celestial-drift; animation-timing-function: linear; animation-iteration-count: infinite; will-change: transform; transform: translate3d(-35vw, 0, 0); backface-visibility: hidden; }
   .celestial-cloud-piece { position: absolute; bottom: 0; border-radius: 999px; }
-  .celestial-star { position: absolute; border-radius: 999px; background: #ffffff; animation: celestial-twinkle ease-in-out infinite; will-change: opacity; }
+  .celestial-star { position: absolute; border-radius: 999px; background: #ffffff; animation: celestial-twinkle ease-in-out infinite; will-change: transform, opacity; }
   .celestial-sun-halo { position: absolute; inset: -120%; border-radius: 999px; animation: celestial-breathe 5.4s ease-in-out infinite; will-change: transform; }
   .celestial-moon-halo { position: absolute; inset: -70%; border-radius: 999px; animation: celestial-breathe 6.8s ease-in-out infinite; will-change: transform; }
   @keyframes celestial-drift { from { transform: translate3d(-35vw, 0, 0); } to { transform: translate3d(120vw, 0, 0); } }
-  /* ستارے: صرف opacity (scale کی ضرورت نہیں) — سستا */
-  @keyframes celestial-twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+  @keyframes celestial-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.75); } 50% { opacity: 1; transform: scale(1.15); } }
   @keyframes celestial-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+  /* لوڈ ہونے تک اور سکرول کے دوران حرکت رکتی ہے (منظر وہی، بس کام کم) */
+  html.celestial-hold .celestial-cloud, html.celestial-hold .celestial-star, html.celestial-hold .celestial-sun-halo, html.celestial-hold .celestial-moon-halo,
+  html.celestial-scrolling .celestial-cloud, html.celestial-scrolling .celestial-star, html.celestial-scrolling .celestial-sun-halo, html.celestial-scrolling .celestial-moon-halo { animation-play-state: paused !important; }
   @media (prefers-reduced-motion: reduce) {
     .celestial-cloud, .celestial-star, .celestial-sun-halo, .celestial-moon-halo { animation: none !important; }
   }
@@ -793,6 +795,37 @@ const CelestialHeaderScene: React.FC<CelestialHeaderSceneProps> = ({
 }) => {
   const [now, setNow] = useState(() => new Date());
   const stars = useStarField();
+  // پہلی بار لوڈ ہوتے وقت حرکت روکے رکھو (منظر نظر آتا ہے)، صفحہ بیٹھ جائے تو شروع
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('celestial-hold');
+    const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, o?: { timeout: number }) => number);
+    const start = () => root.classList.remove('celestial-hold');
+    const id = ric ? ric(start, { timeout: 1500 }) : window.setTimeout(start, 700);
+    const t = window.setTimeout(start, 1800); // کسی صورت میں بھی شروع ہو جائے
+    return () => {
+      const cic = (window as any).cancelIdleCallback as undefined | ((n: number) => void);
+      if (ric && cic) cic(id as number); else window.clearTimeout(id as number);
+      window.clearTimeout(t);
+      root.classList.remove('celestial-hold');
+    };
+  }, []);
+  // سکرول کے دوران حرکت رکے، رکنے کے 150ms بعد پھر چلے — سکرول ہموار رہتا ہے
+  useEffect(() => {
+    const root = document.documentElement;
+    let timer = 0;
+    const onScroll = () => {
+      root.classList.add('celestial-scrolling');
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => root.classList.remove('celestial-scrolling'), 150);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll, { capture: true } as EventListenerOptions);
+      window.clearTimeout(timer);
+      root.classList.remove('celestial-scrolling');
+    };
+  }, []);
 
   useEffect(() => {
     if (testMinutes !== undefined) return undefined;
