@@ -139,9 +139,17 @@ jobs:
           cat > "$DIR/MainActivity.java" <<'JAVA'
           package com.steptudeen.app;
 
+          import android.content.Context;
           import android.graphics.Color;
+          import android.hardware.GeomagneticField;
+          import android.hardware.Sensor;
+          import android.hardware.SensorEvent;
+          import android.hardware.SensorEventListener;
+          import android.hardware.SensorManager;
           import android.os.Build;
           import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
           import android.view.View;
           import android.view.Window;
           import android.view.WindowManager;
@@ -153,6 +161,48 @@ jobs:
           import com.getcapacitor.BridgeActivity;
 
           public class MainActivity extends BridgeActivity {
+              private SensorManager sensorManager;
+              private boolean compassWanted = false;
+              private boolean compassRunning = false;
+              private float declination = 0f;
+              private final float[] rot = new float[9];
+              private double sx = 0, sy = 0;
+              private boolean haveSmooth = false;
+              private long lastPush = 0;
+
+              private final SensorEventListener compassListener = new SensorEventListener() {
+                  @Override
+                  public void onSensorChanged(SensorEvent e) {
+                      SensorManager.getRotationMatrixFromVector(rot, e.values);
+                      // فون لیٹا ہو تو اوپر والا کنارہ (Y)، کھڑا ہو تو پچھلا رخ (-Z) — دونوں کی سمت نکال کر ملاتے ہیں
+                      double yE = rot[1], yN = rot[4];
+                      double bE = -rot[2], bN = -rot[5];
+                      double yl = Math.hypot(yE, yN), bl = Math.hypot(bE, bN);
+                      if (yl > 1e-6) { yE /= yl; yN /= yl; } else { yE = 0; yN = 0; }
+                      if (bl > 1e-6) { bE /= bl; bN /= bl; } else { bE = 0; bN = 0; }
+                      double flat = Math.abs(rot[8]);
+                      double w = Math.min(1.0, Math.max(0.0, (flat - 0.5) / 0.3));
+                      double E = w * yE + (1 - w) * bE;
+                      double N = w * yN + (1 - w) * bN;
+                      double h = Math.toDegrees(Math.atan2(E, N)) + declination;
+                      double rad = Math.toRadians(h);
+                      // سرکلر smoothing تاکہ سوئی کانپے نہیں
+                      if (!haveSmooth) { sx = Math.cos(rad); sy = Math.sin(rad); haveSmooth = true; }
+                      else { sx = 0.8 * sx + 0.2 * Math.cos(rad); sy = 0.8 * sy + 0.2 * Math.sin(rad); }
+                      double out = (Math.toDegrees(Math.atan2(sy, sx)) + 360.0) % 360.0;
+                      long now = System.currentTimeMillis();
+                      if (now - lastPush < 50) return;
+                      lastPush = now;
+                      try {
+                          getBridge().getWebView().evaluateJavascript(
+                              "window.__stepHeading&&window.__stepHeading(" + (Math.round(out * 10) / 10.0) + ")", null);
+                      } catch (Throwable t) { /* ignore */ }
+                  }
+
+                  @Override
+                  public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+              };
+
               @Override
               public void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
@@ -171,11 +221,39 @@ jobs:
                   window.setStatusBarColor(Color.TRANSPARENT);
                   // ہوم پر نیلا ہیڈر ہے، اس لیے شروع میں سفید آئیکن
                   setLightIcons(true);
+                  sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
                   try {
                       getBridge().getWebView().addJavascriptInterface(new StepNative(), "StepNative");
                   } catch (Throwable t) {
                       // انٹرفیس نہ بنے تو ایپ پھر بھی چلے (JS میں env() fallback ہے)
                   }
+              }
+
+              @Override
+              public void onPause() {
+                  super.onPause();
+                  stopCompassSensor();
+              }
+
+              @Override
+              public void onResume() {
+                  super.onResume();
+                  if (compassWanted) startCompassSensor();
+              }
+
+              private void startCompassSensor() {
+                  if (compassRunning || sensorManager == null) return;
+                  Sensor rv = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+                  if (rv == null) return;
+                  haveSmooth = false;
+                  compassRunning = sensorManager.registerListener(compassListener, rv,
+                      SensorManager.SENSOR_DELAY_GAME, new Handler(Looper.getMainLooper()));
+              }
+
+              private void stopCompassSensor() {
+                  if (!compassRunning || sensorManager == null) return;
+                  sensorManager.unregisterListener(compassListener);
+                  compassRunning = false;
               }
 
               private void setLightIcons(final boolean whiteIcons) {
@@ -202,6 +280,27 @@ jobs:
                   @JavascriptInterface
                   public void setLightIcons(boolean whiteIcons) {
                       MainActivity.this.setLightIcons(whiteIcons);
+                  }
+
+                  /** قبلہ کمپاس: فون کا اصل (مقناطیسی) سمتی سینسر شروع کرو۔ lat/lng سے magnetic declination درست ہوتی ہے۔ */
+                  @JavascriptInterface
+                  public boolean startCompass(double lat, double lng) {
+                      try {
+                          declination = new GeomagneticField((float) lat, (float) lng, 0f, System.currentTimeMillis()).getDeclination();
+                      } catch (Throwable t) { declination = 0f; }
+                      compassWanted = true;
+                      runOnUiThread(new Runnable() {
+                          @Override public void run() { startCompassSensor(); }
+                      });
+                      return sensorManager != null && sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null;
+                  }
+
+                  @JavascriptInterface
+                  public void stopCompass() {
+                      compassWanted = false;
+                      runOnUiThread(new Runnable() {
+                          @Override public void run() { stopCompassSensor(); }
+                      });
                   }
               }
           }
