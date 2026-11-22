@@ -1,8 +1,9 @@
 import { useEffect } from "react";
+import { checkForUpdate, openUpdate, useAppUpdate } from "../utils/appUpdate";
 import {
   X, ChevronRight, Settings, Info, Shield, Mail,
   FileText, HelpCircle, Share2, Star, MessageSquare,
-  LifeBuoy, Youtube, Linkedin, Facebook
+  LifeBuoy, Youtube, Linkedin, Facebook, Download, CheckCircle2
 } from "lucide-react";
 
 // ─── WhatsApp SVG (lucide میں نہیں ہے) ───────────────────────────────────────
@@ -82,6 +83,7 @@ interface Props {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function FullScreenMenu({ onNavigate, onClose }: Props) {
+  const upd = useAppUpdate();
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -160,6 +162,42 @@ export default function FullScreenMenu({ onNavigate, onClose }: Props) {
 
           {/* Menu Items */}
           <div style={{ marginBottom: 8 }}>
+            {upd.supported && (
+              <button
+                className="menu-item"
+                onClick={() => { if (upd.status === "available") openUpdate(); else checkForUpdate(); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  width: "100%", padding: "12px 14px",
+                  border: "none", borderRadius: 10,
+                  background: upd.status === "available" ? "#eff6ff" : "transparent",
+                  cursor: "pointer", textAlign: "left",
+                  fontSize: 14, fontWeight: 600,
+                  color: upd.status === "available" ? "#1d4ed8" : "#334155",
+                  direction: "ltr",
+                }}
+              >
+                <span style={{
+                  width: 34, height: 34, borderRadius: 9,
+                  background: upd.status === "available" ? "#dbeafe" : "#f1f5f9",
+                  color: upd.status === "available" ? "#1d4ed8" : "#16a34a",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>
+                  {upd.status === "available" ? <Download size={18} /> : <CheckCircle2 size={18} />}
+                </span>
+                <span style={{ flex: 1 }}>
+                  {upd.status === "available" ? "Update available"
+                    : upd.status === "checking" ? "Checking for updates…"
+                    : upd.status === "error" ? "Check for updates"
+                    : "Your app is up to date"}
+                  <small style={{ display: "block", fontSize: 11, fontWeight: 400, color: "#64748b" }}>
+                    {upd.status === "available" ? "Tap to download the latest version"
+                      : upd.status === "error" ? "Couldn't check right now. Tap to retry"
+                      : `Version ${upd.currentBuild}`}
+                  </small>
+                </span>
+              </button>
+            )}
             {MENU_ITEMS.map((item) => (
               <button
                 key={item.id}
