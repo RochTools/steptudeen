@@ -12,6 +12,7 @@ interface LoginChoiceViewProps {
   setAuthEmail: (val: string) => void;
   setAuthName: (val: string) => void;
   setAuthUid: (val: string) => void;
+  onOpenPage?: (page: 'terms' | 'privacy') => void;
 }
 
 // کیا ایپ PWA (standalone) موڈ میں چل رہی ہے؟
@@ -27,6 +28,7 @@ export function LoginChoiceView({
   setAuthEmail,
   setAuthName,
   setAuthUid,
+  onOpenPage,
 }: LoginChoiceViewProps) {
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -243,6 +245,12 @@ export function LoginChoiceView({
 
         <p className="text-center text-[11px] text-slate-400">
           New accounts are created automatically on first sign-in.
+        </p>
+        <p className="text-center text-[11px] leading-relaxed text-slate-500">
+          By continuing, you agree to our{' '}
+          <button type="button" onClick={() => onOpenPage?.('terms')} className="font-semibold text-blue-600 underline">Terms of Service</button>
+          {' '}and{' '}
+          <button type="button" onClick={() => onOpenPage?.('privacy')} className="font-semibold text-blue-600 underline">Privacy Policy</button>.
         </p>
       </div>
     </div>
