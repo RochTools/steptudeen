@@ -322,6 +322,7 @@ export default function App() {
             setAuthEmail={auth.setAuthEmail}
             setAuthName={auth.setAuthName}
             setAuthUid={auth.setAuthUid}
+            onOpenPage={(page) => nav.navigateTo(page)}
           />
         )}
 
