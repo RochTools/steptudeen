@@ -7,6 +7,8 @@ interface UseNavigationProps {
   setSelectedSurahNum: (n: number | null) => void;
 }
 
+const PUBLIC_PAGES = ['privacy', 'terms', 'about', 'faq', 'help', 'contact'];
+
 export const useNavigation = ({
   selectedMosque,
   setSelectedMosque,
@@ -22,6 +24,9 @@ export const useNavigation = ({
   const VIEW_KEY = 'steptudeen_last_view';
 
   const getInitialHistory = (): string[] => {
+    // براہِ راست لنک: /privacy, /terms, /about ...
+    const pathView = PUBLIC_PAGES.find(v => window.location.pathname.replace(/\/+$/, '') === '/' + v);
+    if (pathView) return ['home', pathView];
     try {
       const saved = sessionStorage.getItem(VIEW_KEY);
       if (saved && RESTORABLE_VIEWS.includes(saved)) return ['home', saved];
@@ -45,6 +50,18 @@ export const useNavigation = ({
       else sessionStorage.removeItem(VIEW_KEY);
     } catch { /* نظر انداز */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView]);
+
+  // پبلک صفحات کا ایڈریس بار میں اپنا لنک دکھائیں (ویب ورژن)
+  useEffect(() => {
+    try {
+      const path = window.location.pathname.replace(/\/+$/, '');
+      if (PUBLIC_PAGES.includes(currentView)) {
+        if (path !== '/' + currentView) window.history.replaceState(window.history.state, '', '/' + currentView);
+      } else if (PUBLIC_PAGES.some(v => path === '/' + v)) {
+        window.history.replaceState(window.history.state, '', '/');
+      }
+    } catch { /* نظر انداز */ }
   }, [currentView]);
 
   const navigateTo = useCallback((newView: string) => {
