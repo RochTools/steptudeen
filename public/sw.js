@@ -1,829 +1,351 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AlertTriangle,
-  ArrowLeft,
-  BookOpen,
-  Heart,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Languages,
-  Minus,
-  MoreVertical,
-  Plus,
-  RefreshCw,
-  Search,
-  X,
-} from 'lucide-react';
-import { HideOnScrollBar } from './HideOnScrollBar';
+// StepToDeen Service Worker — Offline v12
+// ───────────────────────────────────────────────────────────────────────────
+// v10 میں `install` event کی لائن غائب تھی جس سے فائل میں SyntaxError آ رہا تھا
+// اور SW register ہی نہیں ہو رہا تھا۔ اس ورژن میں:
+//   • install ٹھیک کیا گیا
+//   • index.html کے اندر سے Vite کی hashed JS/CSS فائلیں نکال کر precache ہوتی ہیں
+//   • ہر strategy میں offline fallback ہے
+//   • raw.githubusercontent.com (Quran fallback) اور firebase config بھی cache ہوتے ہیں
+// ───────────────────────────────────────────────────────────────────────────
 
-type PendingHadithNavigation = {
-  bookKey: string;
-  chapterKey: string;
-  chapterName: string;
-  from: number;
-  to: number;
-  hadithNum: number;
-};
+const VERSION     = 'v13';
+const CACHE_NAME  = `steptudeen-${VERSION}`;
+const CDN_CACHE   = `steptudeen-cdn-${VERSION}`;
+const FONTS_CACHE = `steptudeen-fonts-${VERSION}`;
 
-interface HadithViewProps {
-  onBack: () => void;
-  pendingHadithNav?: PendingHadithNavigation | null;
-  onPendingHandled?: () => void;
-  scrollToHadithNum?: number | null;
-  onScrollHandled?: () => void;
+const ALL_CACHES = [CACHE_NAME, CDN_CACHE, FONTS_CACHE];
+
+// ── Quran precache (v12) ─────────────────────────────────────────────────────
+// یہ URLs QuranView.tsx کے QURAN_CDN / font @font-face سے بالکل میل کھانے چاہییں،
+// ورنہ cache میں الگ entries بنیں گی اور آف لائن میں کام نہیں کریں گی۔
+// v13: قرآن کا ڈیٹا اور فونٹ اب ایپ کے اپنے فولڈر (public/quran, public/fonts) سے آتے ہیں
+const QURAN_LOCAL_BASE = '/quran/';
+const QURAN_FONT_URL = '/fonts/UthmanicHafs1-Ver09.woff2';
+const SURAH_COUNT    = 114;
+const PRECACHE_BATCH = 6;          // ایک وقت میں کتنی سورتیں (موبائل پر نرمی)
+const SAFE_LANG      = /^[a-z]{2,3}$/;
+
+let precacheRunning = null;        // موجودہ زبان جس کا precache چل رہا ہے
+
+async function broadcast(msg) {
+  const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const c of list) c.postMessage(msg);
 }
 
-type Book = {
-  key: string;
-  name: string;
-  total: number;
-};
-
-type Language = {
-  code: string;
-  name: string;
-  dir: 'ltr' | 'rtl';
-};
-
-type Chapter = {
-  key: string;
-  name: string;
-  from: number;
-  to: number;
-};
-
-type Hadith = {
-  num: number | string;
-  arabic: string;
-  translation: string;
-  grades: Array<{ grade?: string }>;
-};
-
-type Screen = 'books' | 'chapters' | 'reader';
-
-const BASE = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions';
-const HOME_BOOK_TARGET_KEY = 'steptudeen_app_hadith_book_target';
-const LANGUAGE_KEY = 'steptudeen_hadith_language';
-const PER_PAGE = 10;
-const SAVED_HADITHS_KEY = 'user_saved_hadiths';
-
-type SavedHadith = {
-  book: string;
-  bookName: string;
-  num: number | string;
-  chapterKey: string;
-  chapterName: string;
-  from: number;
-  to: number;
-  ar: string;
-  ur: string;
-  translation?: string;
-  translationLanguage?: string;
-  savedAt: number;
-};
-
-function readSavedHadiths(): SavedHadith[] {
-  if (typeof window === 'undefined') return [];
-  const value: unknown = JSON.parse(localStorage.getItem(SAVED_HADITHS_KEY) || '[]');
-  if (!Array.isArray(value) || value.some(item => !item || typeof item.book !== 'string' || !['number', 'string'].includes(typeof item.num))) {
-    throw new Error('Invalid saved hadith data');
+// ایک زبان کی 114 سورتیں cache میں ڈالتا ہے، ہر قدم پر progress بھیجتا ہے۔
+// جو سورتیں پہلے سے cache میں ہوں انہیں دوبارہ ڈاؤن لوڈ نہیں کرتا (resume).
+async function precacheQuran(lang) {
+  if (!SAFE_LANG.test(lang)) {
+    await broadcast({ type: 'QURAN_PRECACHE_ERROR', lang, reason: 'bad-language' });
+    return;
   }
-  return value as SavedHadith[];
-}
+  if (precacheRunning === lang) return;     // وہی کام دوبارہ شروع نہ ہو
+  precacheRunning = lang;
 
-const BOOKS: Book[] = [
-  { key: 'bukhari', name: 'Sahih Bukhari', total: 7563 },
-  { key: 'muslim', name: 'Sahih Muslim', total: 3033 },
-  { key: 'abudawud', name: 'Sunan Abu Dawud', total: 5274 },
-  { key: 'tirmidhi', name: 'Jami at-Tirmidhi', total: 3956 },
-  { key: 'nasai', name: 'Sunan an-Nasai', total: 5758 },
-  { key: 'ibnmajah', name: 'Sunan Ibn Majah', total: 4341 },
-  { key: 'malik', name: 'Muwatta Imam Malik', total: 1857 },
-];
-
-const LANGUAGES: Language[] = [
-  { code: 'ara', name: 'Arabic', dir: 'rtl' },
-  { code: 'ben', name: 'Bengali', dir: 'ltr' },
-  { code: 'eng', name: 'English', dir: 'ltr' },
-  { code: 'fra', name: 'French', dir: 'ltr' },
-  { code: 'ind', name: 'Indonesian', dir: 'ltr' },
-  { code: 'rus', name: 'Russian', dir: 'ltr' },
-  { code: 'tam', name: 'Tamil', dir: 'ltr' },
-  { code: 'tur', name: 'Turkish', dir: 'ltr' },
-  { code: 'urd', name: 'Urdu', dir: 'rtl' },
-];
-
-const AVAILABLE: Record<string, string[]> = {
-  bukhari: ['ara', 'ben', 'eng', 'fra', 'ind', 'rus', 'tam', 'tur', 'urd'],
-  muslim: ['ara', 'ben', 'eng', 'fra', 'ind', 'rus', 'tam', 'tur', 'urd'],
-  abudawud: ['ara', 'ben', 'eng', 'fra', 'ind', 'rus', 'tur', 'urd'],
-  tirmidhi: ['ara', 'ben', 'eng', 'ind', 'tur', 'urd'],
-  nasai: ['ara', 'ben', 'eng', 'fra', 'ind', 'tur', 'urd'],
-  ibnmajah: ['ara', 'ben', 'eng', 'fra', 'ind', 'tur', 'urd'],
-  malik: ['ara', 'ben', 'eng', 'fra', 'ind', 'tur', 'urd'],
-};
-
-const chapterCache = new Map<string, Record<string, any>>();
-const readerCache = new Map<string, [any, any]>();
-
-function bookByKey(key: string | null | undefined) {
-  return BOOKS.find((book) => book.key === key) || null;
-}
-
-function languageByCode(code: string) {
-  return LANGUAGES.find((language) => language.code === code) || LANGUAGES[8];
-}
-
-function isLanguageAvailable(bookKey: string, language: string) {
-  return (AVAILABLE[bookKey] || []).includes(language);
-}
-
-async function requestJson(url: string, signal?: AbortSignal) {
-  const response = await fetch(url, { signal });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
-}
-
-async function requestEdition(path: string, signal?: AbortSignal) {
   try {
-    return await requestJson(`${BASE}/${path}.min.json`, signal);
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    return requestJson(`${BASE}/${path}.json`, signal);
+    const cache = await caches.open(CACHE_NAME);
+
+    // عربی فونٹ (چھوٹا، مگر آف لائن میں ضروری)
+    try {
+      if (!(await cache.match(QURAN_FONT_URL))) {
+        const fr = await fetch(QURAN_FONT_URL);
+        if (fr && fr.ok) await cache.put(QURAN_FONT_URL, fr.clone());
+      }
+    } catch (_) { /* فونٹ نہ ملا تو Noto Naskh fallback چلے گا */ }
+
+    const urls = [];
+    for (let n = 1; n <= SURAH_COUNT; n++) urls.push(`${QURAN_LOCAL_BASE}${lang}/${n}.json`);
+
+    let done = 0;
+    let failed = 0;
+    await broadcast({ type: 'QURAN_PRECACHE_PROGRESS', lang, done, total: SURAH_COUNT });
+
+    for (let i = 0; i < urls.length; i += PRECACHE_BATCH) {
+      const batch = urls.slice(i, i + PRECACHE_BATCH);
+      await Promise.all(batch.map(async (url) => {
+        try {
+          if (await cache.match(url)) return;          // پہلے سے موجود
+          const res = await fetch(url);
+          if (!res || !res.ok) throw new Error('HTTP ' + (res && res.status));
+          // فائل نہ ہو تو سرور index.html (200) لوٹا دیتا ہے — اسے سورت بنا کر محفوظ نہ کریں
+          if (!(res.headers.get('content-type') || '').includes('json')) throw new Error('not json');
+          await cache.put(url, res.clone());
+        } catch (_) {
+          failed++;
+        } finally {
+          done++;
+          await broadcast({ type: 'QURAN_PRECACHE_PROGRESS', lang, done, total: SURAH_COUNT });
+        }
+      }));
+    }
+
+    if (failed > 0) {
+      await broadcast({ type: 'QURAN_PRECACHE_ERROR', lang, reason: 'network', failed });
+    } else {
+      await broadcast({ type: 'QURAN_PRECACHE_DONE', lang, total: SURAH_COUNT });
+    }
+  } catch (err) {
+    await broadcast({ type: 'QURAN_PRECACHE_ERROR', lang, reason: 'unknown' });
+  } finally {
+    precacheRunning = null;
   }
 }
 
-function gradeInfo(grades: Array<{ grade?: string }>) {
-  if (!grades?.length) return null;
-  const original = String(grades[0]?.grade || '');
-  const grade = original.toLowerCase();
-  if (grade.includes('sahih') || grade.includes('صحيح')) return { className: 'bg-blue-100 text-black', label: 'Sahih' };
-  if (grade.includes('hasan') || grade.includes('حسن')) return { className: 'bg-yellow-100 text-black', label: 'Hasan' };
-  if (grade.includes('daif') || grade.includes("da'if") || grade.includes('weak') || grade.includes('ضعيف')) return { className: 'bg-red-600 text-white', label: 'Daif' };
-  return { className: 'bg-[#75b5ff] text-slate-600', label: original };
+// یہ فائلیں ہمیشہ precache ہوں گی
+const CORE_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/mosque-header.webp',
+  '/firebase-applet-config.json',
+];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+// index.html کے متن سے تمام local /assets/... اور /src/... links نکالتا ہے
+function extractAssetUrls(html) {
+  const urls = new Set();
+  const re = /(?:src|href)=["'](\/(?:assets)\/[^"']+)["']/g;
+  let m;
+  while ((m = re.exec(html)) !== null) urls.add(m[1]);
+  return [...urls];
 }
 
-function normalizeText(value: string) {
-  return (value || '')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640\u200C\u200D]/g, '')
-    .replace(/[ٱ]/g, 'ا')
-    .replace(/[ىیې]/g, 'ي')
-    .replace(/ک/g, 'ك')
-    .replace(/[ةۃھہ]/g, 'ه')
-    .replace(/ؤ/g, 'و')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+// Vite کے JS chunk کے اندر جو dynamic import / modulepreload ہوں انہیں بھی نکالتا ہے
+function extractChunkImports(js) {
+  const urls = new Set();
+  const re = /["'](?:\.\/|\/assets\/)([A-Za-z0-9_\-.]+\.(?:js|css))["']/g;
+  let m;
+  while ((m = re.exec(js)) !== null) urls.add('/assets/' + m[1]);
+  return [...urls];
 }
 
-const isDigits = (value: string) => /^\d+$/.test(value.trim());
-
-function chaptersFromSections(sections: Record<string, any>): Chapter[] {
-  return Object.keys(sections).map((key, index) => {
-    const section = sections[key];
-    const name = typeof section === 'string' && section
-      ? section
-      : section?.english || section?.arabic || section?.urdu || `Chapter ${index + 1}`;
-    return {
-      key,
-      name,
-      from: Number(section?.hadithnumber_first || section?.hadith_number_first || 0),
-      to: Number(section?.hadithnumber_last || section?.hadith_number_last || 0),
-    };
-  });
+// ایک URL کو fetch کر کے cache میں ڈالتا ہے (ناکامی پر خاموشی سے آگے بڑھتا ہے)
+async function safeAdd(cache, url) {
+  try {
+    const res = await fetch(url, { cache: 'reload' });
+    if (res && res.ok) {
+      await cache.put(url, res.clone());
+      return res;
+    }
+  } catch (_) { /* offline یا 404 — نظر انداز */ }
+  return null;
 }
 
-const BrandLoader = () => (
-  <div className="flex flex-col items-center justify-center gap-3 py-14">
-    <div className="hadith-brand flex font-serif text-2xl font-bold tracking-wider" dir="ltr">
-      {'steptudeen'.split('').map((letter, index) => (
-        <span key={index} style={{ animationDelay: `${index * 0.08}s` }}>{letter}</span>
-      ))}
-    </div>
-    <div className="text-xs text-slate-500">Loading...</div>
-  </div>
-);
+// ── Install ──────────────────────────────────────────────────────────────────
+self.addEventListener('install', (event) => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
 
-export const HadithView: React.FC<HadithViewProps> = ({
-  onBack,
-  pendingHadithNav = null,
-  onPendingHandled,
-  scrollToHadithNum = null,
-  onScrollHandled,
-}) => {
-  const [screen, setScreen] = useState<Screen>('books');
-  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [hadiths, setHadiths] = useState<Hadith[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [retryToken, setRetryToken] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [searchMessage, setSearchMessage] = useState('');
-  const [searchError, setSearchError] = useState(false);
-  const [searchJump, setSearchJump] = useState<{ chapter: Chapter; num: number } | null>(null);
-  const [chapterSearch, setChapterSearch] = useState('');
-  const [fontScale, setFontScale] = useState(1);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
-  const [language, setLanguage] = useState(() => {
-    if (typeof window === 'undefined') return 'urd';
-    return localStorage.getItem(LANGUAGE_KEY) || 'urd';
-  });
+    // 1) بنیادی فائلیں — ایک ناکام ہو تو باقی نہ رکیں
+    await Promise.all(CORE_ASSETS.map((u) => safeAdd(cache, u)));
 
-  const [savedHadiths, setSavedHadiths] = useState<SavedHadith[]>(() => {
-    try { return readSavedHadiths(); } catch { return []; }
-  });
-  const [saveMessage, setSaveMessage] = useState('');
-
-  useEffect(() => {
-    const syncSaved = (event: StorageEvent) => {
-      if (event.key === SAVED_HADITHS_KEY || event.key === null) {
-        try { setSavedHadiths(readSavedHadiths()); }
-        catch { setSaveMessage('Could not read saved hadiths. Please check browser storage.'); }
-      }
-    };
-    window.addEventListener('storage', syncSaved);
-    return () => window.removeEventListener('storage', syncSaved);
-  }, []);
-
-  useEffect(() => {
-    if (!saveMessage) return;
-    const timer = window.setTimeout(() => setSaveMessage(''), 4000);
-    return () => window.clearTimeout(timer);
-  }, [saveMessage]);
-
-  const toggleSaveHadith = (hadith: Hadith) => {
-    if (!selectedBook || !selectedChapter) return;
+    // 2) index.html پڑھ کر hashed JS/CSS نکالیں اور precache کریں
     try {
-      // Read the latest list so changes from other views/tabs are retained.
-      const current = readSavedHadiths();
-      const matches = (item: SavedHadith) => item.book === selectedBook.key && String(item.num) === String(hadith.num);
-      const alreadySaved = current.some(matches);
-      const updated: SavedHadith[] = alreadySaved
-        ? current.filter(item => !matches(item))
-        : [...current, {
-            book: selectedBook.key,
-            bookName: selectedBook.name,
-            num: hadith.num,
-            chapterKey: selectedChapter.key,
-            chapterName: selectedChapter.name,
-            from: selectedChapter.from,
-            to: selectedChapter.to,
-            ar: hadith.arabic,
-            // The dashboard's `ur` field must contain Urdu only.
-            ur: language === 'urd' ? hadith.translation : '',
-            translation: hadith.translation,
-            translationLanguage: language,
-            savedAt: Date.now(),
-          }];
-      localStorage.setItem(SAVED_HADITHS_KEY, JSON.stringify(updated));
-      setSavedHadiths(updated);
-      setSaveMessage(alreadySaved ? 'Hadith removed from saved list.' : 'Hadith saved. Find it in your dashboard.');
-    } catch {
-      setSaveMessage('Could not update saved hadiths. Browser storage may be full, blocked or unreadable.');
-    }
-  };
+      const htmlRes = await cache.match('/index.html');
+      if (htmlRes) {
+        const html = await htmlRes.clone().text();
+        const assetUrls = extractAssetUrls(html);
+        await Promise.all(assetUrls.map((u) => safeAdd(cache, u)));
 
-  const pendingScrollRef = useRef<number | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  const currentLanguage = languageByCode(language);
-  const textQuery = isDigits(search) ? '' : normalizeText(search);
-  const filteredHadiths = useMemo(
-    () => textQuery
-      ? hadiths.filter((h) => normalizeText(h.arabic).includes(textQuery) || normalizeText(h.translation).includes(textQuery))
-      : hadiths,
-    [hadiths, textQuery]
-  );
-  useEffect(() => { setPage(1); }, [textQuery]);
-  const totalPages = Math.max(1, Math.ceil(filteredHadiths.length / PER_PAGE));
-  const visibleHadiths = useMemo(
-    () => filteredHadiths.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [filteredHadiths, page]
-  );
-
-  const chapterQuery = chapterSearch.trim();
-  const visibleChapters = useMemo(() => {
-    const all = chapters.map((chapter, index) => ({ chapter, index }));
-    if (!chapterQuery) return all;
-    if (isDigits(chapterQuery)) {
-      const n = Number(chapterQuery);
-      return all.filter(({ chapter }) => chapter.from > 0 && n >= chapter.from && n <= chapter.to);
-    }
-    const q = normalizeText(chapterQuery);
-    return all.filter(({ chapter }) => normalizeText(chapter.name).includes(q));
-  }, [chapters, chapterQuery]);
-
-  const chooseSupportedLanguage = (book: Book, requested: string) => {
-    if (isLanguageAvailable(book.key, requested)) return requested;
-    return isLanguageAvailable(book.key, 'eng') ? 'eng' : 'urd';
-  };
-
-  const openBook = (book: Book) => {
-    const nextLanguage = chooseSupportedLanguage(book, language);
-    if (nextLanguage !== language) {
-      setLanguage(nextLanguage);
-      localStorage.setItem(LANGUAGE_KEY, nextLanguage);
-    }
-    setSelectedBook(book);
-    setSelectedChapter(null);
-    setChapters([]);
-    setHadiths([]);
-    setPage(1);
-    setSearch('');
-    setSearchMessage('');
-    setSearchJump(null);
-    setChapterSearch('');
-    setError('');
-    setScreen('chapters');
-  };
-
-  useEffect(() => {
-    try {
-      const key = localStorage.getItem(HOME_BOOK_TARGET_KEY);
-      localStorage.removeItem(HOME_BOOK_TARGET_KEY);
-      const book = bookByKey(key);
-      if (book) openBook(book);
-    } catch {
-      // The normal book grid remains available when storage is blocked.
-    }
-    // This should run only once when the Hadith view mounts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!pendingHadithNav) return;
-    const book = bookByKey(pendingHadithNav.bookKey);
-    if (!book) return;
-    const nextLanguage = chooseSupportedLanguage(book, language);
-    if (nextLanguage !== language) {
-      setLanguage(nextLanguage);
-      localStorage.setItem(LANGUAGE_KEY, nextLanguage);
-    }
-    setSelectedBook(book);
-    setSelectedChapter({
-      key: pendingHadithNav.chapterKey,
-      name: pendingHadithNav.chapterName,
-      from: pendingHadithNav.from,
-      to: pendingHadithNav.to,
-    });
-    pendingScrollRef.current = pendingHadithNav.hadithNum;
-    setPage(1);
-    setScreen('reader');
-    onPendingHandled?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingHadithNav]);
-
-  useEffect(() => {
-    if (!scrollToHadithNum) return;
-    pendingScrollRef.current = scrollToHadithNum;
-    onScrollHandled?.();
-  }, [scrollToHadithNum, onScrollHandled]);
-
-  useEffect(() => {
-    if (screen !== 'chapters' || !selectedBook) return;
-    const controller = new AbortController();
-    const cached = chapterCache.get(selectedBook.key);
-    if (cached) {
-      const items = Object.keys(cached).map((key, index) => {
-        const section = cached[key];
-        const name = typeof section === 'string' && section
-          ? section
-          : section?.english || section?.arabic || section?.urdu || `Chapter ${index + 1}`;
-        return {
-          key,
-          name,
-          from: Number(section?.hadithnumber_first || section?.hadith_number_first || 0),
-          to: Number(section?.hadithnumber_last || section?.hadith_number_last || 0),
-        };
-      });
-      setChapters(items);
-      setLoading(false);
-      return () => controller.abort();
-    }
-
-    setLoading(true);
-    setError('');
-    requestEdition(`ara-${selectedBook.key}`, controller.signal)
-      .then((data) => {
-        const sections = data?.metadata?.sections;
-        if (!sections || !Object.keys(sections).length) throw new Error('No chapters found');
-        chapterCache.set(selectedBook.key, sections);
-        const items = Object.keys(sections).map((key, index) => {
-          const section = sections[key];
-          const name = typeof section === 'string' && section
-            ? section
-            : section?.english || section?.arabic || section?.urdu || `Chapter ${index + 1}`;
-          return {
-            key,
-            name,
-            from: Number(section?.hadithnumber_first || section?.hadith_number_first || 0),
-            to: Number(section?.hadithnumber_last || section?.hadith_number_last || 0),
-          };
-        });
-        setChapters(items);
-      })
-      .catch((reason) => {
-        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Chapters could not be loaded.');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [screen, selectedBook, retryToken]);
-
-  useEffect(() => {
-    if (screen !== 'reader' || !selectedBook || !selectedChapter) return;
-    const controller = new AbortController();
-    const supportedLanguage = chooseSupportedLanguage(selectedBook, language);
-    if (supportedLanguage !== language) {
-      setLanguage(supportedLanguage);
-      localStorage.setItem(LANGUAGE_KEY, supportedLanguage);
-      return () => controller.abort();
-    }
-
-    const cacheKey = `${selectedBook.key}_${selectedChapter.key}_${language}`;
-    const parse = (arabicData: any, translationData: any) => {
-      const translationMap = new Map<number | string, string>();
-      for (const item of translationData?.hadiths || []) {
-        translationMap.set(item.hadithnumber, item.text || '');
+        // 3) ہر JS فائل کے اندر جو دوسرے chunks import ہوتے ہیں (lazy chunks) وہ بھی
+        for (const u of assetUrls.filter((x) => x.endsWith('.js'))) {
+          const jsRes = await cache.match(u);
+          if (!jsRes) continue;
+          const js = await jsRes.clone().text();
+          const nested = extractChunkImports(js).filter((n) => !assetUrls.includes(n));
+          await Promise.all(nested.map((n) => safeAdd(cache, n)));
+        }
       }
-      const result: Hadith[] = (arabicData?.hadiths || []).map((item: any) => ({
-        num: item.hadithnumber,
-        arabic: item.text || '',
-        translation: translationMap.get(item.hadithnumber) || '',
-        grades: item.grades || [],
-      }));
-      setHadiths(result);
-      setLoading(false);
-    };
+    } catch (_) { /* precache ادھورا رہے تو بھی SW install ہو */ }
 
-    const cached = readerCache.get(cacheKey);
-    if (cached) {
-      parse(cached[0], cached[1]);
-      return () => controller.abort();
-    }
+    await self.skipWaiting();
+  })());
+});
 
-    setLoading(true);
-    setError('');
-    const translationRequest = language === 'ara'
-      ? Promise.resolve({ hadiths: [] })
-      : requestEdition(`${language}-${selectedBook.key}/sections/${selectedChapter.key}`, controller.signal);
+// ── Activate ─────────────────────────────────────────────────────────────────
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys.filter((k) => !ALL_CACHES.includes(k)).map((k) => caches.delete(k))
+    );
+    await self.clients.claim();
+  })());
+});
 
-    Promise.all([
-      requestEdition(`ara-${selectedBook.key}/sections/${selectedChapter.key}`, controller.signal),
-      translationRequest,
-    ])
-      .then(([arabicData, translationData]) => {
-        readerCache.set(cacheKey, [arabicData, translationData]);
-        parse(arabicData, translationData);
-      })
-      .catch((reason) => {
-        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Hadith could not be loaded.');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+// ── Fetch ────────────────────────────────────────────────────────────────────
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
 
-    return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, selectedBook, selectedChapter, language, retryToken]);
+  // صرف GET cache ہو سکتی ہے
+  if (request.method !== 'GET') return;
 
-  useEffect(() => {
-    const target = pendingScrollRef.current;
-    if (!target || !hadiths.length) return;
-    const index = hadiths.findIndex((hadith) => Number(hadith.num) === Number(target));
-    if (index < 0) return;
-    setPage(Math.floor(index / PER_PAGE) + 1);
-    const timer = window.setTimeout(() => {
-      const card = document.getElementById(`hadith-${target}`);
-      if (!card) return;
-      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      card.classList.add('hadith-target-highlight');
-      window.setTimeout(() => card.classList.remove('hadith-target-highlight'), 1800);
-      pendingScrollRef.current = null;
-    }, 220);
-    return () => window.clearTimeout(timer);
-  }, [hadiths, page]);
+  const url = new URL(request.url);
 
-  useEffect(() => {
-    const close = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, []);
-
-  const openChapter = (chapter: Chapter, hadithNum: number | null = null) => {
-    pendingScrollRef.current = hadithNum;
-    setSelectedChapter(chapter);
-    setHadiths([]);
-    setPage(1);
-    setSearch('');
-    setSearchMessage('');
-    setSearchJump(null);
-    setError('');
-    setScreen('reader');
-  };
-
-  const chooseLanguage = (code: string) => {
-    if (!selectedBook || !isLanguageAvailable(selectedBook.key, code)) return;
-    setLanguage(code);
-    localStorage.setItem(LANGUAGE_KEY, code);
-    setLanguagePickerOpen(false);
-    setPage(1);
-    setSearchMessage('');
-    if (screen === 'reader') setHadiths([]);
-  };
-
-  const runSearch = () => {
-    const query = search.trim();
-    setSearchJump(null);
-    if (!query) {
-      setSearchError(true);
-      setSearchMessage('Type a Hadith number or a word to search.');
-      return;
-    }
-    // Words are filtered live in this chapter; nothing else to do on Enter.
-    if (!isDigits(query)) {
-      setSearchMessage('');
-      return;
-    }
-    const number = Number(query);
-    const index = hadiths.findIndex((hadith) => Number(hadith.num) === number);
-    if (index < 0) {
-      // Look for the chapter of this book that holds the number.
-      const sections = selectedBook ? chapterCache.get(selectedBook.key) : null;
-      const owner = sections ? chaptersFromSections(sections).find((c) => c.from > 0 && number >= c.from && number <= c.to) : null;
-      setSearchError(true);
-      if (owner && owner.key !== selectedChapter?.key) {
-        openChapter(owner, number);
-        setSearchError(false);
-        setSearchMessage(`Hadith ${number} opened from: ${owner.name}`);
-      } else {
-        setSearchMessage(`Hadith ${number} was not found in ${selectedBook?.name || 'this book'}.`);
+  // ✅ 1. Navigation — network first، offline میں cache شدہ index.html (SPA)
+  if (request.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        const res = await fetch(request);
+        if (res && res.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          cache.put('/index.html', res.clone());
+        }
+        return res;
+      } catch (_) {
+        const cache = await caches.open(CACHE_NAME);
+        return (
+          (await cache.match('/index.html')) ||
+          (await cache.match('/')) ||
+          new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } })
+        );
       }
-      return;
-    }
-    setSearchError(false);
-    setSearchMessage(`Hadith number ${number} found.`);
-    setPage(Math.floor(index / PER_PAGE) + 1);
-    window.setTimeout(() => {
-      const card = document.getElementById(`hadith-${number}`);
-      card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      card?.classList.add('hadith-target-highlight');
-      window.setTimeout(() => card?.classList.remove('hadith-target-highlight'), 1800);
-    }, 180);
-  };
+    })());
+    return;
+  }
 
-  const goToBooks = () => {
-    setScreen('books');
-    setChapterSearch('');
-    setSelectedBook(null);
-    setSelectedChapter(null);
-    setChapters([]);
-    setHadiths([]);
-    setError('');
-    setMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  };
+  // ✅ 2. Quran / Hadith / Tafsir data — jsdelivr + raw.githubusercontent
+  //       cache first، پھر network، پھر (آخر میں) پرانا cache
+  if (
+    url.hostname === 'cdn.jsdelivr.net' ||
+    url.hostname === 'raw.githubusercontent.com'
+  ) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CDN_CACHE);
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      try {
+        const res = await fetch(request);
+        if (res && (res.ok || res.type === 'opaque')) cache.put(request, res.clone());
+        return res;
+      } catch (err) {
+        // ایک ہی CDN کے دوسرے hostname سے بھی ڈھونڈ لیں
+        const keys = await cache.keys();
+        const tail = url.pathname.split('/').slice(-2).join('/');
+        for (const k of keys) {
+          if (k.url.endsWith(tail)) return cache.match(k);
+        }
+        throw err;
+      }
+    })());
+    return;
+  }
 
-  const goToChapters = () => {
-    setScreen('chapters');
-    setSelectedChapter(null);
-    setHadiths([]);
-    setSearch('');
-    setSearchMessage('');
-    setError('');
-    setMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  };
+  // ✅ 3. Google Fonts + FontAwesome — cache first
+  if (
+    url.hostname === 'fonts.googleapis.com' ||
+    url.hostname === 'fonts.gstatic.com' ||
+    url.hostname === 'cdnjs.cloudflare.com'
+  ) {
+    event.respondWith((async () => {
+      const cache = await caches.open(FONTS_CACHE);
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      try {
+        const res = await fetch(request);
+        if (res && (res.ok || res.type === 'opaque')) cache.put(request, res.clone());
+        return res;
+      } catch (err) {
+        return cached || Response.error();
+      }
+    })());
+    return;
+  }
 
-  const retry = () => {
-    setError('');
-    setRetryToken((value) => value + 1);
-  };
+  // باہر کی دوسری requests (Firebase, Maps, Prayer API) — SW کو نہ چھیڑیں
+  if (url.origin !== self.location.origin) return;
 
-  return (
-    <div dir="ltr" className="hadith-view mx-auto w-full max-w-[900px] bg-white px-2 pb-20 text-left text-black">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;600;700&family=Scheherazade+New:wght@400;700&family=Noto+Sans+Bengali:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&display=swap');
-        .hadith-arabic{font-family:'Scheherazade New','Noto Naskh Arabic',serif;font-weight:700;line-height:1.9;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
-        .hadith-translation{font-family:Inter,'Segoe UI',sans-serif;line-height:1.85}
-        .hadith-translation[dir='rtl']{font-family:'Scheherazade New','Noto Naskh Arabic',serif;font-weight:700;line-height:2;text-align:right}
-        .hadith-translation[data-lang='ben']{font-family:'Noto Sans Bengali',sans-serif}
-        .hadith-translation[data-lang='tam']{font-family:'Noto Sans Tamil',sans-serif}
-        .hadith-brand span{display:inline-block;animation:hadith-bounce 1.1s ease-in-out infinite;background:linear-gradient(180deg,#3b8bff,#1a63d8);-webkit-background-clip:text;background-clip:text;color:transparent}
-        /* نیلے کارڈ/بٹن: گہرا خوبصورت نیلا + سفید لکھائی (صرف وہ عناصر جن پر سیدھا bg-[#75b5ff] ہو) */
-        .hadith-view [class~="bg-[#75b5ff]"]{background:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%)!important;color:#fff!important}
-        .hadith-view [class~="bg-[#75b5ff]"] *{color:#fff!important}
-        .hadith-view button[class~="bg-[#75b5ff]"]{box-shadow:0 4px 12px #1a63d847}
-        .hadith-view button[class~="bg-[#75b5ff]"]:not(:disabled):hover{filter:brightness(1.08)}
-        .hadith-view button[class*="hover:bg-[#75b5ff]"]:hover{background:linear-gradient(135deg,#3b8bff 0%,#1a63d8 100%);color:#fff}
-        .hadith-view button:focus-visible{outline:2px solid #1680ef;outline-offset:3px}
-        .hadith-view button:disabled{cursor:not-allowed}
-        @media(prefers-reduced-motion:reduce){.hadith-view .hadith-brand span{animation:none}.hadith-view *{scroll-behavior:auto!important;transition:none!important}}
-        @keyframes hadith-bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}}
-        .hadith-target-highlight{box-shadow:0 0 0 3px rgba(43,119,236,.85),0 0 24px rgba(0,0,0,.10)!important;background:#fff!important}
-      `}</style>
+  // ✅ 4. sw.js خود کبھی cache نہ ہو
+  if (url.pathname === '/sw.js') return;
 
-      {screen === 'books' && (
-        <>
-          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center justify-start gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm">
-            <button onClick={onBack} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Back</button>
-          </HideOnScrollBar>
-          <div className="grid grid-cols-2 gap-3">
-            {BOOKS.map((book, index) => (
-              <button
-                key={book.key}
-                type="button"
-                onClick={() => openBook(book)}
-                className={`flex min-h-[142px] flex-col items-center justify-center rounded-2xl border border-black/10 bg-white p-3 text-center shadow-[0_3px_10px_rgba(0,0,0,.12)] transition active:scale-[.97] ${index === BOOKS.length - 1 ? 'col-span-2 sm:col-span-1' : ''}`}
-              >
-                <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#75b5ff] text-black"><BookOpen size={19} /></span>
-                <strong className="text-sm text-black">{book.name}</strong>
-                <small className="mt-2 rounded-full bg-[#75b5ff] px-2.5 py-1 text-[10px] font-semibold text-slate-500">{book.total.toLocaleString('en-US')} Hadith</small>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+  // ✅ 5. Firebase config — network first، offline میں cache
+  if (url.pathname === '/firebase-applet-config.json') {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      try {
+        const res = await fetch(request);
+        if (res && res.ok) cache.put(request, res.clone());
+        return res;
+      } catch (err) {
+        return (await cache.match(request)) || Response.error();
+      }
+    })());
+    return;
+  }
 
-      {screen === 'chapters' && selectedBook && (
-        <>
-          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm">
-            <button onClick={goToBooks} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Books</button>
-            <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-black">{selectedBook.name} · {currentLanguage.name}</div>
-            <button onClick={() => setLanguagePickerOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black" aria-label="Select language"><Languages size={15} /></button>
-          </HideOnScrollBar>
+  // ✅ 6. Vite assets (/assets/...) — hashed ہوتے ہیں اس لیے cache first محفوظ ہے
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      try {
+        const res = await fetch(request);
+        if (res && res.ok) cache.put(request, res.clone());
+        return res;
+      } catch (err) {
+        return Response.error();
+      }
+    })());
+    return;
+  }
 
-          {loading && <BrandLoader />}
-          {error && (
-            <div className="flex flex-col items-center gap-3 py-14 text-center">
-              <AlertTriangle size={30} className="text-black" />
-              <p className="max-w-sm text-sm text-slate-500">{error}</p>
-              <div className="flex gap-2"><button onClick={retry} className="flex items-center gap-2 rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black"><RefreshCw size={13} /> Retry</button><button onClick={goToBooks} className="rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-slate-600">All books</button></div>
-            </div>
-          )}
+  // ✅ 7. باقی local static فائلیں (png, webp, json, ...) — stale-while-revalidate
+  if (/\.(js|css|png|jpg|jpeg|webp|svg|woff2?|ico|json)(\?.*)?$/i.test(url.pathname)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(request);
+      const network = fetch(request)
+        .then((res) => {
+          const jsonOk = !/\.json(\?.*)?$/i.test(url.pathname) || (res && (res.headers.get('content-type') || '').includes('json'));
+          if (res && res.ok && jsonOk) cache.put(request, res.clone());
+          return res;
+        })
+        .catch(() => null);
+      return cached || (await network) || Response.error();
+    })());
+    return;
+  }
+});
 
-          {!loading && !error && (
-            <div className="mb-3 flex items-center gap-2 rounded-xl border border-black/10 bg-white p-2">
-              <Search size={16} className="ml-1 text-slate-400" />
-              <input value={chapterSearch} onChange={(event) => setChapterSearch(event.target.value)} type="text" inputMode="search" placeholder="Hadith number or chapter name..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
-              {!!chapterSearch && <button onClick={() => setChapterSearch('')} aria-label="Clear search" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={14} /></button>}
-            </div>
-          )}
-
-          {!loading && !error && !!chapterQuery && (
-            <div className="mb-3 text-center text-[11px] text-slate-500">
-              {isDigits(chapterQuery)
-                ? (visibleChapters.length ? `Hadith ${chapterQuery} is here. Tap to open it:` : `Hadith ${chapterQuery} was not found in ${selectedBook.name}.`)
-                : (visibleChapters.length ? `${visibleChapters.length} chapter${visibleChapters.length > 1 ? 's' : ''} found` : 'No chapter matched your search.')}
-            </div>
-          )}
-
-          {!loading && !error && (
-            <div className="space-y-2">
-              {visibleChapters.map(({ chapter, index }) => (
-                <button key={chapter.key} onClick={() => openChapter(chapter, isDigits(chapterQuery) ? Number(chapterQuery) : null)} className="flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,.08)]">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-[10px] font-bold text-black">{index + 1}</span>
-                  <span className="min-w-0 flex-1"><strong className="block truncate text-[13px]">{chapter.name}</strong>{isDigits(chapterQuery)
-                    ? <small className="mt-1 block text-[11px] font-bold text-blue-700">Open Hadith #{chapterQuery} →</small>
-                    : chapter.from > 0 && chapter.to > 0 && <small className="mt-1 block text-[10px] text-slate-500">Hadith {chapter.from}–{chapter.to}</small>}</span>
-                  <ChevronRight size={15} className="text-slate-400" />
-                </button>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {screen === 'reader' && selectedBook && selectedChapter && (
-        <>
-          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm" innerRef={menuRef}>
-            <button onClick={goToChapters} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Chapters</button>
-            <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-black">{selectedChapter.name}</div>
-            <div className="relative">
-              <button onClick={() => setMenuOpen((value) => !value)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff]" aria-label="More options"><MoreVertical size={15} /></button>
-              {menuOpen && (
-                <div className="absolute right-0 top-10 z-50 w-48 overflow-hidden rounded-xl border border-black/10 bg-white shadow-2xl">
-                  <button onClick={() => { setLanguagePickerOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#75b5ff]"><Languages size={14} /> Translation: {currentLanguage.name}</button>
-                  <button onClick={goToChapters} className="w-full border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#75b5ff]">Back to chapters</button>
-                  <button onClick={goToBooks} className="w-full border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#75b5ff]">All books</button>
-                  <button onClick={() => { setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full px-3 py-3 text-left text-xs hover:bg-[#75b5ff]">Scroll to top</button>
-                </div>
-              )}
-            </div>
-          </HideOnScrollBar>
-
-          <div className="fixed bottom-16 left-3 z-40 flex items-center rounded-full bg-[#75b5ff] p-1 shadow-xl">
-            <button onClick={() => setFontScale((value) => Math.max(.8, Math.round((value - .1) * 10) / 10))} className="flex h-8 w-8 items-center justify-center rounded-full text-black"><Minus size={14} /></button>
-            <span className="min-w-10 text-center text-[10px] font-bold text-black">{Math.round(fontScale * 100)}%</span>
-            <button onClick={() => setFontScale((value) => Math.min(1.6, Math.round((value + .1) * 10) / 10))} className="flex h-8 w-8 items-center justify-center rounded-full text-black"><Plus size={14} /></button>
-          </div>
-
-          <div className="mb-3 flex items-center gap-2 rounded-xl border border-black/10 bg-white p-2">
-            <Search size={16} className="ml-1 text-slate-400" />
-            <input value={search} onChange={(event) => { setSearch(event.target.value); setSearchMessage(''); }} onKeyDown={(event) => { if (event.key === 'Enter') runSearch(); }} type="text" inputMode="search" placeholder="Hadith number or word..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
-            {!!search && <button onClick={() => { setSearch(''); setSearchMessage(''); setSearchJump(null); }} aria-label="Clear search" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={14} /></button>}
-            <button onClick={runSearch} className="rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black">Search</button>
-          </div>
-          {searchMessage && (
-            <div className={`mb-3 rounded-lg px-3 py-2 text-center text-xs ${searchError ? 'bg-blue-100 text-black' : 'bg-[#75b5ff] text-black'}`}>
-              {searchMessage}
-              {searchJump && (
-                <button onClick={() => openChapter(searchJump.chapter, searchJump.num)} className="mt-2 block w-full truncate rounded-full bg-[#75b5ff] px-3 py-2 font-bold text-black">Go to: {searchJump.chapter.name}</button>
-              )}
-            </div>
-          )}
-          {!loading && !error && !!textQuery && (
-            <div className="mb-3 text-center text-[11px] text-slate-500">
-              {filteredHadiths.length ? `${filteredHadiths.length} Hadith found in this chapter` : 'No Hadith in this chapter contains this word.'}
-            </div>
-          )}
-
-          {loading && <BrandLoader />}
-          {error && (
-            <div className="flex flex-col items-center gap-3 py-14 text-center">
-              <AlertTriangle size={30} className="text-black" />
-              <p className="max-w-sm text-sm text-slate-500">{error}</p>
-              <div className="flex gap-2"><button onClick={retry} className="flex items-center gap-2 rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black"><RefreshCw size={13} /> Retry</button><button onClick={goToBooks} className="rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-slate-600">All books</button></div>
-            </div>
-          )}
-
-          {!loading && !error && (
-            <>
-              {visibleHadiths.map((hadith) => {
-                const grade = gradeInfo(hadith.grades);
-                const isSaved = savedHadiths.some(item => item.book === selectedBook.key && String(item.num) === String(hadith.num));
-                return (
-                  <article key={String(hadith.num)} id={`hadith-${hadith.num}`} className="mb-3 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_10px_28px_rgba(0,0,0,.07),0_3px_7px_rgba(0,0,0,.04)] transition">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-white px-3 py-2">
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-black">#{hadith.num}</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleSaveHadith(hadith)}
-                          aria-pressed={isSaved}
-                          aria-label={`${isSaved ? 'Remove saved' : 'Save'} hadith ${hadith.num} from ${selectedBook.name}`}
-                          title={isSaved ? 'Remove from saved hadiths' : 'Save hadith'}
-                          className={`hadith-heart inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${isSaved ? 'text-red-600' : 'text-black'}`}
-                        >
-                          <Heart size={19} fill={isSaved ? 'currentColor' : 'none'} aria-hidden="true" />
-                        </button>
-                      </div>
-                      {grade && <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${grade.className}`}>{grade.label}</span>}
-                      <span className="text-[10px] font-bold text-black">{selectedBook.name}</span>
-                    </div>
-                    <div className="p-4 text-right">
-                      <div className="hadith-arabic whitespace-pre-wrap text-right text-black" dir="rtl" style={{ fontSize: `${21 * fontScale}px` }}>{hadith.arabic}</div>
-                      {!!hadith.translation && <div className="hadith-translation mt-3 whitespace-pre-wrap border-t border-slate-100 pt-3 text-black" data-lang={language} dir={currentLanguage.dir} style={{ fontSize: `${17 * fontScale}px` }}>{hadith.translation}</div>}
-                    </div>
-                  </article>
-                );
-              })}
-
-              {totalPages > 1 && (
-                <div className="mt-3 flex items-center justify-between rounded-xl border border-black/10 bg-white p-3">
-                  <button disabled={page <= 1} onClick={() => { setPage((value) => value - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-xs font-bold text-black disabled:opacity-30"><ChevronLeft size={13} /> Previous</button>
-                  <span className="text-[10px] text-slate-500">{page} / {totalPages}</span>
-                  <button disabled={page >= totalPages} onClick={() => { setPage((value) => value + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-xs font-bold text-black disabled:opacity-30">Next <ChevronRight size={13} /></button>
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-
-      {saveMessage && (
-        <div role="status" aria-live="polite" className="fixed bottom-28 left-1/2 z-[80] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm text-black shadow-xl">
-          {saveMessage}
-        </div>
-      )}
-
-      {languagePickerOpen && selectedBook && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setLanguagePickerOpen(false); }}>
-          <div className="max-h-[82vh] w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><strong className="text-sm text-black">Select Translation Language</strong><button onClick={() => setLanguagePickerOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff]"><X size={15} /></button></div>
-            <div className="max-h-[65vh] overflow-y-auto p-2">
-              {LANGUAGES.filter((item) => isLanguageAvailable(selectedBook.key, item.code)).map((item) => (
-                <button key={item.code} onClick={() => chooseLanguage(item.code)} className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left ${item.code === language ? 'bg-[#75b5ff] text-black' : 'hover:bg-blue-100'}`}>
-                  <span><strong className="block text-sm">{item.name}</strong><small className="mt-1 block text-[10px] text-slate-500">Available for {selectedBook.name}</small></span>
-                  {item.code === language && <Check size={16} />}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+// ── Push Notifications ────────────────────────────────────────────────────────
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (_) { /* text payload */ }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'StepTuDeen', {
+      body: data.body || 'نماز کا وقت ہو گیا ہے',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      dir: 'rtl',
+      lang: 'ur',
+      vibrate: [200, 100, 200],
+      data: data.url || '/',
+    })
   );
-};
+});
 
-export default HadithView;
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = typeof event.notification.data === 'string' ? event.notification.data : '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) if ('focus' in c) return c.focus();
+      return self.clients.openWindow(target);
+    })
+  );
+});
+
+// ── Message ───────────────────────────────────────────────────────────────────
+self.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data) return;
+  if (data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (data.type === 'PRECACHE_QURAN' && typeof data.lang === 'string') {
+    // waitUntil تاکہ براؤزر کام کے دوران SW کو بند نہ کر دے
+    event.waitUntil(precacheQuran(data.lang));
+  }
+});
