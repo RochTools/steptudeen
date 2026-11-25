@@ -413,9 +413,16 @@ export const HadithView: React.FC<HadithViewProps> = ({
       .then((data) => {
         const sections = data?.metadata?.sections;
         if (!sections || !Object.keys(sections).length) throw new Error('No chapters found');
-        chapterCache.set(selectedBook.key, sections);
-        const items = Object.keys(sections).map((key, index) => {
-          const section = sections[key];
+        // Chapter names live in `sections`; the hadith number ranges live in `section_details`.
+        const details = data?.metadata?.section_details || {};
+        const merged: Record<string, any> = {};
+        for (const key of Object.keys(sections)) {
+          const base = typeof sections[key] === 'string' ? { english: sections[key] } : (sections[key] || {});
+          merged[key] = { ...base, ...(details[key] || {}) };
+        }
+        chapterCache.set(selectedBook.key, merged);
+        const items = Object.keys(merged).map((key, index) => {
+          const section = merged[key];
           const name = typeof section === 'string' && section
             ? section
             : section?.english || section?.arabic || section?.urdu || `Chapter ${index + 1}`;
