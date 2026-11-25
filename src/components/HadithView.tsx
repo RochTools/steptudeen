@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Languages,
   Minus,
-  MoreVertical,
   Plus,
   RefreshCw,
   Search,
@@ -37,6 +36,7 @@ interface HadithViewProps {
 type Book = {
   key: string;
   name: string;
+  nameUr: string;
   total: number;
 };
 
@@ -93,13 +93,13 @@ function readSavedHadiths(): SavedHadith[] {
 }
 
 const BOOKS: Book[] = [
-  { key: 'bukhari', name: 'Sahih Bukhari', total: 7563 },
-  { key: 'muslim', name: 'Sahih Muslim', total: 3033 },
-  { key: 'abudawud', name: 'Sunan Abu Dawud', total: 5274 },
-  { key: 'tirmidhi', name: 'Jami at-Tirmidhi', total: 3956 },
-  { key: 'nasai', name: 'Sunan an-Nasai', total: 5758 },
-  { key: 'ibnmajah', name: 'Sunan Ibn Majah', total: 4341 },
-  { key: 'malik', name: 'Muwatta Imam Malik', total: 1857 },
+  { key: 'bukhari', nameUr: 'صحیح بخاری', name: 'Sahih Bukhari', total: 7563 },
+  { key: 'muslim', nameUr: 'صحیح مسلم', name: 'Sahih Muslim', total: 3033 },
+  { key: 'abudawud', nameUr: 'سنن ابی داؤد', name: 'Sunan Abu Dawud', total: 5274 },
+  { key: 'tirmidhi', nameUr: 'جامع ترمذی', name: 'Jami at-Tirmidhi', total: 3956 },
+  { key: 'nasai', nameUr: 'سنن نسائی', name: 'Sunan an-Nasai', total: 5758 },
+  { key: 'ibnmajah', nameUr: 'سنن ابن ماجہ', name: 'Sunan Ibn Majah', total: 4341 },
+  { key: 'malik', nameUr: 'موطا امام مالک', name: 'Muwatta Imam Malik', total: 1857 },
 ];
 
 const LANGUAGES: Language[] = [
@@ -655,7 +655,7 @@ export const HadithView: React.FC<HadithViewProps> = ({
               >
                 <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#75b5ff] text-black"><BookOpen size={19} /></span>
                 <strong className="text-sm text-black">{book.name}</strong>
-                <small className="mt-2 rounded-full bg-[#75b5ff] px-2.5 py-1 text-[10px] font-semibold text-slate-500">{book.total.toLocaleString('en-US')} Hadith</small>
+                <small dir="rtl" className="mt-2 rounded-full bg-[#75b5ff] px-3 py-1 text-[14px] font-semibold" style={{ fontFamily: "'Noto Naskh Arabic','Scheherazade New',serif" }}>{book.nameUr}</small>
               </button>
             ))}
           </div>
@@ -664,11 +664,14 @@ export const HadithView: React.FC<HadithViewProps> = ({
 
       {screen === 'chapters' && selectedBook && (
         <>
-          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm">
-            <button onClick={goToBooks} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Books</button>
-            <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-black">{selectedBook.name} · {currentLanguage.name}</div>
-            <button onClick={() => setLanguagePickerOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black" aria-label="Select language"><Languages size={15} /></button>
+          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center gap-1.5 rounded-xl border border-black/10 bg-white p-2 shadow-sm">
+            <Search size={16} className="ml-1 shrink-0 text-slate-400" />
+            <input value={chapterSearch} onChange={(event) => setChapterSearch(event.target.value)} type="text" inputMode="search" placeholder={`Search in ${selectedBook.name} · ${currentLanguage.name}`} className="min-w-0 flex-1 truncate text-ellipsis bg-transparent px-1 py-1.5 text-[13px] outline-none" />
+            {!!chapterSearch && <button onClick={() => setChapterSearch('')} aria-label="Clear search" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={15} /></button>}
+            <button onClick={() => setLanguagePickerOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black" aria-label="Select language"><Languages size={15} /></button>
+            <button onClick={goToBooks} aria-label="Back to books" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><ArrowLeft size={16} /></button>
           </HideOnScrollBar>
+          <div className="h-3" />
 
           {loading && <BrandLoader />}
           {error && (
@@ -676,14 +679,6 @@ export const HadithView: React.FC<HadithViewProps> = ({
               <AlertTriangle size={30} className="text-black" />
               <p className="max-w-sm text-sm text-slate-500">{error}</p>
               <div className="flex gap-2"><button onClick={retry} className="flex items-center gap-2 rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black"><RefreshCw size={13} /> Retry</button><button onClick={goToBooks} className="rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-slate-600">All books</button></div>
-            </div>
-          )}
-
-          {!loading && !error && (
-            <div className="mb-3 flex items-center gap-2 rounded-xl border border-black/10 bg-white p-2">
-              <Search size={16} className="ml-1 text-slate-400" />
-              <input value={chapterSearch} onChange={(event) => setChapterSearch(event.target.value)} type="text" inputMode="search" placeholder="Hadith number or chapter name..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
-              {!!chapterSearch && <button onClick={() => setChapterSearch('')} aria-label="Clear search" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={14} /></button>}
             </div>
           )}
 
@@ -713,21 +708,14 @@ export const HadithView: React.FC<HadithViewProps> = ({
 
       {screen === 'reader' && selectedBook && selectedChapter && (
         <>
-          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white p-3 shadow-sm" innerRef={menuRef}>
-            <button onClick={goToChapters} className="flex items-center gap-1 rounded-full bg-[#75b5ff] px-3 py-2 text-[11px] font-bold text-black"><ArrowLeft size={13} /> Chapters</button>
-            <div className="min-w-0 flex-1 truncate text-center text-xs font-bold text-black">{selectedChapter.name}</div>
-            <div className="relative">
-              <button onClick={() => setMenuOpen((value) => !value)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff]" aria-label="More options"><MoreVertical size={15} /></button>
-              {menuOpen && (
-                <div className="absolute right-0 top-10 z-50 w-48 overflow-hidden rounded-xl border border-black/10 bg-white shadow-2xl">
-                  <button onClick={() => { setLanguagePickerOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#75b5ff]"><Languages size={14} /> Translation: {currentLanguage.name}</button>
-                  <button onClick={goToChapters} className="w-full border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#75b5ff]">Back to chapters</button>
-                  <button onClick={goToBooks} className="w-full border-b border-slate-100 px-3 py-3 text-left text-xs hover:bg-[#75b5ff]">All books</button>
-                  <button onClick={() => { setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="w-full px-3 py-3 text-left text-xs hover:bg-[#75b5ff]">Scroll to top</button>
-                </div>
-              )}
-            </div>
+          <HideOnScrollBar bg="#fff" paused={menuOpen} className="flex items-center gap-1.5 rounded-xl border border-black/10 bg-white p-2 shadow-sm">
+            <button onClick={runSearch} aria-label="Search" className="flex h-9 w-7 shrink-0 items-center justify-center text-slate-400"><Search size={16} /></button>
+            <input value={search} onChange={(event) => { setSearch(event.target.value); setSearchMessage(''); }} onKeyDown={(event) => { if (event.key === 'Enter') runSearch(); }} type="text" inputMode="search" enterKeyHint="search" placeholder={`Search in ${selectedBook.name} · ${currentLanguage.name}`} className="min-w-0 flex-1 truncate text-ellipsis bg-transparent px-1 py-1.5 text-[13px] outline-none" />
+            {!!search && <button onClick={() => { setSearch(''); setSearchMessage(''); setSearchJump(null); }} aria-label="Clear search" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={15} /></button>}
+            <button onClick={() => setLanguagePickerOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black" aria-label="Select language"><Languages size={15} /></button>
+            <button onClick={goToChapters} aria-label="Back to chapters" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><ArrowLeft size={16} /></button>
           </HideOnScrollBar>
+          <div className="h-3" />
 
           <div className="fixed bottom-16 left-3 z-40 flex items-center rounded-full bg-[#75b5ff] p-1 shadow-xl">
             <button onClick={() => setFontScale((value) => Math.max(.8, Math.round((value - .1) * 10) / 10))} className="flex h-8 w-8 items-center justify-center rounded-full text-black"><Minus size={14} /></button>
@@ -735,12 +723,6 @@ export const HadithView: React.FC<HadithViewProps> = ({
             <button onClick={() => setFontScale((value) => Math.min(1.6, Math.round((value + .1) * 10) / 10))} className="flex h-8 w-8 items-center justify-center rounded-full text-black"><Plus size={14} /></button>
           </div>
 
-          <div className="mb-3 flex items-center gap-2 rounded-xl border border-black/10 bg-white p-2">
-            <Search size={16} className="ml-1 text-slate-400" />
-            <input value={search} onChange={(event) => { setSearch(event.target.value); setSearchMessage(''); }} onKeyDown={(event) => { if (event.key === 'Enter') runSearch(); }} type="text" inputMode="search" placeholder="Hadith number or word..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
-            {!!search && <button onClick={() => { setSearch(''); setSearchMessage(''); setSearchJump(null); }} aria-label="Clear search" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={14} /></button>}
-            <button onClick={runSearch} className="rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black">Search</button>
-          </div>
           {searchMessage && (
             <div className={`mb-3 rounded-lg px-3 py-2 text-center text-xs ${searchError ? 'bg-blue-100 text-black' : 'bg-[#75b5ff] text-black'}`}>
               {searchMessage}
