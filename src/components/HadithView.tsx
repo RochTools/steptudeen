@@ -164,6 +164,37 @@ function gradeInfo(grades: Array<{ grade?: string }>) {
   return { className: 'bg-[#75b5ff] text-slate-600', label: original };
 }
 
+function normalizeText(value: string) {
+  return (value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640\u200C\u200D]/g, '')
+    .replace(/[ٱ]/g, 'ا')
+    .replace(/[ىیې]/g, 'ي')
+    .replace(/ک/g, 'ك')
+    .replace(/[ةۃھہ]/g, 'ه')
+    .replace(/ؤ/g, 'و')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const isDigits = (value: string) => /^\d+$/.test(value.trim());
+
+function chaptersFromSections(sections: Record<string, any>): Chapter[] {
+  return Object.keys(sections).map((key, index) => {
+    const section = sections[key];
+    const name = typeof section === 'string' && section
+      ? section
+      : section?.english || section?.arabic || section?.urdu || `Chapter ${index + 1}`;
+    return {
+      key,
+      name,
+      from: Number(section?.hadithnumber_first || section?.hadith_number_first || 0),
+      to: Number(section?.hadithnumber_last || section?.hadith_number_last || 0),
+    };
+  });
+}
+
 const BrandLoader = () => (
   <div className="flex flex-col items-center justify-center gap-3 py-14">
     <div className="hadith-brand flex font-serif text-2xl font-bold tracking-wider" dir="ltr">
@@ -194,6 +225,8 @@ export const HadithView: React.FC<HadithViewProps> = ({
   const [search, setSearch] = useState('');
   const [searchMessage, setSearchMessage] = useState('');
   const [searchError, setSearchError] = useState(false);
+  const [searchJump, setSearchJump] = useState<{ chapter: Chapter; num: number } | null>(null);
+  const [chapterSearch, setChapterSearch] = useState('');
   const [fontScale, setFontScale] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
@@ -260,11 +293,31 @@ export const HadithView: React.FC<HadithViewProps> = ({
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const currentLanguage = languageByCode(language);
-  const totalPages = Math.max(1, Math.ceil(hadiths.length / PER_PAGE));
-  const visibleHadiths = useMemo(
-    () => hadiths.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [hadiths, page]
+  const textQuery = isDigits(search) ? '' : normalizeText(search);
+  const filteredHadiths = useMemo(
+    () => textQuery
+      ? hadiths.filter((h) => normalizeText(h.arabic).includes(textQuery) || normalizeText(h.translation).includes(textQuery))
+      : hadiths,
+    [hadiths, textQuery]
   );
+  useEffect(() => { setPage(1); }, [textQuery]);
+  const totalPages = Math.max(1, Math.ceil(filteredHadiths.length / PER_PAGE));
+  const visibleHadiths = useMemo(
+    () => filteredHadiths.slice((page - 1) * PER_PAGE, page * PER_PAGE),
+    [filteredHadiths, page]
+  );
+
+  const chapterQuery = chapterSearch.trim();
+  const visibleChapters = useMemo(() => {
+    const all = chapters.map((chapter, index) => ({ chapter, index }));
+    if (!chapterQuery) return all;
+    if (isDigits(chapterQuery)) {
+      const n = Number(chapterQuery);
+      return all.filter(({ chapter }) => chapter.from > 0 && n >= chapter.from && n <= chapter.to);
+    }
+    const q = normalizeText(chapterQuery);
+    return all.filter(({ chapter }) => normalizeText(chapter.name).includes(q));
+  }, [chapters, chapterQuery]);
 
   const chooseSupportedLanguage = (book: Book, requested: string) => {
     if (isLanguageAvailable(book.key, requested)) return requested;
@@ -284,6 +337,8 @@ export const HadithView: React.FC<HadithViewProps> = ({
     setPage(1);
     setSearch('');
     setSearchMessage('');
+    setSearchJump(null);
+    setChapterSearch('');
     setError('');
     setScreen('chapters');
   };
@@ -465,12 +520,14 @@ export const HadithView: React.FC<HadithViewProps> = ({
     return () => document.removeEventListener('mousedown', close);
   }, []);
 
-  const openChapter = (chapter: Chapter) => {
+  const openChapter = (chapter: Chapter, hadithNum: number | null = null) => {
+    pendingScrollRef.current = hadithNum;
     setSelectedChapter(chapter);
     setHadiths([]);
     setPage(1);
     setSearch('');
     setSearchMessage('');
+    setSearchJump(null);
     setError('');
     setScreen('reader');
   };
@@ -486,16 +543,31 @@ export const HadithView: React.FC<HadithViewProps> = ({
   };
 
   const runSearch = () => {
-    const number = Number(search);
-    if (!Number.isInteger(number) || number <= 0) {
+    const query = search.trim();
+    setSearchJump(null);
+    if (!query) {
       setSearchError(true);
-      setSearchMessage('Please enter a valid Hadith number.');
+      setSearchMessage('Type a Hadith number or a word to search.');
       return;
     }
+    // Words are filtered live in this chapter; nothing else to do on Enter.
+    if (!isDigits(query)) {
+      setSearchMessage('');
+      return;
+    }
+    const number = Number(query);
     const index = hadiths.findIndex((hadith) => Number(hadith.num) === number);
     if (index < 0) {
+      // Look for the chapter of this book that holds the number.
+      const sections = selectedBook ? chapterCache.get(selectedBook.key) : null;
+      const owner = sections ? chaptersFromSections(sections).find((c) => c.from > 0 && number >= c.from && number <= c.to) : null;
       setSearchError(true);
-      setSearchMessage('This Hadith number was not found in this chapter.');
+      if (owner && owner.key !== selectedChapter?.key) {
+        setSearchJump({ chapter: owner, num: number });
+        setSearchMessage(`Hadith ${number} is in another chapter of this book.`);
+      } else {
+        setSearchMessage(`Hadith ${number} was not found in ${selectedBook?.name || 'this book'}.`);
+      }
       return;
     }
     setSearchError(false);
@@ -511,6 +583,7 @@ export const HadithView: React.FC<HadithViewProps> = ({
 
   const goToBooks = () => {
     setScreen('books');
+    setChapterSearch('');
     setSelectedBook(null);
     setSelectedChapter(null);
     setChapters([]);
@@ -599,9 +672,23 @@ export const HadithView: React.FC<HadithViewProps> = ({
           )}
 
           {!loading && !error && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-black/10 bg-white p-2">
+              <Search size={16} className="ml-1 text-slate-400" />
+              <input value={chapterSearch} onChange={(event) => setChapterSearch(event.target.value)} type="text" inputMode="search" placeholder="Chapter name or Hadith number..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
+              {!!chapterSearch && <button onClick={() => setChapterSearch('')} aria-label="Clear search" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={14} /></button>}
+            </div>
+          )}
+
+          {!loading && !error && !!chapterQuery && (
+            <div className="mb-3 text-center text-[11px] text-slate-500">
+              {visibleChapters.length ? `${visibleChapters.length} chapter${visibleChapters.length > 1 ? 's' : ''} found` : 'No chapter matched your search.'}
+            </div>
+          )}
+
+          {!loading && !error && (
             <div className="space-y-2">
-              {chapters.map((chapter, index) => (
-                <button key={chapter.key} onClick={() => openChapter(chapter)} className="flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,.08)]">
+              {visibleChapters.map(({ chapter, index }) => (
+                <button key={chapter.key} onClick={() => openChapter(chapter, isDigits(chapterQuery) ? Number(chapterQuery) : null)} className="flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,.08)]">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-[10px] font-bold text-black">{index + 1}</span>
                   <span className="min-w-0 flex-1"><strong className="block truncate text-[13px]">{chapter.name}</strong>{chapter.from > 0 && chapter.to > 0 && <small className="mt-1 block text-[10px] text-slate-500">Hadith {chapter.from}–{chapter.to}</small>}</span>
                   <ChevronRight size={15} className="text-slate-400" />
@@ -638,10 +725,23 @@ export const HadithView: React.FC<HadithViewProps> = ({
 
           <div className="mb-3 flex items-center gap-2 rounded-xl border border-black/10 bg-white p-2">
             <Search size={16} className="ml-1 text-slate-400" />
-            <input value={search} onChange={(event) => { setSearch(event.target.value); setSearchMessage(''); }} onKeyDown={(event) => { if (event.key === 'Enter') runSearch(); }} type="number" placeholder="Enter Hadith number..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
+            <input value={search} onChange={(event) => { setSearch(event.target.value); setSearchMessage(''); }} onKeyDown={(event) => { if (event.key === 'Enter') runSearch(); }} type="text" inputMode="search" placeholder="Hadith number or word..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
+            {!!search && <button onClick={() => { setSearch(''); setSearchMessage(''); setSearchJump(null); }} aria-label="Clear search" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={14} /></button>}
             <button onClick={runSearch} className="rounded-full bg-[#75b5ff] px-4 py-2 text-xs font-bold text-black">Search</button>
           </div>
-          {searchMessage && <div className={`mb-3 rounded-lg px-3 py-2 text-center text-xs ${searchError ? 'bg-blue-100 text-black' : 'bg-[#75b5ff] text-black'}`}>{searchMessage}</div>}
+          {searchMessage && (
+            <div className={`mb-3 rounded-lg px-3 py-2 text-center text-xs ${searchError ? 'bg-blue-100 text-black' : 'bg-[#75b5ff] text-black'}`}>
+              {searchMessage}
+              {searchJump && (
+                <button onClick={() => openChapter(searchJump.chapter, searchJump.num)} className="mt-2 block w-full truncate rounded-full bg-[#75b5ff] px-3 py-2 font-bold text-black">Go to: {searchJump.chapter.name}</button>
+              )}
+            </div>
+          )}
+          {!loading && !error && !!textQuery && (
+            <div className="mb-3 text-center text-[11px] text-slate-500">
+              {filteredHadiths.length ? `${filteredHadiths.length} Hadith found in this chapter` : 'No Hadith in this chapter contains this word.'}
+            </div>
+          )}
 
           {loading && <BrandLoader />}
           {error && (
