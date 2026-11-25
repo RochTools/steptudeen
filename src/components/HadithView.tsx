@@ -563,8 +563,9 @@ export const HadithView: React.FC<HadithViewProps> = ({
       const owner = sections ? chaptersFromSections(sections).find((c) => c.from > 0 && number >= c.from && number <= c.to) : null;
       setSearchError(true);
       if (owner && owner.key !== selectedChapter?.key) {
-        setSearchJump({ chapter: owner, num: number });
-        setSearchMessage(`Hadith ${number} is in another chapter of this book.`);
+        openChapter(owner, number);
+        setSearchError(false);
+        setSearchMessage(`Hadith ${number} opened from: ${owner.name}`);
       } else {
         setSearchMessage(`Hadith ${number} was not found in ${selectedBook?.name || 'this book'}.`);
       }
@@ -674,14 +675,16 @@ export const HadithView: React.FC<HadithViewProps> = ({
           {!loading && !error && (
             <div className="mb-3 flex items-center gap-2 rounded-xl border border-black/10 bg-white p-2">
               <Search size={16} className="ml-1 text-slate-400" />
-              <input value={chapterSearch} onChange={(event) => setChapterSearch(event.target.value)} type="text" inputMode="search" placeholder="Chapter name or Hadith number..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
+              <input value={chapterSearch} onChange={(event) => setChapterSearch(event.target.value)} type="text" inputMode="search" placeholder="Hadith number or chapter name..." className="min-w-0 flex-1 bg-transparent px-1 py-1.5 text-sm outline-none" />
               {!!chapterSearch && <button onClick={() => setChapterSearch('')} aria-label="Clear search" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={14} /></button>}
             </div>
           )}
 
           {!loading && !error && !!chapterQuery && (
             <div className="mb-3 text-center text-[11px] text-slate-500">
-              {visibleChapters.length ? `${visibleChapters.length} chapter${visibleChapters.length > 1 ? 's' : ''} found` : 'No chapter matched your search.'}
+              {isDigits(chapterQuery)
+                ? (visibleChapters.length ? `Hadith ${chapterQuery} is here. Tap to open it:` : `Hadith ${chapterQuery} was not found in ${selectedBook.name}.`)
+                : (visibleChapters.length ? `${visibleChapters.length} chapter${visibleChapters.length > 1 ? 's' : ''} found` : 'No chapter matched your search.')}
             </div>
           )}
 
@@ -690,7 +693,9 @@ export const HadithView: React.FC<HadithViewProps> = ({
               {visibleChapters.map(({ chapter, index }) => (
                 <button key={chapter.key} onClick={() => openChapter(chapter, isDigits(chapterQuery) ? Number(chapterQuery) : null)} className="flex w-full items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,.08)]">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-[10px] font-bold text-black">{index + 1}</span>
-                  <span className="min-w-0 flex-1"><strong className="block truncate text-[13px]">{chapter.name}</strong>{chapter.from > 0 && chapter.to > 0 && <small className="mt-1 block text-[10px] text-slate-500">Hadith {chapter.from}–{chapter.to}</small>}</span>
+                  <span className="min-w-0 flex-1"><strong className="block truncate text-[13px]">{chapter.name}</strong>{isDigits(chapterQuery)
+                    ? <small className="mt-1 block text-[11px] font-bold text-blue-700">Open Hadith #{chapterQuery} →</small>
+                    : chapter.from > 0 && chapter.to > 0 && <small className="mt-1 block text-[10px] text-slate-500">Hadith {chapter.from}–{chapter.to}</small>}</span>
                   <ChevronRight size={15} className="text-slate-400" />
                 </button>
               ))}
