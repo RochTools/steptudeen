@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   BookOpen,
   Heart,
   Check,
@@ -669,7 +670,7 @@ export const HadithView: React.FC<HadithViewProps> = ({
             <input value={chapterSearch} onChange={(event) => setChapterSearch(event.target.value)} type="text" inputMode="search" placeholder={`Search in ${selectedBook.name} · ${currentLanguage.name}`} className="min-w-0 flex-1 truncate text-ellipsis bg-transparent px-1 py-1.5 text-[13px] outline-none" />
             {!!chapterSearch && <button onClick={() => setChapterSearch('')} aria-label="Clear search" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={15} /></button>}
             <button onClick={() => setLanguagePickerOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black" aria-label="Select language"><Languages size={15} /></button>
-            <button onClick={goToBooks} aria-label="Back to books" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><ArrowLeft size={16} /></button>
+            <button onClick={goToBooks} aria-label="Back to books" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><ArrowRight size={16} /></button>
           </HideOnScrollBar>
           <div className="h-3" />
 
@@ -713,7 +714,7 @@ export const HadithView: React.FC<HadithViewProps> = ({
             <input value={search} onChange={(event) => { setSearch(event.target.value); setSearchMessage(''); }} onKeyDown={(event) => { if (event.key === 'Enter') runSearch(); }} type="text" inputMode="search" enterKeyHint="search" placeholder={`Search in ${selectedBook.name} · ${currentLanguage.name}`} className="min-w-0 flex-1 truncate text-ellipsis bg-transparent px-1 py-1.5 text-[13px] outline-none" />
             {!!search && <button onClick={() => { setSearch(''); setSearchMessage(''); setSearchJump(null); }} aria-label="Clear search" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><X size={15} /></button>}
             <button onClick={() => setLanguagePickerOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black" aria-label="Select language"><Languages size={15} /></button>
-            <button onClick={goToChapters} aria-label="Back to chapters" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><ArrowLeft size={16} /></button>
+            <button onClick={goToChapters} aria-label="Back to chapters" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#75b5ff] text-black"><ArrowRight size={16} /></button>
           </HideOnScrollBar>
           <div className="h-3" />
 
